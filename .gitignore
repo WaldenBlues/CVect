@@ -1,0 +1,62 @@
+# =========================
+# CVect 项目 .gitignore（MVP 阶段推荐）
+# =========================
+
+# ---------- 通用 ----------
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+
+# ---------- Conda / Python ----------
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv
+venv/
+.envrc
+.ipynb_checkpoints/
+
+# Conda 本地环境（绝不提交）
+/miniconda3/
+/envs/
+
+# ---------- Python ML ----------
+ml/models/          # 本地下载的大模型
+ml/data/            # 本地数据 / 临时样本
+ml/output/          # embedding / cache / 推理结果
+
+# ---------- Java / Backend ----------
+backend/target/
+backend/build/
+*.class
+*.jar
+*.war
+
+# Maven / Gradle
+.mvn/wrapper/maven-wrapper.jar
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# ---------- Frontend ----------
+frontend/node_modules/
+frontend/dist/
+frontend/.next/
+frontend/.env
+
+# ---------- OS / WSL ----------
+*.bak
+*.orig
+
+# ---------- Scripts ----------
+scripts/*.local.sh
+
+# ---------- Docs ----------
+docs/_build/
