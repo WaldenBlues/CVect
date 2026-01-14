@@ -8,3 +8,4 @@ Vector-based CV + LLM project.
 - ml: model & inference
 - scripts: tooling
 - docs: design & notes
+- 
