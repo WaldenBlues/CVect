@@ -2,6 +2,8 @@ package com.walden.cvect.infra.parser;
 
 import java.io.InputStream;
 
+import com.walden.cvect.model.ParseResult;
+
 public interface ResumeParser {
 
     /**
@@ -11,5 +13,5 @@ public interface ResumeParser {
      * @param contentType MIME 类型（如 application/pdf）
      * @return 解析后的纯文本
      */
-    String parse(InputStream inputStream, String contentType);
+    ParseResult parse(InputStream inputStream, String contentType);
 }

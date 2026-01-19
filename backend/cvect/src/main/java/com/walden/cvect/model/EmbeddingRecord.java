@@ -1,3 +1,5 @@
-public class Embedding {
+package com.walden.cvect.model;
+
+public class EmbeddingRecord {
 
 }
