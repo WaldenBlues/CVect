@@ -18,7 +18,7 @@ class TikaResumeParserTest {
         void should_parse_pdf_resume_to_raw_text() throws Exception {
                 // given
                 InputStream is = getClass()
-                                .getResourceAsStream("/static/Resume.pdf");
+                                .getResourceAsStream("/static/My.pdf");
 
                 assertNotNull(is, "Resume.pdf 不存在，请检查 src/main/resources/static");
 

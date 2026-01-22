@@ -5,7 +5,7 @@ import com.walden.cvect.model.fact.ChunkFactContext;
 import com.walden.cvect.model.fact.ChunkFactRule;
 import com.walden.cvect.model.fact.FactDecision;
 
-public final class ExperienceWithTimeRule implements ChunkFactRule {
+public final class ExperienceRule implements ChunkFactRule {
 
     @Override
     public FactDecision apply(ChunkFactContext ctx) {

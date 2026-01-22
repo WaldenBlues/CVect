@@ -5,16 +5,19 @@ import com.walden.cvect.model.fact.ChunkFactContext;
 import com.walden.cvect.model.fact.ChunkFactRule;
 import com.walden.cvect.model.fact.FactDecision;
 
-public final class HonorWithDetailRule implements ChunkFactRule {
+public final class SkillRule implements ChunkFactRule {
 
     @Override
     public FactDecision apply(ChunkFactContext ctx) {
-        if (ctx.getType() != ChunkType.HONOR) {
+        if (ctx.getType() != ChunkType.SKILL) {
             return FactDecision.abstain();
         }
 
-        return ctx.getFeatures().hasDigit()
-                ? FactDecision.accept("honor with detail")
-                : FactDecision.reject("honor label only");
+        String text = ctx.getText();
+        if (text == null || text.isBlank()) {
+            return FactDecision.reject("empty skill block");
+        }
+
+        return FactDecision.accept("skill content");
     }
 }

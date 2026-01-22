@@ -2,22 +2,22 @@ package com.walden.cvect.model.fact;
 
 import java.util.List;
 
-import com.walden.cvect.model.fact.rules.ContactAlwaysFactRule;
-import com.walden.cvect.model.fact.rules.ExperienceWithTimeRule;
-import com.walden.cvect.model.fact.rules.HeaderNeverFactRule;
-import com.walden.cvect.model.fact.rules.HonorWithDetailRule;
-import com.walden.cvect.model.fact.rules.LinkAlwaysFactRule;
-import com.walden.cvect.model.fact.rules.SkillWithContentRule;
+import com.walden.cvect.model.fact.rules.ContactRule;
+import com.walden.cvect.model.fact.rules.ExperienceRule;
+import com.walden.cvect.model.fact.rules.HeaderRule;
+import com.walden.cvect.model.fact.rules.HonorRule;
+import com.walden.cvect.model.fact.rules.LinkRule;
+import com.walden.cvect.model.fact.rules.SkillRule;
 
 public final class DefaultFactRules {
 
     public static final List<ChunkFactRule> RULES = List.of(
-            new HeaderNeverFactRule(),
-            new ContactAlwaysFactRule(),
-            new LinkAlwaysFactRule(),
-            new ExperienceWithTimeRule(),
-            new SkillWithContentRule(),
-            new HonorWithDetailRule());
+            new HeaderRule(),
+            new ContactRule(),
+            new LinkRule(),
+            new ExperienceRule(),
+            new SkillRule(),
+            new HonorRule());
 
     private DefaultFactRules() {
     }

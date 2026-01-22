@@ -5,16 +5,13 @@ import com.walden.cvect.model.fact.ChunkFactContext;
 import com.walden.cvect.model.fact.ChunkFactRule;
 import com.walden.cvect.model.fact.FactDecision;
 
-public final class LinkAlwaysFactRule implements ChunkFactRule {
+public final class HeaderRule implements ChunkFactRule {
 
     @Override
     public FactDecision apply(ChunkFactContext ctx) {
-        if (ctx.getType() != ChunkType.LINK) {
-            return FactDecision.abstain();
+        if (ctx.getType() == ChunkType.HEADER) {
+            return FactDecision.reject("header is not a fact");
         }
-
-        return ctx.getFeatures().hasUrl()
-                ? FactDecision.accept("has url")
-                : FactDecision.reject("no valid url");
+        return FactDecision.abstain();
     }
 }

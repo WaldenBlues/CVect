@@ -5,19 +5,16 @@ import com.walden.cvect.model.fact.ChunkFactContext;
 import com.walden.cvect.model.fact.ChunkFactRule;
 import com.walden.cvect.model.fact.FactDecision;
 
-public final class SkillWithContentRule implements ChunkFactRule {
+public final class LinkRule implements ChunkFactRule {
 
     @Override
     public FactDecision apply(ChunkFactContext ctx) {
-        if (ctx.getType() != ChunkType.SKILL) {
+        if (ctx.getType() != ChunkType.LINK) {
             return FactDecision.abstain();
         }
 
-        String text = ctx.getText();
-        if (text == null || text.isBlank()) {
-            return FactDecision.reject("empty skill block");
-        }
-
-        return FactDecision.accept("skill content");
+        return ctx.getFeatures().hasUrl()
+                ? FactDecision.accept("has url")
+                : FactDecision.reject("no valid url");
     }
 }

@@ -36,7 +36,7 @@ class FactExtractionIntegrationTest {
         @DisplayName("全链路测试：从 PDF 到事实层提取")
         void should_extract_facts_from_real_pdf_resume() throws Exception {
                 // 1. Given: 加载真实文件并初始化选择器
-                InputStream is = getClass().getResourceAsStream("/static/Resume.pdf");
+                InputStream is = getClass().getResourceAsStream("/static/My.pdf");
                 assertNotNull(is, "Resume.pdf 不存在，请检查 src/main/resources/static");
 
                 // 使用你提供的 RuleBasedFactChunkSelector 和默认规则集
