@@ -7,6 +7,9 @@ import com.walden.cvect.repository.FactRepository;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.stereotype.Service;
+
+@Service
 public class ResumeFactService {
 
     private final FactExtractorDispatcher dispatcher;
@@ -18,33 +21,47 @@ public class ResumeFactService {
     }
 
     public void processAndSave(UUID candidateId, ResumeChunk chunk) {
-        // 1. 获取所有提取到的结果（可能是一个 Chunk 提取出多个 Fact）
-        List<String> extractedResults = dispatcher.extractAll(chunk);
 
+        List<String> extractedResults = dispatcher.extractAll(chunk);
         if (extractedResults.isEmpty()) {
             return;
         }
 
-        // 2. 遍历结果进行入库
         for (String data : extractedResults) {
+            if (data == null || data.isBlank()) {
+                continue;
+            }
+
             switch (chunk.getType()) {
-                case CONTACT -> handleContactSave(candidateId, data);
+                case CONTACT -> handleContact(candidateId, data);
                 case LINK -> repository.saveLink(candidateId, data);
                 case HONOR -> repository.saveHonor(candidateId, data);
-                // 建议增加：EDUCATION, EXPERIENCE 等
+                case EDUCATION -> handleEducation(candidateId, data);
+                // EXPERIENCE 和 SKILL 暂不入库，后续用于 Embedding + 向量化
+                case EXPERIENCE -> {
+                    /* skip */ }
+                case SKILL -> {
+                    /* skip */ }
                 default -> {
                 }
             }
         }
     }
 
-    private void handleContactSave(UUID candidateId, String data) {
-        // ContactExtractor 返回的是用 \n 分隔的多个结果
-        String[] lines = data.split("\n");
-        for (String line : lines) {
-            // 简单的逻辑判断：包含 @ 为邮箱，否则视为电话
-            String type = line.contains("@") ? "EMAIL" : "PHONE";
-            repository.saveContact(candidateId, type, line);
+    private void handleContact(UUID candidateId, String data) {
+        if (data.contains("@")) {
+            repository.saveContact(candidateId, "EMAIL", data);
+        } else {
+            repository.saveContact(candidateId, "PHONE", data);
         }
     }
+
+    private void handleEducation(UUID candidateId, String data) {
+        String[] parts = data.split("\\|");
+        String school = parts[0].trim();
+        String major = parts.length > 1 ? parts[1].trim() : "";
+        String degree = parts.length > 2 ? parts[2].trim() : "";
+        repository.saveEducation(candidateId, school, major, degree);
+    }
+
 }
