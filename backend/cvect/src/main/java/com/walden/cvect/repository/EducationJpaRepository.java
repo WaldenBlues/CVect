@@ -7,6 +7,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * 教育数据访问
+ */
 @Repository
 public interface EducationJpaRepository extends JpaRepository<Education, UUID> {
 

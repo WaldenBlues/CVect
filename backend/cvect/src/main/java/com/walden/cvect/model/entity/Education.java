@@ -2,11 +2,9 @@ package com.walden.cvect.model.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
-/**
- * 教育背景实体
- */
 @Entity
 @Table(name = "educations")
 public class Education {
@@ -46,5 +44,30 @@ public class Education {
     @PrePersist
     void onCreate() {
         createdAt = LocalDateTime.now();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Education education = (Education) o;
+        return Objects.equals(id, education.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
+    @Override
+    public String toString() {
+        return "Education{" +
+                "id=" + id +
+                ", candidateId=" + candidateId +
+                ", school='" + school + '\'' +
+                ", major='" + major + '\'' +
+                ", degree='" + degree + '\'' +
+                ", graduationYear='" + graduationYear + '\'' +
+                '}';
     }
 }

@@ -7,6 +7,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * 经历数据访问
+ */
 @Repository
 public interface ExperienceJpaRepository extends JpaRepository<Experience, UUID> {
 

@@ -30,7 +30,7 @@ public class DefaultChunkerService implements ChunkerService {
                 continue;
             }
 
-            // 1️⃣ 章节标题：只切状态，不输出内容（不使用 inferType）
+            // 章节标题触发状态切换
             if (isSectionTitle(content)) {
                 ChunkType titleType = mapSectionTitle(content);
                 if (titleType != ChunkType.OTHER) {
@@ -41,7 +41,6 @@ public class DefaultChunkerService implements ChunkerService {
                 continue;
             }
 
-            // 2️⃣ 段首语义信号
             ChunkType inferredType = inferType(content);
 
             if (shouldStartNewChunk(inferredType, currentType)) {
@@ -58,7 +57,7 @@ public class DefaultChunkerService implements ChunkerService {
     }
 
     /**
-     * Chunk 状态切换规则（显式状态机）
+     * 状态机切换规则
      */
     private boolean shouldStartNewChunk(ChunkType inferred, ChunkType current) {
         if (inferred == ChunkType.OTHER) {
@@ -90,7 +89,7 @@ public class DefaultChunkerService implements ChunkerService {
     }
 
     /**
-     * 输出 chunk（明确规则：过短直接丢弃）
+     * 输出 chunk，过滤过短内容
      */
     private void flushChunk(List<ResumeChunk> result,
             StringBuilder buffer,
@@ -115,7 +114,7 @@ public class DefaultChunkerService implements ChunkerService {
     }
 
     /**
-     * 段首语义推断（只做“信号判断”）
+     * 段首语义信号推断
      */
     private ChunkType inferType(String text) {
         String lower = text.toLowerCase();
@@ -155,8 +154,6 @@ public class DefaultChunkerService implements ChunkerService {
         return ChunkType.OTHER;
     }
 
-    /* ================== Section 映射 ================== */
-
     private ChunkType mapSectionTitle(String text) {
         if (text.endsWith("教育"))
             return ChunkType.EDUCATION;
@@ -168,8 +165,6 @@ public class DefaultChunkerService implements ChunkerService {
             return ChunkType.HONOR;
         return ChunkType.OTHER;
     }
-
-    /* ================== 信号判断 ================== */
 
     private boolean containsColon(String text) {
         return text.contains("：") || text.contains(":");

@@ -17,13 +17,13 @@ public class HonorExtractor implements FactExtractor {
             return "";
         }
 
-        // 去掉常见 section 前缀（非常克制）
+        // 去除常见 section 前缀
         text = text.replaceAll("(?i)^(荣誉奖励|获奖情况|个人荣誉)[:：]?", "");
 
         // 压缩空白
         text = text.replaceAll("\\s+", " ").trim();
 
-        // 过短直接丢弃（防御性）
+        // 过短则丢弃
         if (text.length() < 4) {
             return "";
         }

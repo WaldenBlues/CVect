@@ -1,7 +1,6 @@
 package com.walden.cvect.service;
 
 import com.walden.cvect.model.ChunkType;
-import com.walden.cvect.model.ParseResult;
 import com.walden.cvect.model.ResumeChunk;
 import com.walden.cvect.infra.parser.ResumeParser;
 import com.walden.cvect.infra.process.ResumeTextNormalizer;
@@ -13,8 +12,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import java.io.InputStream;
 import java.util.List;
-import java.util.UUID;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest

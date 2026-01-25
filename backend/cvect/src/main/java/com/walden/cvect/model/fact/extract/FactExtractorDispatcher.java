@@ -16,10 +16,12 @@ public class FactExtractorDispatcher {
         this.extractors = extractors;
     }
 
+    /**
+     * 两阶段提取：先处理所有 ADDITIVE，再处理一个 EXCLUSIVE
+     */
     public List<String> extractAll(ResumeChunk chunk) {
         List<String> results = new ArrayList<>();
 
-        // 1️⃣ 先跑所有 ADDITIVE Extractor
         extractors.stream()
                 .filter(e -> e.mode() == ExtractorMode.ADDITIVE)
                 .filter(e -> e.supports(chunk))
@@ -27,7 +29,6 @@ public class FactExtractorDispatcher {
                 .filter(s -> !s.isBlank())
                 .forEach(results::add);
 
-        // 2️⃣ 再跑一个 EXCLUSIVE Extractor（最多一个）
         extractors.stream()
                 .filter(e -> e.mode() == ExtractorMode.EXCLUSIVE)
                 .filter(e -> e.supports(chunk))

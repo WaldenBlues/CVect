@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: cvect
+
+  # PostgreSQL 配置 (Docker Compose)
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cvect
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    open-in-view: false
+
+# 服务器配置
+server:
+  port: 8080
+
+# 应用自定义配置
+app:
+  # Qwen Embedding 配置
+  embedding:
+    model-name: Qwen/Qwen2.5-Embedding-0.6B-Instruct
+    device: cpu
+    batch-size: 32
+    dimension: 768
+    max-input-length: 8192
+
+  # pgvector 配置
+  vector:
+    table-name: resume_chunks
+    index-type: hnsw
+    metric: cosine
+    ef-construction: 64
+    m: 16

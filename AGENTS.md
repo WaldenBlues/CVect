@@ -1,143 +1,106 @@
 # CVect - Agent Guidelines
 
-## Project Overview
-Vector-based CV + LLM project for resume parsing and fact extraction.
-- **Backend**: Java 17 + Spring Boot 3.5.9 (Maven)
-- **Location**: `backend/cvect/`
+**Generated:** 2026-01-25
+**Commit:** 69da5d4
+**Branch:** main
 
----
+## OVERVIEW
+Vector-based CV + LLM project for resume parsing and fact extraction using Java 17 + Spring Boot.
 
-## Build, Test, and Lint Commands
+## STRUCTURE
+```
+CVect/
+├── backend/cvect/           # Java Spring Boot application
+│   ├── src/main/java/       # Source code
+│   ├── src/test/java/       # Tests (65 @Test methods)
+│   └── src/main/resources/  # Configuration + test PDFs
+├── ml/                      # Machine learning components
+├── docs/                    # Design documentation
+└── scripts/                 # Tooling scripts
+```
 
-### Build
+## WHERE TO LOOK
+| Task | Location | Notes |
+|------|----------|-------|
+| Main application | `backend/cvect/src/main/java/com/walden/cvect/CvectApplication.java` | Spring Boot entry point |
+| REST endpoints | `backend/cvect/src/main/java/com/walden/cvect/web/controller/` | Resume parsing API |
+| Business logic | `backend/cvect/src/main/java/com/walden/cvect/service/` | Service layer with interfaces |
+| Data models | `backend/cvect/src/main/java/com/walden/cvect/model/` | Entities + fact extraction |
+| PDF parsing | `backend/cvect/src/main/java/com/walden/cvect/infra/parser/` | Apache Tika integration |
+| Vector storage | `backend/cvect/src/main/java/com/walden/cvect/infra/vector/` | Embedding + similarity search |
+| Test files | `backend/cvect/src/main/resources/static/` | My.pdf (450KB), Resume.pdf (551KB) |
+
+## CONVENTIONS
+### Java Spring Boot Specific
+- **Package structure**: `com.walden.cvect.{layer}.{domain}`
+- **Entity annotation**: `@Entity` with `@Table` naming
+- **Dependency injection**: Constructor injection preferred
+- **Configuration**: H2 in-memory for dev, PostgreSQL for prod
+- **Immutability**: Value objects use `final` fields, factory methods
+- **Chinese comments**: Business logic explanations in Chinese
+
+### Maven Dependencies
+- Spring Boot 3.5.9 with Java 17
+- Apache Tika 3.2.3 for PDF parsing
+- Lombok for boilerplate reduction
+- H2 + PostgreSQL for database
+- WebFlux for HTTP client to embedding service
+
+### Testing
+- JUnit 5 with `@SpringBootTest` for integration tests
+- Test tags: `@Tag("integration")`, `@Tag("pipeline")`, `@Tag("api")`
+- Real PDF files (no mocking) for integration tests
+- 65 test methods across multiple test classes
+
+## ANTI-PATTERNS (THIS PROJECT)
+- **NEVER** persist EXPERIENCE and SKILL chunks to database (vector-only)
+- **NEVER** use mocking for PDF parsing integration tests
+- **ALWAYS** use guard clauses for null safety
+- **ALWAYS** provide Chinese comments for business logic
+
+## UNIQUE STYLES
+### Fact Extraction Architecture
+```java
+// Rule-based fact extraction with functional interfaces
+ChunkFactRule rule = ctx -> FactDecision.accept("reason");
+switch (chunk.getType()) {
+    case CONTACT -> handleContact(candidateId, data);
+    case EXPERIENCE -> { /* skip - vector only */ }
+    // ...
+}
+```
+
+### Value Object Pattern
+```java
+// Factory methods over constructors
+FactDecision.accept(reason)  // not new FactDecision(...)
+```
+
+## COMMANDS
 ```bash
 cd backend/cvect
-./mvnw compile          # Compile source code
-./mvnw clean compile    # Clean and compile
-./mvnw package          # Build JAR
+./mvnw compile              # Compile source code
+./mvnw test                 # Run all tests (65 methods)
+./mvnw test -Dtest=ClassName # Single test class
+./mvnw spring-boot:run       # Start application
 ```
 
-### Test
+## DOCKER COMPOSE
 ```bash
-cd backend/cvect
-./mvnw test            # Run all tests
-./mvnw test -Dtest=ClassName                # Single test class
-./mvnw test -Dtest=ClassName#methodName     # Single test method
-./mvnw test -Dtest=*IntegrationTest         # Pattern matching
+# Start PostgreSQL with pgvector
+docker compose up -d postgres
+
+# Build and run ML embedding service
+docker build -t qwen-embedding:0.6b ./ml
+docker run -p 8001:8001 qwen-embedding:0.6b
+
+# Full stack (PostgreSQL + Backend + ML)
+docker compose up -d  # When services are added to compose
 ```
 
-### Run Application
-```bash
-cd backend/cvect
-./mvnw spring-boot:run
-```
-
----
-
-## Code Style Guidelines
-
-### Package Structure
-```
-com.walden.cvect
-├── CvectApplication          # Main entry point
-├── exception                 # Custom exceptions
-├── infra                     # Infrastructure layer (parsers, processors)
-│   ├── parser/
-│   └── process/
-├── model                     # Domain models
-│   ├── fact/
-│   │   ├── extract/          # Fact extractors
-│   │   └── rules/            # Business rules
-│   └── [other models]
-├── repository                # Data access
-└── service                   # Business logic
-```
-
-### Naming Conventions
-- **Classes**: PascalCase (`ResumeChunk`, `FactDecision`)
-- **Interfaces**: PascalCase, describe capability (`ChunkerService`, `FactChunkSelector`)
-- **Methods**: camelCase (`getContent()`, `apply(ChunkFactContext ctx)`)
-- **Constants**: UPPER_SNAKE_CASE (`MAX_CHARS`, `MIN_CHUNK_LENGTH`)
-- **Variables**: camelCase (`buffer`, `currentType`)
-- **Private fields**: camelCase, final where immutable (`content`, `type`)
-
-### Types and Immutability
-- **Prefer immutable value objects**: Use `final` fields, no setters
-- **Factory methods over constructors**: `FactDecision.accept(reason)` vs `new FactDecision(...)`
-- **Final classes**: Mark classes as `final` when not designed for extension
-- **Enumerations**: Use `enum` for fixed sets (`ChunkType`, `FactDecision.Type`)
-
-### Annotations
-- `@Component` / `@Service` / `@Repository` for Spring beans
-- `@FunctionalInterface` for single-method interfaces
-- `@Override` on overridden methods
-- `@Autowired` for dependency injection (constructor injection preferred)
-
-### Import Organization
-1. `java.*` imports
-2. `javax.*` / `jakarta.*` imports
-3. Third-party libraries (`org.springframework.*`, `org.apache.tika.*`)
-4. `com.walden.cvect.*` (internal)
-
-### Exception Handling
-- Custom exceptions extend `RuntimeException`
-- Always provide `message` and optional `cause` constructor
-- Use descriptive error messages with context
-- Preserve original exceptions: `throw new ResumeParseException("Failed to parse", cause)`
-- Catch specific exceptions, translate to domain exceptions
-
-### Comments
-- Use Chinese comments for business logic explanations
-- Javadoc for public APIs
-- Inline comments for "why", not "what"
-- Example: `// Header 永远不吞非 HEADER` (explain intent)
-
-### Testing Guidelines
-- Use JUnit 5 (`@Test`, `@BeforeEach`, etc.)
-- `@SpringBootTest` for integration tests
-- `@Tag("integration")`, `@Tag("pipeline")` for test categorization
-- `@DisplayName("描述性测试名称")` for test documentation
-- Static import assertions: `import static org.junit.jupiter.api.Assertions.*`
-- Structure: `// Given: setup`, `// When: action`, `// Then: verify`
-
-### Code Patterns
-- **Strategy pattern**: Interfaces with multiple implementations (`ChunkerService` → `DefaultChunkerService`)
-- **Rule engine**: `ChunkFactRule` functional interface with `RuleBasedFactChunkSelector`
-- **Factory pattern**: Static factory methods for complex object creation
-- **Null safety**: Guard clauses (`if (input == null || input.isBlank()) return`)
-- **Early returns**: Reduce nesting with early guard clauses
-
-### Service Layer
-- Define interfaces for services (`ChunkerService`, `ResumeParser`)
-- Implementations annotated with `@Service` or `@Component`
-- Business logic in service layer, infrastructure in `infra` package
-- Use `@Autowired` for constructor injection
-
-### Domain Models
-- Value objects: `final` fields, no mutable state
-- Getters only, no setters for immutable objects
-- `equals()` and `hashCode()` when objects are compared
-- `toString()` for debugging
-
-### Constants and Configuration
-- Define constants at class level, `private static final`
-- Use meaningful names: `MAX_CHARS` not `M`, `MIN_CHUNK_LENGTH` not `N`
-- Magic numbers should be named constants
-
-### Git Workflow Notes
-- Backend is the only active component (frontend/, ml/, scripts/ are empty placeholders)
-- Spring Boot configured with `DataSourceAutoConfiguration` excluded (database optional)
-- Use `./mvnw` wrapper for consistent Maven execution
-
----
-
-## Agent-Specific Notes
-
-When working in this codebase:
-1. **All Java work** is in `backend/cvect/src/main/java/`
-2. **Tests** are in `backend/cvect/src/test/java/`
-3. **Resources** in `backend/cvect/src/main/resources/`
-4. Follow existing patterns before introducing new ones
-5. Check for existing implementations in same package before adding new classes
-6. Run `./mvnw test` after changes to verify
-7. Run single test with `-Dtest=ClassName` during development
+## NOTES
+- **Key Decision**: EXPERIENCE/SKILL chunks are vector-only, not persisted
+- **Database**: H2 in-memory for development, PostgreSQL for production
+- **Vector Search**: pgvector integration planned for similarity search
+- **Test Files**: Use real PDFs from `static/` directory
+- **Entry Point**: `CvectApplication.main()` with `@EnableJpaRepositories`

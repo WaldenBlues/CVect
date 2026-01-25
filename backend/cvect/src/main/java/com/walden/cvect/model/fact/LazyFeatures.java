@@ -1,5 +1,8 @@
 package com.walden.cvect.model.fact;
 
+/**
+ * 文本特征懒加载（缓存计算结果）
+ */
 public final class LazyFeatures {
 
     private final String text;
@@ -69,7 +72,6 @@ public final class LazyFeatures {
 
     public boolean hasHonorCue() {
         if (hasHonorCue == null) {
-            // 感应：奖、赛、证书、名次、第一、称号、获...
             hasHonorCue = text.contains("奖")
                     || text.contains("赛")
                     || text.contains("名")

@@ -1,5 +1,8 @@
 package com.walden.cvect.model.fact;
 
+/**
+ * 事实验证决策结果
+ */
 public final class FactDecision {
 
     public enum Type {
@@ -16,8 +19,6 @@ public final class FactDecision {
         this.reason = reason;
     }
 
-    // ---------- factory methods ----------
-
     public static FactDecision accept(String reason) {
         return new FactDecision(Type.ACCEPT, reason);
     }
@@ -29,8 +30,6 @@ public final class FactDecision {
     public static FactDecision abstain() {
         return new FactDecision(Type.ABSTAIN, null);
     }
-
-    // ---------- helpers ----------
 
     public boolean isAccepted() {
         return type == Type.ACCEPT;

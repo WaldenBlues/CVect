@@ -4,6 +4,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
+/**
+ * CVect 应用入口
+ */
 @SpringBootApplication
 @EnableJpaRepositories(basePackages = "com.walden.cvect.repository")
 public class CvectApplication {

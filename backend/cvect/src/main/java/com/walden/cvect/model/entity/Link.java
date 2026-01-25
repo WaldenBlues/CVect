@@ -2,11 +2,9 @@ package com.walden.cvect.model.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
-/**
- * 个人链接实体（GitHub、博客等）
- */
 @Entity
 @Table(name = "links")
 public class Link {
@@ -38,6 +36,7 @@ public class Link {
     @PrePersist
     void onCreate() {
         createdAt = LocalDateTime.now();
+        // 根据URL自动识别平台
         if (platform == null || platform.isBlank()) {
             if (url.contains("github.com")) {
                 platform = "GITHUB";
@@ -49,5 +48,30 @@ public class Link {
                 platform = "OTHER";
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        Link link = (Link) o;
+        return Objects.equals(id, link.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
+    @Override
+    public String toString() {
+        return "Link{" +
+                "id=" + id +
+                ", candidateId=" + candidateId +
+                ", url='" + url + '\'' +
+                ", platform='" + platform + '\'' +
+                '}';
     }
 }

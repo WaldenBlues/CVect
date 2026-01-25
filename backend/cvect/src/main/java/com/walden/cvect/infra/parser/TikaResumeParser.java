@@ -45,7 +45,7 @@ public class TikaResumeParser implements ResumeParser {
             try {
                 parser.parse(tis, handler, metadata, context);
             } catch (SAXException e) {
-                // 如果是超过字数限制，标记为截断，不抛异常
+                // 超过限制时标记截断而非失败
                 if (WriteLimitReachedException.isWriteLimitReached(e)) {
                     truncated = true;
                 } else {
@@ -73,10 +73,10 @@ public class TikaResumeParser implements ResumeParser {
         ParseContext context = new ParseContext();
         context.set(Parser.class, parser);
 
-        // 策略 A: 禁用内嵌文档处理器
+        // 禁用内嵌文档
         context.set(EmbeddedDocumentExtractor.class, new NoOpEmbeddedDocumentExtractor());
 
-        // 策略 B: PDF 专用配置
+        // PDF 配置
         PDFParserConfig pdfConfig = new PDFParserConfig();
         pdfConfig.setExtractInlineImages(false);
         pdfConfig.setOcrStrategy(PDFParserConfig.OCR_STRATEGY.NO_OCR);
