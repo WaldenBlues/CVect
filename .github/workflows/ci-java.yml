@@ -1,0 +1,8 @@
+on:
+  pull_request:
+    paths:
+      - "backend-java/**"
+  push:
+    branches: [ main ]
+    paths:
+      - "backend-java/**"
