@@ -1,0 +1,8 @@
+on:
+  pull_request:
+    paths:
+      - "embedding-service/**"
+  push:
+    branches: [ main ]
+    paths:
+      - "embedding-service/**"
