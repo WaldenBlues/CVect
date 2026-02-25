@@ -37,44 +37,13 @@ public class SearchController {
         float[] queryEmbedding = embeddingService.embed(request.jobDescription());
 
         // 向量搜索
-        ChunkType[] types = request.filterByExperience() && request.filterBySkill()
-                ? new ChunkType[]{ChunkType.EXPERIENCE, ChunkType.SKILL}
-                : request.filterByExperience()
-                    ? new ChunkType[]{ChunkType.EXPERIENCE}
-                    : request.filterBySkill()
-                        ? new ChunkType[]{ChunkType.SKILL}
-                        : null;
+        ChunkType[] types = resolveChunkTypes(request);
 
         List<VectorStoreService.SearchResult> results =
                 vectorStore.search(queryEmbedding, request.topK(), types);
 
-        // 按候选人聚合结果
-        Map<UUID, CandidateMatch> candidateMatches = new LinkedHashMap<>();
-        for (VectorStoreService.SearchResult r : results) {
-            candidateMatches.computeIfAbsent(r.candidateId(), cid -> new CandidateMatch(
-                    cid,
-                    new ArrayList<>(),
-                    0.0f
-            )).matchedChunks().add(new MatchedChunk(
-                    r.chunkType().name(),
-                    r.content(),
-                    r.score()
-            ));
-        }
-
-        // 计算综合相似度 (取最高分)并排序
-        List<CandidateMatch> sortedCandidates = candidateMatches.entrySet().stream()
-                .map(entry -> {
-                    UUID candidateId = entry.getKey();
-                    CandidateMatch match = entry.getValue();
-                    float maxScore = match.matchedChunks().stream()
-                            .map(MatchedChunk::score)
-                            .max(Float::compareTo)
-                            .orElse(0.0f);
-                    return new CandidateMatch(candidateId, match.matchedChunks(), maxScore);
-                })
-                .sorted(Comparator.comparing(CandidateMatch::score).reversed())
-                .toList();
+        // 按候选人聚合并排序
+        List<CandidateMatch> sortedCandidates = aggregateAndSort(results);
 
         return ResponseEntity.ok(new SearchResponse(
                 sortedCandidates.size(),
@@ -100,8 +69,7 @@ public class SearchController {
             boolean filterBySkill
     ) {
         public SearchRequest {
-            if (topK <= 0) topK = 10;
-            if (topK > 100) topK = 100;
+            topK = clampTopK(topK);
         }
     }
 
@@ -122,4 +90,61 @@ public class SearchController {
             String content,
             float score
     ) {}
+
+    private static int clampTopK(int topK) {
+        if (topK <= 0) {
+            return 10;
+        }
+        return Math.min(topK, 100);
+    }
+
+    /**
+     * 根据筛选条件生成检索类型列表
+     */
+    private static ChunkType[] resolveChunkTypes(SearchRequest request) {
+        if (request.filterByExperience() && request.filterBySkill()) {
+            return new ChunkType[]{ChunkType.EXPERIENCE, ChunkType.SKILL};
+        }
+        if (request.filterByExperience()) {
+            return new ChunkType[]{ChunkType.EXPERIENCE};
+        }
+        if (request.filterBySkill()) {
+            return new ChunkType[]{ChunkType.SKILL};
+        }
+        return null;
+    }
+
+    /**
+     * 按候选人聚合分块并计算综合分数
+     */
+    private static List<CandidateMatch> aggregateAndSort(List<VectorStoreService.SearchResult> results) {
+        Map<UUID, CandidateMatch> candidateMatches = new LinkedHashMap<>();
+
+        for (VectorStoreService.SearchResult r : results) {
+            candidateMatches
+                    .computeIfAbsent(r.candidateId(), cid -> new CandidateMatch(
+                            cid,
+                            new ArrayList<>(),
+                            0.0f
+                    ))
+                    .matchedChunks()
+                    .add(new MatchedChunk(
+                            r.chunkType().name(),
+                            r.content(),
+                            r.score()
+                    ));
+        }
+
+        return candidateMatches.entrySet().stream()
+                .map(entry -> {
+                    CandidateMatch match = entry.getValue();
+                    float maxScore = match.matchedChunks().stream()
+                            .map(MatchedChunk::score)
+                            .max(Float::compareTo)
+                            .orElse(0.0f);
+                    return new CandidateMatch(entry.getKey(), match.matchedChunks(), maxScore);
+                })
+                .sorted(Comparator.comparing(CandidateMatch::score).reversed())
+                .toList();
+    }
 }

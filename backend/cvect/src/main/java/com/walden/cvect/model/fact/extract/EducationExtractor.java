@@ -2,7 +2,9 @@ package com.walden.cvect.model.fact.extract;
 
 import com.walden.cvect.model.ResumeChunk;
 import com.walden.cvect.model.ChunkType;
+import org.springframework.stereotype.Component;
 
+@Component
 public class EducationExtractor implements FactExtractor {
     @Override
     public boolean supports(ResumeChunk chunk) {

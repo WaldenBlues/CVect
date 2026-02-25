@@ -1,5 +1,7 @@
 package com.walden.cvect.web.controller;
 
+import com.walden.cvect.model.entity.JobDescription;
+import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import com.walden.cvect.service.ResumeProcessService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -30,7 +32,16 @@ class ResumeControllerIntegrationTest {
         @Autowired
         private ResumeProcessService processService;
 
+        @Autowired
+        private JobDescriptionJpaRepository jobDescriptionRepository;
+
         private MockMvc mockMvc;
+
+        private String createTestJdId() {
+                JobDescription saved = jobDescriptionRepository.save(
+                                new JobDescription("测试JD", "用于集成测试的JD内容"));
+                return saved.getId().toString();
+        }
 
         @Test
         @DisplayName("健康检查端点应返回 UP")
@@ -60,11 +71,13 @@ class ResumeControllerIntegrationTest {
                                 "My.pdf",
                                 "application/pdf",
                                 fileContent);
+                String jdId = createTestJdId();
 
                 // When: 上传文件到 API
                 mockMvc.perform(
                                 MockMvcRequestBuilders.multipart("/api/resumes/parse")
                                                 .file(file)
+                                                .param("jdId", jdId)
                                                 .accept(MediaType.APPLICATION_JSON))
                                 .andDo(print())
                                 .andExpect(MockMvcResultMatchers.status().isOk())
@@ -91,10 +104,12 @@ class ResumeControllerIntegrationTest {
                                 "Resume.pdf",
                                 "application/pdf",
                                 fileContent);
+                String jdId = createTestJdId();
 
                 mockMvc.perform(
                                 MockMvcRequestBuilders.multipart("/api/resumes/parse")
                                                 .file(file)
+                                                .param("jdId", jdId)
                                                 .accept(MediaType.APPLICATION_JSON))
                                 .andDo(print())
                                 .andExpect(MockMvcResultMatchers.status().isOk())
@@ -115,10 +130,12 @@ class ResumeControllerIntegrationTest {
                                 "My.pdf",
                                 "application/pdf",
                                 fileContent);
+                String jdId = createTestJdId();
 
                 mockMvc.perform(
                                 MockMvcRequestBuilders.multipart("/api/resumes/parse")
                                                 .file(file)
+                                                .param("jdId", jdId)
                                                 .param("contentType", "application/pdf")
                                                 .accept(MediaType.APPLICATION_JSON))
                                 .andDo(print())

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -22,19 +23,18 @@ public class EmbeddingService {
 
     private static final Logger log = LoggerFactory.getLogger(EmbeddingService.class);
 
-    // Python embedding service URL - 根据实际情况配置
-    private static final String EMBEDDING_SERVICE_URL = "http://localhost:8001/embed";
-
     private final WebClient webClient;
     private final EmbeddingConfig config;
+    private final Duration requestTimeout;
 
     public EmbeddingService(EmbeddingConfig config) {
         this.config = config;
         this.webClient = WebClient.builder()
-                .baseUrl(EMBEDDING_SERVICE_URL)
+                .baseUrl(config.getServiceUrl())
                 .build();
+        this.requestTimeout = Duration.ofSeconds(Math.max(1, config.getTimeoutSeconds()));
         log.info("EmbeddingService initialized with model: {}", config.getModelName());
-        log.info("Connecting to embedding service at: {}", EMBEDDING_SERVICE_URL);
+        log.info("Connecting to embedding service at: {}", config.getServiceUrl());
     }
 
     /**
@@ -61,37 +61,42 @@ public class EmbeddingService {
                     .bodyValue(request)
                     .retrieve()
                     .bodyToMono(EmbeddingResponse.class)
-                    .timeout(java.time.Duration.ofSeconds(60))
+                    .timeout(requestTimeout)
                     .onErrorResume(e -> {
                         log.error("Embedding service error: {}", e.getMessage());
                         return Mono.empty();
                     })
                     .block();
 
-            if (response != null && response.embeddings() != null) {
-                log.info("Generated {} embeddings", response.embeddings().size());
-                // 转换 List<Float> -> float[]
-                return response.embeddings().stream()
-                        .map(list -> {
-                            float[] arr = new float[list.size()];
-                            for (int i = 0; i < list.size(); i++) {
-                                arr[i] = list.get(i);
-                            }
-                            return arr;
-                        })
-                        .toList();
+            if (response == null || response.embeddings() == null) {
+                log.warn("Embedding service returned empty response, using zero-vectors fallback.");
+                return zeroVectors(texts.size());
             }
-
-            // Fallback: 返回空向量
-            log.warn("Embedding service returned null, returning empty vectors.");
-            return texts.stream()
-                    .map(t -> new float[config.getDimension()])
+            if (response.embeddings().size() != texts.size()) {
+                throw new IllegalStateException("Embedding response size mismatch");
+            }
+            log.info("Generated {} embeddings", response.embeddings().size());
+            // 转换 List<Float> -> float[]
+            return response.embeddings().stream()
+                    .map(list -> {
+                        float[] arr = new float[list.size()];
+                        for (int i = 0; i < list.size(); i++) {
+                            arr[i] = list.get(i);
+                        }
+                        return arr;
+                    })
                     .toList();
 
         } catch (Exception e) {
             log.error("Failed to generate embeddings: {}", e.getMessage());
             throw new RuntimeException("Embedding generation failed", e);
         }
+    }
+
+    private List<float[]> zeroVectors(int count) {
+        return java.util.stream.IntStream.range(0, Math.max(0, count))
+                .mapToObj(i -> new float[config.getDimension()])
+                .toList();
     }
 
     public int getDimension() {

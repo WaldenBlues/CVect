@@ -36,7 +36,12 @@ class ResumeProcessServiceTest {
         assertNotNull(is, "My.pdf 文件不存在");
 
         // When
-        var result = processService.process(is, "application/pdf");
+        var result = processService.process(
+                is,
+                "application/pdf",
+                "My.pdf",
+                null,
+                null);
 
         // Then
         assertNotNull(result, "ProcessResult 不应为 null");
@@ -65,7 +70,12 @@ class ResumeProcessServiceTest {
         assertNotNull(is, "Resume.pdf 文件不存在");
 
         // When
-        var result = processService.process(is, "application/pdf");
+        var result = processService.process(
+                is,
+                "application/pdf",
+                "Resume.pdf",
+                null,
+                null);
 
         // Then
         assertNotNull(result.chunks());
@@ -89,8 +99,18 @@ class ResumeProcessServiceTest {
         InputStream is2 = getClass().getResourceAsStream("/static/Resume.pdf");
 
         // When
-        var result1 = processService.process(is1, "application/pdf");
-        var result2 = processService.process(is2, "application/pdf");
+        var result1 = processService.process(
+                is1,
+                "application/pdf",
+                "My.pdf",
+                null,
+                null);
+        var result2 = processService.process(
+                is2,
+                "application/pdf",
+                "Resume.pdf",
+                null,
+                null);
 
         // Then
         assertNotNull(result1.candidateId());
@@ -106,7 +126,12 @@ class ResumeProcessServiceTest {
         InputStream is = getClass().getResourceAsStream("/static/My.pdf");
 
         // When
-        var result = processService.process(is, "application/pdf");
+        var result = processService.process(
+                is,
+                "application/pdf",
+                "My.pdf",
+                null,
+                null);
 
         // Then
         boolean hasContact = result.chunks().stream()
@@ -122,7 +147,12 @@ class ResumeProcessServiceTest {
         InputStream is = getClass().getResourceAsStream("/static/Resume.pdf");
 
         // When
-        var result = processService.process(is, "application/pdf");
+        var result = processService.process(
+                is,
+                "application/pdf",
+                "Resume.pdf",
+                null,
+                null);
 
         // Then
         boolean hasLink = result.chunks().stream()

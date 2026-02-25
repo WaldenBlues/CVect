@@ -25,13 +25,29 @@ public class ResumeController {
     @PostMapping("/parse")
     public ResponseEntity<Map<String, Object>> parseResume(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "contentType", required = false) String contentType) throws IOException {
+            @RequestParam(value = "contentType", required = false) String contentType,
+            @RequestParam(value = "jdId", required = false) String jdId) throws IOException {
+        if (jdId == null || jdId.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "jdId is required"));
+        }
 
         if (contentType == null || contentType.isBlank()) {
             contentType = file.getContentType();
         }
 
-        var result = processService.process(file.getInputStream(), contentType);
+        java.util.UUID jobId;
+        try {
+            jobId = java.util.UUID.fromString(jdId);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "jdId is invalid"));
+        }
+
+        var result = processService.process(
+                file.getInputStream(),
+                contentType,
+                file.getOriginalFilename(),
+                file.getSize(),
+                jobId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("candidateId", result.candidateId().toString());

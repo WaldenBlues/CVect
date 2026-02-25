@@ -1,6 +1,7 @@
 package com.walden.cvect.model.entity.vector;
 
 import com.walden.cvect.model.ChunkType;
+import com.walden.cvect.model.entity.Candidate;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -10,8 +11,8 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "resume_chunks", indexes = {
-    @Index(name = "idx_candidate_id", columnList = "candidateId"),
-    @Index(name = "idx_chunk_type", columnList = "chunkType")
+    @Index(name = "idx_candidate_id", columnList = "candidate_id"),
+    @Index(name = "idx_chunk_type", columnList = "chunk_type")
 })
 public class ResumeChunkVector {
 
@@ -19,11 +20,20 @@ public class ResumeChunkVector {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "candidate_id", nullable = false)
     private UUID candidateId;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+            name = "candidate_id",
+            nullable = false,
+            insertable = false,
+            updatable = false,
+            foreignKey = @ForeignKey(name = "fk_resume_chunks_candidate"))
+    private Candidate candidate;
+
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "chunk_type", nullable = false)
     private ChunkType chunkType;
 
     @Column(nullable = false, columnDefinition = "TEXT")

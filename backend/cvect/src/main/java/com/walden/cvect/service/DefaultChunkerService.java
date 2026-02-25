@@ -11,6 +11,28 @@ import java.util.List;
 public class DefaultChunkerService implements ChunkerService {
 
     private static final int MIN_CHUNK_LENGTH = 5;
+    private static final int MAX_SECTION_TITLE_LENGTH = 6;
+    private static final int MAX_HEADER_LENGTH = 30;
+    private static final int LONG_TEXT_THRESHOLD = 80;
+
+    private static final List<String> SECTION_TITLE_SUFFIXES = List.of(
+            "经历", "项目", "技能", "教育", "荣誉");
+    private static final List<String> HEADER_NEGATIVE_KEYWORDS = List.of(
+            "熟练", "掌握", "使用", "技术", "skill");
+    private static final List<String> HEADER_POSITIVE_KEYWORDS = List.of(
+            "工程师", "developer", "software", "简历");
+    private static final List<String> CONTACT_KEYWORDS = List.of(
+            "@", "电话", "手机", "邮箱", "email", "联系方式", "wechat", "微信");
+    private static final List<String> EDUCATION_KEYWORDS = List.of(
+            "教育", "education", "大学", "学院");
+    private static final List<String> EXPERIENCE_KEYWORDS = List.of(
+            "项目", "经历", "实习", "experience", "负责");
+    private static final List<String> SKILL_KEYWORDS = List.of(
+            "技能", "技术", "skill", "熟练", "掌握");
+    private static final List<String> HONOR_KEYWORDS = List.of(
+            "奖", "竞赛", "证书", "荣誉", "rank");
+    private static final List<String> LINK_KEYWORDS = List.of(
+            "github.com", "gitee.com", "blog", "个人博客");
 
     @Override
     public List<ResumeChunk> chunk(String normalizedText) {
@@ -119,7 +141,7 @@ public class DefaultChunkerService implements ChunkerService {
     private ChunkType inferType(String text) {
         String lower = text.toLowerCase();
 
-        if (text.length() > 80 && !containsColon(text)) {
+        if (text.length() > LONG_TEXT_THRESHOLD && !containsColon(text)) {
             return ChunkType.OTHER;
         }
 
@@ -155,14 +177,18 @@ public class DefaultChunkerService implements ChunkerService {
     }
 
     private ChunkType mapSectionTitle(String text) {
-        if (text.endsWith("教育"))
+        if (text.endsWith("教育")) {
             return ChunkType.EDUCATION;
-        if (text.endsWith("项目") || text.endsWith("经历"))
+        }
+        if (text.endsWith("项目") || text.endsWith("经历")) {
             return ChunkType.EXPERIENCE;
-        if (text.endsWith("技能"))
+        }
+        if (text.endsWith("技能")) {
             return ChunkType.SKILL;
-        if (text.endsWith("荣誉"))
+        }
+        if (text.endsWith("荣誉")) {
             return ChunkType.HONOR;
+        }
         return ChunkType.OTHER;
     }
 
@@ -171,32 +197,22 @@ public class DefaultChunkerService implements ChunkerService {
     }
 
     private boolean isSectionTitle(String text) {
-        return text.length() <= 6
-                && (text.endsWith("经历")
-                        || text.endsWith("项目")
-                        || text.endsWith("技能")
-                        || text.endsWith("教育")
-                        || text.endsWith("荣誉"));
+        return text.length() <= MAX_SECTION_TITLE_LENGTH
+                && endsWithAny(text, SECTION_TITLE_SUFFIXES);
     }
 
     private boolean isHeaderLike(String text) {
         String lower = text.toLowerCase();
 
-        if (text.length() > 30)
-            return false;
-
-        if (lower.contains("熟练")
-                || lower.contains("掌握")
-                || lower.contains("使用")
-                || lower.contains("技术")
-                || lower.contains("skill")) {
+        if (text.length() > MAX_HEADER_LENGTH) {
             return false;
         }
 
-        return lower.contains("工程师")
-                || lower.contains("developer")
-                || lower.contains("software")
-                || lower.contains("简历")
+        if (containsAny(lower, HEADER_NEGATIVE_KEYWORDS)) {
+            return false;
+        }
+
+        return containsAny(lower, HEADER_POSITIVE_KEYWORDS)
                 || lower.matches("^[\\u4e00-\\u9fa5]{2,4}\\s+[a-zA-Z].*");
     }
 
@@ -207,14 +223,7 @@ public class DefaultChunkerService implements ChunkerService {
 
         String lower = text.toLowerCase();
 
-        if (lower.contains("@")
-                || lower.contains("电话")
-                || lower.contains("手机")
-                || lower.contains("邮箱")
-                || lower.contains("email")
-                || lower.contains("联系方式")
-                || lower.contains("wechat")
-                || lower.contains("微信")) {
+        if (containsAny(lower, CONTACT_KEYWORDS)) {
             return true;
         }
 
@@ -236,44 +245,44 @@ public class DefaultChunkerService implements ChunkerService {
     }
 
     private boolean isEducationLike(String lower) {
-        return (lower.contains("教育")
-                || lower.contains("education")
-                || lower.contains("大学")
-                || lower.contains("学院"))
+        return containsAny(lower, EDUCATION_KEYWORDS)
                 && (lower.matches(".*\\d{4}.*")
-                        || lower.contains("学士")
-                        || lower.contains("硕士")
-                        || lower.contains("博士"));
+                || lower.contains("学士")
+                || lower.contains("硕士")
+                || lower.contains("博士"));
     }
 
     private boolean isExperienceLike(String lower) {
-        return lower.contains("项目")
-                || lower.contains("经历")
-                || lower.contains("实习")
-                || lower.contains("experience")
-                || lower.contains("负责");
+        return containsAny(lower, EXPERIENCE_KEYWORDS);
     }
 
     private boolean isSkillLike(String lower) {
-        return lower.contains("技能")
-                || lower.contains("技术")
-                || lower.contains("skill")
-                || lower.contains("熟练")
-                || lower.contains("掌握");
+        return containsAny(lower, SKILL_KEYWORDS);
     }
 
     private boolean isHonorLike(String lower) {
-        return lower.contains("奖")
-                || lower.contains("竞赛")
-                || lower.contains("证书")
-                || lower.contains("荣誉")
-                || lower.contains("rank");
+        return containsAny(lower, HONOR_KEYWORDS);
     }
 
     private boolean isLinkLike(String lower) {
-        return lower.contains("github.com")
-                || lower.contains("gitee.com")
-                || lower.contains("blog")
-                || lower.contains("个人博客");
+        return containsAny(lower, LINK_KEYWORDS);
+    }
+
+    private boolean containsAny(String text, List<String> keywords) {
+        for (String keyword : keywords) {
+            if (text.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean endsWithAny(String text, List<String> suffixes) {
+        for (String suffix : suffixes) {
+            if (text.endsWith(suffix)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

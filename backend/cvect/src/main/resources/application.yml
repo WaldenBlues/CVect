@@ -2,12 +2,11 @@ spring:
   application:
     name: cvect
 
-  # PostgreSQL 配置 (Docker Compose)
   datasource:
-    url: jdbc:postgresql://localhost:5432/cvect
-    username: postgres
-    password: postgres
-    driver-class-name: org.postgresql.Driver
+    url: ${CVECT_DB_URL:jdbc:postgresql://localhost:5432/cvect}
+    username: ${CVECT_DB_USERNAME:postgres}
+    password: ${CVECT_DB_PASSWORD:postgres}
+    driver-class-name: ${CVECT_DB_DRIVER:org.postgresql.Driver}
 
   jpa:
     hibernate:
@@ -15,28 +14,48 @@ spring:
     show-sql: true
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     open-in-view: false
 
-# 服务器配置
 server:
-  port: 8080
+  port: ${CVECT_SERVER_PORT:8080}
 
-# 应用自定义配置
 app:
-  # Qwen Embedding 配置
   embedding:
-    model-name: Qwen/Qwen2.5-Embedding-0.6B-Instruct
-    device: cpu
-    batch-size: 32
-    dimension: 768
-    max-input-length: 8192
+    model-name: ${CVECT_EMBEDDING_MODEL:Qwen/Qwen2.5-Embedding-0.6B-Instruct}
+    service-url: ${CVECT_EMBEDDING_SERVICE_URL:http://localhost:8001/embed}
+    timeout-seconds: ${CVECT_EMBEDDING_TIMEOUT_SECONDS:60}
+    device: ${CVECT_EMBEDDING_DEVICE:cpu}
+    batch-size: ${CVECT_EMBEDDING_BATCH_SIZE:32}
+    dimension: ${CVECT_EMBEDDING_DIMENSION:768}
+    max-input-length: ${CVECT_EMBEDDING_MAX_INPUT_LENGTH:8192}
 
-  # pgvector 配置
   vector:
-    table-name: resume_chunks
-    index-type: hnsw
-    metric: cosine
-    ef-construction: 64
-    m: 16
+    enabled: ${CVECT_VECTOR_ENABLED:false}
+    table-name: ${CVECT_VECTOR_TABLE:resume_chunks}
+    index-type: ${CVECT_VECTOR_INDEX_TYPE:hnsw}
+    metric: ${CVECT_VECTOR_METRIC:cosine}
+    ef-construction: ${CVECT_VECTOR_EF_CONSTRUCTION:64}
+    m: ${CVECT_VECTOR_M:16}
+
+  upload:
+    storage-dir: ${CVECT_UPLOAD_STORAGE_DIR:storage}
+    worker:
+      enabled: ${CVECT_UPLOAD_WORKER_ENABLED:true}
+      initial-delay-ms: ${CVECT_UPLOAD_WORKER_INITIAL_DELAY_MS:3000}
+      fixed-delay-ms: ${CVECT_UPLOAD_WORKER_FIXED_DELAY_MS:2000}
+      stale-processing-ms: ${CVECT_UPLOAD_WORKER_STALE_MS:300000}
+      executor:
+        core-pool-size: ${CVECT_UPLOAD_WORKER_CORE_POOL:1}
+        max-pool-size: ${CVECT_UPLOAD_WORKER_MAX_POOL:2}
+        queue-capacity: ${CVECT_UPLOAD_WORKER_QUEUE_CAPACITY:100}
+        thread-name-prefix: ${CVECT_UPLOAD_WORKER_THREAD_PREFIX:upload-worker-}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,env,beans,mappings,metrics,loggers
+  endpoint:
+    health:
+      show-details: always

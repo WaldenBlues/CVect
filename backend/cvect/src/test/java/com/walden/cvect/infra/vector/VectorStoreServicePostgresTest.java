@@ -6,6 +6,8 @@ import com.walden.cvect.model.ParseResult;
 import com.walden.cvect.model.ResumeChunk;
 import com.walden.cvect.infra.parser.ResumeParser;
 import com.walden.cvect.infra.process.ResumeTextNormalizer;
+import com.walden.cvect.model.entity.Candidate;
+import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.service.ChunkerService;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -89,11 +91,14 @@ class VectorStoreServicePostgresTest {
     @Autowired
     private ChunkerService chunker;
 
+    @Autowired
+    private CandidateJpaRepository candidateRepository;
+
     private UUID testCandidateId;
 
     @BeforeEach
     void setUp() {
-        testCandidateId = UUID.randomUUID();
+        testCandidateId = createCandidateId("vector-postgres-main");
         
         // Mock embedding service to return dummy embeddings
         float[] dummyEmbedding = new float[768];
@@ -187,8 +192,8 @@ class VectorStoreServicePostgresTest {
     @DisplayName("应支持候选人数据隔离")
     void should_support_candidate_isolation() {
         // Given: Create data for two different candidates
-        UUID candidate1 = UUID.randomUUID();
-        UUID candidate2 = UUID.randomUUID();
+        UUID candidate1 = createCandidateId("vector-postgres-c1");
+        UUID candidate2 = createCandidateId("vector-postgres-c2");
         
         vectorStore.save(candidate1, ChunkType.EXPERIENCE, "Candidate 1 experience");
         vectorStore.save(candidate2, ChunkType.EXPERIENCE, "Candidate 2 experience");
@@ -248,5 +253,18 @@ class VectorStoreServicePostgresTest {
         
         // Then: Verify at least some data was stored
         // (No explicit assertion - success is not throwing exceptions)
+    }
+
+    private UUID createCandidateId(String namePrefix) {
+        Candidate candidate = new Candidate(
+                namePrefix + ".pdf",
+                UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", ""),
+                namePrefix,
+                null,
+                "application/pdf",
+                88L,
+                88,
+                false);
+        return candidateRepository.save(candidate).getId();
     }
 }

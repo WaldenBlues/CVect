@@ -36,25 +36,32 @@ public class ResumeFactService {
      */
     public void processAndSave(UUID candidateId, ResumeChunk chunk) {
 
-        List<String> extractedResults = dispatcher.extractAll(chunk);
-        if (extractedResults.isEmpty()) {
+        List<String> extractedFacts = dispatcher.extractAll(chunk);
+        if (extractedFacts.isEmpty()) {
             return;
         }
 
-        for (String data : extractedResults) {
+        for (String data : extractedFacts) {
             if (data == null || data.isBlank()) {
                 continue;
             }
 
-            switch (chunk.getType()) {
-                case CONTACT -> handleContact(candidateId, data);
-                case LINK -> repository.saveLink(candidateId, data);
-                case HONOR -> repository.saveHonor(candidateId, data);
-                case EDUCATION -> handleEducation(candidateId, data);
-                // EXPERIENCE 和 SKILL 向量化后存入 pgvector
-                case EXPERIENCE, SKILL -> vectorStore.save(candidateId, chunk.getType(), chunk.getContent());
-                default -> { }
-            }
+            handleExtractedData(candidateId, chunk, data);
+        }
+    }
+
+    /**
+     * 按 chunk 类型分发持久化逻辑
+     */
+    private void handleExtractedData(UUID candidateId, ResumeChunk chunk, String data) {
+        switch (chunk.getType()) {
+            case CONTACT -> handleContact(candidateId, data);
+            case LINK -> repository.saveLink(candidateId, data);
+            case HONOR -> repository.saveHonor(candidateId, data);
+            case EDUCATION -> handleEducation(candidateId, data);
+            // EXPERIENCE 和 SKILL 仅向量化存储
+            case EXPERIENCE, SKILL -> vectorStore.save(candidateId, chunk.getType(), chunk.getContent());
+            default -> { }
         }
     }
 

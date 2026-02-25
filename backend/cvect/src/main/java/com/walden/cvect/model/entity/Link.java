@@ -13,8 +13,17 @@ public class Link {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "candidate_id", nullable = false)
     private UUID candidateId;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+            name = "candidate_id",
+            nullable = false,
+            insertable = false,
+            updatable = false,
+            foreignKey = @ForeignKey(name = "fk_links_candidate"))
+    private Candidate candidate;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String url;
@@ -48,6 +57,26 @@ public class Link {
                 platform = "OTHER";
             }
         }
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public UUID getCandidateId() {
+        return candidateId;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public String getPlatform() {
+        return platform;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 
     @Override

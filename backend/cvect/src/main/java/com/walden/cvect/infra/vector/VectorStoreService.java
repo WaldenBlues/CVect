@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * 向量存储服务 - pgvector 操作封装
@@ -24,11 +25,13 @@ import java.util.*;
 public class VectorStoreService {
 
     private static final Logger log = LoggerFactory.getLogger(VectorStoreService.class);
+    private static final Pattern SAFE_SQL_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
     private final JdbcTemplate jdbcTemplate;
     private final EntityManager entityManager;
     private final EmbeddingService embeddingService;
     private final VectorStoreConfig config;
+    private final String tableName;
 
     public VectorStoreService(
             JdbcTemplate jdbcTemplate,
@@ -39,6 +42,7 @@ public class VectorStoreService {
         this.entityManager = entityManager;
         this.embeddingService = embeddingService;
         this.config = config;
+        this.tableName = validateSqlIdentifier(config.getTableName(), "app.vector.table-name");
     }
 
     /**
@@ -46,6 +50,10 @@ public class VectorStoreService {
      */
     @Transactional
     public void save(UUID candidateId, ChunkType chunkType, String content) {
+        if (!config.isEnabled()) {
+            log.info("Vector store disabled, skipping save for candidateId={}, chunkType={}", candidateId, chunkType);
+            return;
+        }
         // 生成 embedding
         float[] embedding = embeddingService.embed(content);
 
@@ -66,10 +74,13 @@ public class VectorStoreService {
      * @return 按相似度排序的搜索结果
      */
     public List<SearchResult> search(float[] queryEmbedding, int topK, ChunkType... chunkTypes) {
+        if (!config.isEnabled()) {
+            throw new IllegalStateException("Vector store is disabled");
+        }
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT id, candidate_id, chunk_type, content, embedding ");
         sql.append("<=> ?::vector AS distance ");
-        sql.append("FROM resume_chunks ");
+        sql.append("FROM ").append(tableName).append(" ");
         sql.append("WHERE 1=1 ");
 
         // 类型过滤 - 使用验证后的枚举值拼接，确保安全
@@ -145,7 +156,7 @@ public class VectorStoreService {
      */
     @Transactional
     public void deleteByCandidate(UUID candidateId) {
-        String sql = "DELETE FROM resume_chunks WHERE candidate_id = ?";
+        String sql = "DELETE FROM " + tableName + " WHERE candidate_id = ?";
         int deleted = jdbcTemplate.update(sql, candidateId);
         log.info("Deleted {} vector chunks for candidate: {}", deleted, candidateId);
     }
@@ -155,15 +166,25 @@ public class VectorStoreService {
      */
     @Transactional
     public void createHnswIndex() {
+        String indexName = "idx_" + tableName + "_embedding";
         String sql = String.format(
-                "CREATE INDEX IF NOT EXISTS idx_resume_chunks_embedding " +
-                        "ON resume_chunks USING hnsw (embedding %s_ops) " +
+                "CREATE INDEX IF NOT EXISTS %s " +
+                        "ON %s USING hnsw (embedding %s_ops) " +
                         "WITH (m = %d, ef_construction = %d)",
+                indexName,
+                tableName,
                 config.getMetric(),
                 config.getM(),
                 config.getEfConstruction());
         jdbcTemplate.execute(sql);
-        log.info("Created HNSW index on resume_chunks.embedding");
+        log.info("Created HNSW index on {}.embedding", tableName);
+    }
+
+    private static String validateSqlIdentifier(String value, String configKey) {
+        if (value == null || value.isBlank() || !SAFE_SQL_IDENTIFIER.matcher(value).matches()) {
+            throw new IllegalArgumentException("Invalid SQL identifier in " + configKey + ": " + value);
+        }
+        return value;
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.walden.cvect.repository;
 
 import com.walden.cvect.model.entity.Contact;
+import com.walden.cvect.model.entity.Candidate;
 import com.walden.cvect.model.entity.Link;
 import com.walden.cvect.model.entity.Honor;
 import com.walden.cvect.model.entity.Education;
@@ -36,11 +37,14 @@ class FactRepositoryIntegrationTest {
     @Autowired
     private EducationJpaRepository educationRepository;
 
+    @Autowired
+    private CandidateJpaRepository candidateRepository;
+
     private UUID testCandidateId;
 
     @BeforeEach
     void setUp() {
-        testCandidateId = UUID.randomUUID();
+        testCandidateId = createCandidate();
     }
 
     @Test
@@ -115,8 +119,8 @@ class FactRepositoryIntegrationTest {
     @DisplayName("不同 candidateId 的数据应隔离")
     void should_isolate_data_by_candidate_id() {
         // Given
-        UUID candidateId1 = UUID.randomUUID();
-        UUID candidateId2 = UUID.randomUUID();
+        UUID candidateId1 = createCandidate();
+        UUID candidateId2 = createCandidate();
 
         // When
         factRepository.saveContact(candidateId1, "EMAIL", "user1@example.com");
@@ -128,5 +132,23 @@ class FactRepositoryIntegrationTest {
 
         assertEquals(1, contacts1.size());
         assertEquals(1, contacts2.size());
+    }
+
+    private UUID createCandidate() {
+        Candidate candidate = new Candidate(
+                "fact-repo.pdf",
+                randomHash(),
+                "Fact Repo Candidate",
+                null,
+                "application/pdf",
+                123L,
+                123,
+                false);
+        return candidateRepository.save(candidate).getId();
+    }
+
+    private String randomHash() {
+        return UUID.randomUUID().toString().replace("-", "")
+                + UUID.randomUUID().toString().replace("-", "");
     }
 }

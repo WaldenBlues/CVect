@@ -2,6 +2,8 @@ package com.walden.cvect.infra.vector;
 
 import com.walden.cvect.infra.embedding.EmbeddingService;
 import com.walden.cvect.model.ChunkType;
+import com.walden.cvect.model.entity.Candidate;
+import com.walden.cvect.repository.CandidateJpaRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +24,8 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 @TestPropertySource(properties = {
     "spring.datasource.url=jdbc:h2:mem:testdb;MODE=PostgreSQL",
-    "spring.jpa.hibernate.ddl-auto=create-drop"
+    "spring.jpa.hibernate.ddl-auto=create-drop",
+    "app.vector.enabled=true"
 })
 @DisplayName("VectorStoreService 错误处理测试")
 class VectorStoreServiceErrorHandlingTest {
@@ -33,11 +36,14 @@ class VectorStoreServiceErrorHandlingTest {
     @MockBean
     private EmbeddingService embeddingService;
 
+    @Autowired
+    private CandidateJpaRepository candidateRepository;
+
     @Test
     @DisplayName("当 embedding 服务抛出异常时，save 方法应传播异常")
     void should_propagate_exception_when_embedding_service_fails() {
         // Given
-        UUID candidateId = UUID.randomUUID();
+        UUID candidateId = createCandidateId("vector-error-1");
         String content = "Java developer experience";
         
         when(embeddingService.embed(anyString()))
@@ -54,7 +60,7 @@ class VectorStoreServiceErrorHandlingTest {
     @DisplayName("当 embedding 服务返回空数组时，save 方法应能处理而不崩溃")
     void should_handle_empty_embedding_array() {
         // Given
-        UUID candidateId = UUID.randomUUID();
+        UUID candidateId = createCandidateId("vector-error-2");
         String content = "Test content";
         
         when(embeddingService.embed(anyString()))
@@ -124,7 +130,7 @@ class VectorStoreServiceErrorHandlingTest {
     @DisplayName("应处理无效的 chunk 类型")
     void should_handle_invalid_chunk_types() {
         // Given
-        UUID candidateId = UUID.randomUUID();
+        UUID candidateId = createCandidateId("vector-error-3");
         String content = "Test content";
         float[] dummyEmbedding = new float[768];
         
@@ -146,7 +152,7 @@ class VectorStoreServiceErrorHandlingTest {
     @DisplayName("应处理空内容字符串")
     void should_handle_empty_content_string() {
         // Given
-        UUID candidateId = UUID.randomUUID();
+        UUID candidateId = createCandidateId("vector-error-4");
         String emptyContent = "";
         float[] dummyEmbedding = new float[768];
         
@@ -167,7 +173,7 @@ class VectorStoreServiceErrorHandlingTest {
     @DisplayName("应处理超长内容字符串")
     void should_handle_very_long_content_string() {
         // Given
-        UUID candidateId = UUID.randomUUID();
+        UUID candidateId = createCandidateId("vector-error-5");
         StringBuilder longContent = new StringBuilder();
         for (int i = 0; i < 10000; i++) {
             longContent.append("Very long resume content line ").append(i).append(". ");
@@ -183,5 +189,18 @@ class VectorStoreServiceErrorHandlingTest {
         } catch (Exception e) {
             // 可能由于数据库限制抛出异常，但不应崩溃
         }
+    }
+
+    private UUID createCandidateId(String namePrefix) {
+        Candidate candidate = new Candidate(
+                namePrefix + ".pdf",
+                UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", ""),
+                namePrefix,
+                null,
+                "application/pdf",
+                64L,
+                64,
+                false);
+        return candidateRepository.save(candidate).getId();
     }
 }

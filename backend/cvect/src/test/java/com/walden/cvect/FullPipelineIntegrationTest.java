@@ -28,7 +28,12 @@ class FullPipelineIntegrationTest {
         assertNotNull(is, "My.pdf 文件不存在");
 
         // When: 执行完整流水线
-        var result = processService.process(is, "application/pdf");
+        var result = processService.process(
+                is,
+                "application/pdf",
+                "My.pdf",
+                null,
+                null);
 
         // Then: 验证返回结果
         assertNotNull(result, "ProcessResult 不应为 null");
@@ -63,7 +68,12 @@ class FullPipelineIntegrationTest {
         assertNotNull(is, "Resume.pdf 文件不存在");
 
         // When
-        var result = processService.process(is, "application/pdf");
+        var result = processService.process(
+                is,
+                "application/pdf",
+                "Resume.pdf",
+                null,
+                null);
 
         // Then
         assertNotNull(result.candidateId());
@@ -77,19 +87,31 @@ class FullPipelineIntegrationTest {
     }
 
     @Test
-    @DisplayName("两次处理同一文件应生成不同的 candidateId")
-    void should_generate_different_ids_for_same_file() throws Exception {
+    @DisplayName("两次处理同一文件应命中去重并返回同一 candidateId")
+    void should_return_same_id_for_same_file_when_deduplicated() throws Exception {
         // Given
         InputStream is1 = getClass().getResourceAsStream("/static/My.pdf");
         InputStream is2 = getClass().getResourceAsStream("/static/My.pdf");
 
         // When
-        var result1 = processService.process(is1, "application/pdf");
-        var result2 = processService.process(is2, "application/pdf");
+        var result1 = processService.process(
+                is1,
+                "application/pdf",
+                "My.pdf",
+                null,
+                null);
+        var result2 = processService.process(
+                is2,
+                "application/pdf",
+                "My.pdf",
+                null,
+                null);
 
         // Then
-        assertNotEquals(result1.candidateId(), result2.candidateId(),
-                "每次处理应生成不同的 candidateId");
+        assertEquals(result1.candidateId(), result2.candidateId(),
+                "相同文件应命中去重并返回同一 candidateId");
+        assertFalse(result1.duplicated(), "首次处理不应标记为重复");
+        assertTrue(result2.duplicated(), "二次处理应标记为重复");
 
         // chunks 数量应该相同
         assertEquals(result1.chunks().size(), result2.chunks().size(),

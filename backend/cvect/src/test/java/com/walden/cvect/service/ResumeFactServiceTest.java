@@ -5,6 +5,8 @@ import com.walden.cvect.infra.process.ResumeTextNormalizer;
 import com.walden.cvect.model.ChunkType;
 import com.walden.cvect.model.ParseResult;
 import com.walden.cvect.model.ResumeChunk;
+import com.walden.cvect.model.entity.Candidate;
+import com.walden.cvect.repository.CandidateJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -41,6 +43,9 @@ class ResumeFactServiceTest {
     @Autowired
     private ResumeTextNormalizer normalizer;
 
+    @Autowired
+    private CandidateJpaRepository candidateRepository;
+
     private UUID testCandidateId;
 
     /**
@@ -76,7 +81,16 @@ class ResumeFactServiceTest {
 
     @BeforeEach
     void setUp() {
-        testCandidateId = UUID.randomUUID();
+        Candidate candidate = new Candidate(
+                "fact-service.pdf",
+                randomHash(),
+                "Fact Service Candidate",
+                null,
+                "application/pdf",
+                123L,
+                123,
+                false);
+        testCandidateId = candidateRepository.save(candidate).getId();
     }
 
     @Test
@@ -229,5 +243,10 @@ class ResumeFactServiceTest {
                 "应包含 HONOR chunk");
         assertTrue(chunks.stream().anyMatch(c -> c.getType() == ChunkType.EDUCATION),
                 "应包含 EDUCATION chunk");
+    }
+
+    private String randomHash() {
+        return UUID.randomUUID().toString().replace("-", "")
+                + UUID.randomUUID().toString().replace("-", "");
     }
 }

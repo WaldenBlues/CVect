@@ -13,8 +13,17 @@ public class Education {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "candidate_id", nullable = false)
     private UUID candidateId;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+            name = "candidate_id",
+            nullable = false,
+            insertable = false,
+            updatable = false,
+            foreignKey = @ForeignKey(name = "fk_educations_candidate"))
+    private Candidate candidate;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String school;
@@ -44,6 +53,34 @@ public class Education {
     @PrePersist
     void onCreate() {
         createdAt = LocalDateTime.now();
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public UUID getCandidateId() {
+        return candidateId;
+    }
+
+    public String getSchool() {
+        return school;
+    }
+
+    public String getMajor() {
+        return major;
+    }
+
+    public String getDegree() {
+        return degree;
+    }
+
+    public String getGraduationYear() {
+        return graduationYear;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 
     @Override

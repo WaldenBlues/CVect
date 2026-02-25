@@ -13,8 +13,17 @@ public class Experience {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "candidate_id", nullable = false)
     private UUID candidateId;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+            name = "candidate_id",
+            nullable = false,
+            insertable = false,
+            updatable = false,
+            foreignKey = @ForeignKey(name = "fk_experiences_candidate"))
+    private Candidate candidate;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String company;

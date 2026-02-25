@@ -143,7 +143,10 @@ class EmbeddingServiceConfigurationTest {
             assertEquals(texts.size(), embeddings.size());
         } catch (RuntimeException e) {
             // Python 服务未启动时预期行为
-            assertTrue(true); // 测试通过
+            assertTrue(e.getMessage().contains("Embedding generation failed")
+                    || e.getMessage().contains("Connection refused")
+                    || e.getMessage().contains("Operation not permitted")
+                    || e.getMessage().contains("empty response"));
         }
     }
 

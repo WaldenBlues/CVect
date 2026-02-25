@@ -13,8 +13,17 @@ public class Honor {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "candidate_id", nullable = false)
     private UUID candidateId;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+            name = "candidate_id",
+            nullable = false,
+            insertable = false,
+            updatable = false,
+            foreignKey = @ForeignKey(name = "fk_honors_candidate"))
+    private Candidate candidate;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
@@ -33,6 +42,22 @@ public class Honor {
     @PrePersist
     void onCreate() {
         createdAt = LocalDateTime.now();
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public UUID getCandidateId() {
+        return candidateId;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 
     @Override

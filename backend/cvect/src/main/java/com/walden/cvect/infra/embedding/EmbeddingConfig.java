@@ -8,10 +8,12 @@ import org.springframework.context.annotation.Configuration;
 public class EmbeddingConfig {
 
     private String modelName = "Qwen/Qwen2.5-Embedding-0.6B-Instruct";
+    private String serviceUrl = "http://localhost:8001/embed";
     private String device = "cpu";
     private int batchSize = 32;
     private int dimension = 768;
     private int maxInputLength = 8192;
+    private int timeoutSeconds = 60;
 
     public String getModelName() {
         return modelName;
@@ -27,6 +29,14 @@ public class EmbeddingConfig {
 
     public void setDevice(String device) {
         this.device = device;
+    }
+
+    public String getServiceUrl() {
+        return serviceUrl;
+    }
+
+    public void setServiceUrl(String serviceUrl) {
+        this.serviceUrl = serviceUrl;
     }
 
     public int getBatchSize() {
@@ -51,5 +61,13 @@ public class EmbeddingConfig {
 
     public void setMaxInputLength(int maxInputLength) {
         this.maxInputLength = maxInputLength;
+    }
+
+    public int getTimeoutSeconds() {
+        return timeoutSeconds;
+    }
+
+    public void setTimeoutSeconds(int timeoutSeconds) {
+        this.timeoutSeconds = timeoutSeconds;
     }
 }

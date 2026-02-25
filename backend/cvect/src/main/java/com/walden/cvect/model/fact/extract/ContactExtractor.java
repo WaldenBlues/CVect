@@ -4,10 +4,13 @@ import com.walden.cvect.model.ResumeChunk;
 import com.walden.cvect.model.ChunkType;
 import com.walden.cvect.model.fact.Regex;
 
+import org.springframework.stereotype.Component;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 
+@Component
 public class ContactExtractor implements FactExtractor {
 
     @Override
