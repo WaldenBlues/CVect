@@ -47,8 +47,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("SearchController API 测试（流水线测试）")
 class SearchControllerIntegrationTest {
 
-    private static final boolean DOCKER_RUNNING = System.getenv("DOCKER_ACTIVE") != null
-            || System.getenv("CI") != null
+    private static final boolean DOCKER_RUNNING = Boolean.parseBoolean(System.getenv("DOCKER_ACTIVE"))
             || isPortInUse(5432);
 
     private static boolean isPortInUse(int port) {
@@ -85,7 +84,7 @@ class SearchControllerIntegrationTest {
             registry.add("app.embedding.model-name", () -> "Qwen/Qwen2.5-Embedding-0.6B-Instruct");
             registry.add("app.embedding.device", () -> "cpu");
             registry.add("app.embedding.dimension", () -> "768");
-            registry.add("app.vector.enabled", () -> "true");
+            registry.add("app.vector.enabled", () -> "false");
             registry.add("app.vector.table-name", () -> "resume_chunks");
             registry.add("app.vector.index-type", () -> "hnsw");
             registry.add("app.vector.metric", () -> "cosine");

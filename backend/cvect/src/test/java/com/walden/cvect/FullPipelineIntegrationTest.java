@@ -7,7 +7,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -89,22 +91,27 @@ class FullPipelineIntegrationTest {
     @Test
     @DisplayName("两次处理同一文件应命中去重并返回同一 candidateId")
     void should_return_same_id_for_same_file_when_deduplicated() throws Exception {
-        // Given
-        InputStream is1 = getClass().getResourceAsStream("/static/My.pdf");
-        InputStream is2 = getClass().getResourceAsStream("/static/My.pdf");
+        // Given: 构造本用例唯一内容，避免受其他测试已入库数据影响
+        String uniqueText = "Dedup test resume "
+                + UUID.randomUUID()
+                + "\nJava Spring Boot"
+                + "\nSkills: Docker, PostgreSQL";
+        byte[] payload = uniqueText.getBytes(StandardCharsets.UTF_8);
+        InputStream is1 = new ByteArrayInputStream(payload);
+        InputStream is2 = new ByteArrayInputStream(payload);
 
         // When
         var result1 = processService.process(
                 is1,
-                "application/pdf",
-                "My.pdf",
-                null,
+                "text/plain",
+                "dedup-test.txt",
+                (long) payload.length,
                 null);
         var result2 = processService.process(
                 is2,
-                "application/pdf",
-                "My.pdf",
-                null,
+                "text/plain",
+                "dedup-test.txt",
+                (long) payload.length,
                 null);
 
         // Then

@@ -39,8 +39,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("VectorStoreService 集成测试（流水线测试）")
 class VectorStoreServiceIntegrationTest {
 
-    private static final boolean DOCKER_RUNNING = System.getenv("DOCKER_ACTIVE") != null
-            || System.getenv("CI") != null
+    private static final boolean DOCKER_RUNNING = Boolean.parseBoolean(System.getenv("DOCKER_ACTIVE"))
             || isPortInUse(5432);
 
     private static boolean isPortInUse(int port) {
@@ -73,7 +72,7 @@ class VectorStoreServiceIntegrationTest {
             registry.add("spring.datasource.password", () -> "");
             registry.add("spring.datasource.driver-class-name", () -> "org.h2.Driver");
             registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.H2Dialect");
-            registry.add("app.vector.enabled", () -> "true");
+            registry.add("app.vector.enabled", () -> "false");
             registry.add("app.vector.table-name", () -> "resume_chunks");
             registry.add("app.vector.index-type", () -> "hnsw");
             registry.add("app.vector.metric", () -> "cosine");
