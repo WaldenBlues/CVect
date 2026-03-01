@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  vllm_llm:
+    image: vllm/vllm-openai:latest
+    container_name: cvect-vllm-llm
+    ports:
+      - "8000:8000"
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+    ipc: host
+    gpus: all
+    command:
+      - "--model"
+      - "Qwen/Qwen3-0.6B"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+
+  vllm_emb:
+    image: vllm/vllm-openai:latest
+    container_name: cvect-vllm-emb
+    ports:
+      - "8001:8000"
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+    ipc: host
+    gpus: all
+    command:
+      - "--model"
+      - "Qwen/Qwen3-Embedding-0.6B"
+      - "--runner"
+      - "pooling"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+
+  vllm_gateway:
+    image: nginx:alpine
+    container_name: cvect-vllm-gateway
+    ports:
+      - "8002:80"
+    depends_on:
+      - vllm_llm
+      - vllm_emb
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro

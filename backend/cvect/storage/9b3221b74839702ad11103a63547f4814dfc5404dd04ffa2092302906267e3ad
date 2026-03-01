@@ -1,0 +1,50 @@
+工作经历
+- 某智慧物流与供应链平台（E公司） | Java架构师 | 2019-11 至今
+- 负责订单/运单/仓配调度微服务体系架构分析与设计，服务数 60+，支撑高峰 6 万 QPS；推进 DDD 分层与模块化，团队协作效率提升 40%。
+- 精通 Spring 生态：Spring Boot/Cloud、配置中心与注册发现；治理链路超时与熔断，P1 事故月均 1.4 次降至 0.3 次。
+- MySQL 深度优化：分库分表、读写分离、全链路慢 SQL 治理；核心查询 P95 从 220ms 降至 60ms。
+- 熟悉 NoSQL/Queue 原理与限制：Redis（持久化/一致性/热点保护）、MongoDB（轨迹/事件存储）、Kafka（顺序与幂等）；构建“事件溯源 + 异步补偿”方案。
+- 研究 Http 协议、缓存与网关：幂等 Key、重试退避、缓存头；结合 Nginx/网关缓存降低重复查询 20%。
+- JVM 调优与性能诊断：async-profiler + JFR；解决线程池耗尽与锁竞争；CPU 峰值下降 18%，P99 降低 27%。
+- 研读优秀开源源码：Netty、Spring Cloud Gateway、Kafka；输出《高并发与中间件实践》内部手册。
+
+- 某大型制造业数字化公司（F公司） | 高级Java工程师 | 2016-07 至 2019-10
+- 负责 IoT 数据接入与告警服务，使用 MyBatis + MySQL 完成数据建模；引入 Redis 缓存与消息队列削峰。
+- 熟悉设计模式（观察者/策略/状态），以 OOP 方式封装告警规则引擎，扩展成本下降 35%。
+
+教育背景
+- 中山大学 | 学士 计算机科学与技术 | 2012 至 2016
+
+技术栈
+- Java 8/11/17，Spring Boot / Spring Cloud / Spring MVC
+- ORM：MyBatis（主），Hibernate/JPA（熟悉）
+- MySQL（索引/事务/锁/分库分表），Redis，MongoDB，Elasticsearch
+- MQ：Kafka / RocketMQ；异步化、削峰、补偿、消费幂等
+- RPC：Dubbo / gRPC；HTTP/缓存、网关与限流熔断
+- JVM：G1、JFR/async-profiler、并发（JUC）
+- 可观测性：Prometheus/Grafana/ELK/Tracing
+
+证书/荣誉
+- 公司“架构贡献奖”（调度平台专项）
+- 内部技术分享：Netty/Dubbo/Kafka 源码与实践
+
+个人信息
+姓名：王子轩
+目标岗位：Java架构师 / 资深后端工程师
+邮箱：zixuan.wang@example.com
+电话：+86 136-5521-9980
+经验年限：9.5 年
+
+方向：后端 + Java/分布式/物流调度
+简介：9.5年Java后端经验，长期负责高并发微服务架构、MyBatis/MySQL 性能优化与 Redis/MQ 中间件治理；研究 HTTP/缓存、JVM 调优与 RPC 框架，具备源码阅读与复盘总结能力，逻辑严密、善于抽象问题并落地可维护方案。
+
+项目经历
+- 智能调度与运力匹配平台
+技术栈：Java17, Spring Cloud, MyBatis, MySQL, Redis, Kafka, Dubbo, Prometheus
+职责：负责调度策略服务、事件驱动链路与容量基线；建设幂等、限流与补偿。
+成果：高峰 QPS 6 万稳定；调度延迟下降 32%；异常订单自动补偿成功率 99.7%；事故率下降 60%。
+
+- 轨迹事件存储与查询（Event Store）
+技术栈：Java11, Spring Boot, MongoDB, Elasticsearch, Redis, gRPC
+职责：设计事件模型与冷热分层；优化查询与缓存；提供 RPC/HTTP 接口统一访问。
+成果：查询吞吐提升 2.3 倍；存储成本下降 18%；P95 查询延迟从 180ms 降至 70ms。

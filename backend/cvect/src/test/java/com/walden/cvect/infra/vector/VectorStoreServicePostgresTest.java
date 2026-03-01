@@ -61,7 +61,9 @@ class VectorStoreServicePostgresTest {
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
+        registry.add("spring.flyway.enabled", () -> "true");
+        registry.add("spring.flyway.locations", () -> "classpath:db/migration");
         
         // Vector store configuration
         registry.add("app.vector.table-name", () -> "resume_chunks");
@@ -71,9 +73,10 @@ class VectorStoreServicePostgresTest {
         registry.add("app.vector.m", () -> "16");
         
         // Mock embedding service configuration
-        registry.add("app.embedding.model-name", () -> "Qwen/Qwen2.5-Embedding-0.6B-Instruct");
+        registry.add("app.embedding.model-name", () -> "Qwen/Qwen3-Embedding-0.6B");
         registry.add("app.embedding.device", () -> "cpu");
-        registry.add("app.embedding.dimension", () -> "768");
+        registry.add("app.embedding.dimension", () -> "1024");
+        registry.add("app.vector.dimension", () -> "1024");
     }
 
     @Autowired
@@ -101,7 +104,7 @@ class VectorStoreServicePostgresTest {
         testCandidateId = createCandidateId("vector-postgres-main");
         
         // Mock embedding service to return dummy embeddings
-        float[] dummyEmbedding = new float[768];
+        float[] dummyEmbedding = new float[1024];
         // Initialize with some values for similarity testing
         for (int i = 0; i < dummyEmbedding.length; i++) {
             dummyEmbedding[i] = (float) Math.random() * 0.1f;
@@ -152,7 +155,7 @@ class VectorStoreServicePostgresTest {
         vectorStore.save(testCandidateId, ChunkType.SKILL, "Spring Boot, Docker, Kubernetes");
         
         // Create query embedding (similar to saved content)
-        float[] queryEmbedding = new float[768];
+        float[] queryEmbedding = new float[1024];
         for (int i = 0; i < queryEmbedding.length; i++) {
             queryEmbedding[i] = (float) Math.random() * 0.1f;
         }

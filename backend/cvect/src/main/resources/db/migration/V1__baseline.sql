@@ -1,0 +1,2 @@
+-- Flyway baseline marker.
+-- Existing environments can baseline at V1, then apply forward migrations from V2+.

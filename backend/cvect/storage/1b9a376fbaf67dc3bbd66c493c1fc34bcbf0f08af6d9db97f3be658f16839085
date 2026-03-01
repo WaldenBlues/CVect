@@ -1,0 +1,51 @@
+工作经历
+- 某风控与反欺诈科技公司（Q公司） | Java技术专家（风控决策） | 2020-06 至今
+- 负责实时风控决策平台（规则+模型特征服务）研发，支撑峰值 10 万 QPS；通过缓存与异步化优化，决策延迟 P99 < 25ms。
+- 精通 Spring：Spring Boot/MVC/事务；构建统一审计与灰度发布，误配置事故下降 70%。
+- ORM：MyBatis（主）；MySQL 深度优化与分区/分库；特征查询耗时下降 40%。
+- NoSQL/Queue：Redis（决策缓存/布隆过滤）、Kafka（事件流）、Elasticsearch（黑名单检索）；熟悉各自限制与一致性权衡。
+- 研究 HTTP 协议、缓存与幂等：请求签名、重试退避；接口重试风暴问题治理后，错误率下降 30%。
+- JVM 调优：G1 + JFR；解决线程池饱和与锁竞争，CPU 峰值下降 22%。
+- 逻辑/概率思维：参与阈值与策略评估（A/B、置信区间、误拦/漏拦权衡），将误拦率下降 9%，同时保持拦截收益稳定。
+- 开源源码研究：Spring、Guava Cache、Netty；输出《高并发风控服务实践》文档。
+
+- 某互联网金融公司（R公司） | 高级Java工程师 | 2016-07 至 2020-05
+- 负责贷款审批与额度服务，使用设计模式（策略/责任链）实现审批流程；与 MQ 补偿结合提升一致性。
+- 熟悉 RPC：Dubbo/gRPC 调用治理与超时处理，线上超时故障下降 25%。
+
+教育背景
+- 华南理工大学 | 学士 计算机科学与技术 | 2012 至 2016
+
+技术栈
+- Java 8/11/17，Spring Boot / Spring MVC / Spring Cloud
+- ORM：MyBatis（精通），Hibernate/JPA（熟悉）
+- MySQL（索引/事务/锁/分区/分库分表），Redis（Bloom/Lua/Cluster），Elasticsearch
+- MQ：Kafka / RocketMQ；事件驱动、补偿、消费幂等
+- RPC：Dubbo / gRPC；HTTP/缓存、网关治理
+- JVM：G1、JFR/async-profiler、并发（JUC）
+- 可观测性：Prometheus/Grafana/ELK/Tracing；压测与容量评估
+
+证书/荣誉
+- 公司“风控平台最佳实践”奖
+- 内部课程：A/B 与容量评估（含概率/统计方法）
+
+个人信息
+姓名：邓雅雯
+目标岗位：Java技术专家 / 资深后端工程师
+邮箱：yawen.deng@example.com
+电话：+86 133-9055-4128
+经验年限：9.5 年
+
+方向：后端 + Java/风控/实时决策
+简介：9.5年Java后端经验，精通 Spring 与 MyBatis/MySQL 性能优化，熟悉 Redis/Kafka/ES 等中间件与事件驱动架构；研究 HTTP/缓存、JVM 调优与 RPC 框架，并具备较强逻辑/概率思维能力，善于在收益与风险之间做可解释的策略权衡并落地工程方案。
+
+项目经历
+- 实时风控决策平台（Decision Engine）
+技术栈：Java17, Spring Boot/Cloud, MyBatis, MySQL, Redis, Kafka, gRPC, Prometheus
+职责：负责决策链路架构、缓存与幂等、事件驱动审计与灰度；建设压测与容量模型。
+成果：P99 < 25ms；误配置事故下降 70%；错误率下降 30%；误拦率下降 9%。
+
+- 特征服务与黑名单检索平台
+技术栈：Java11, Spring, Redis(Bloom), Elasticsearch, JFR/async-profiler
+职责：设计特征查询与多级缓存；优化查询与 GC 抖动；完善超时与降级策略。
+成果：查询耗时下降 40%；CPU 峰值下降 22%；可用性提升到 99.99%。

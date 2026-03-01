@@ -1,8 +1,15 @@
 package com.walden.cvect.web.controller;
 
+import com.walden.cvect.infra.vector.VectorStoreService;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.repository.CandidateJpaRepository;
+import com.walden.cvect.repository.CandidateSnapshotJpaRepository;
+import com.walden.cvect.repository.ContactJpaRepository;
+import com.walden.cvect.repository.EducationJpaRepository;
+import com.walden.cvect.repository.ExperienceJpaRepository;
+import com.walden.cvect.repository.HonorJpaRepository;
 import com.walden.cvect.repository.JobDescriptionJpaRepository;
+import com.walden.cvect.repository.LinkJpaRepository;
 import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
 import jakarta.validation.Valid;
@@ -23,17 +30,38 @@ public class JobDescriptionController {
 
     private final JobDescriptionJpaRepository jdRepository;
     private final CandidateJpaRepository candidateRepository;
+    private final CandidateSnapshotJpaRepository snapshotRepository;
+    private final ContactJpaRepository contactRepository;
+    private final LinkJpaRepository linkRepository;
+    private final HonorJpaRepository honorRepository;
+    private final EducationJpaRepository educationRepository;
+    private final ExperienceJpaRepository experienceRepository;
     private final UploadBatchJpaRepository batchRepository;
     private final UploadItemJpaRepository itemRepository;
+    private final VectorStoreService vectorStoreService;
 
     public JobDescriptionController(JobDescriptionJpaRepository jdRepository,
             CandidateJpaRepository candidateRepository,
+            CandidateSnapshotJpaRepository snapshotRepository,
+            ContactJpaRepository contactRepository,
+            LinkJpaRepository linkRepository,
+            HonorJpaRepository honorRepository,
+            EducationJpaRepository educationRepository,
+            ExperienceJpaRepository experienceRepository,
             UploadBatchJpaRepository batchRepository,
-            UploadItemJpaRepository itemRepository) {
+            UploadItemJpaRepository itemRepository,
+            VectorStoreService vectorStoreService) {
         this.jdRepository = jdRepository;
         this.candidateRepository = candidateRepository;
+        this.snapshotRepository = snapshotRepository;
+        this.contactRepository = contactRepository;
+        this.linkRepository = linkRepository;
+        this.honorRepository = honorRepository;
+        this.educationRepository = educationRepository;
+        this.experienceRepository = experienceRepository;
         this.batchRepository = batchRepository;
         this.itemRepository = itemRepository;
+        this.vectorStoreService = vectorStoreService;
     }
 
     @GetMapping
@@ -78,16 +106,16 @@ public class JobDescriptionController {
         if (jd == null) {
             return ResponseEntity.notFound().build();
         }
-        long count = candidateRepository.countByJobDescriptionId(id);
-        if (count > 0) {
-            return ResponseEntity.status(409).build();
-        }
-
-        List<UUID> batchIds = batchRepository.findIdsByJobDescriptionId(id);
-        if (!batchIds.isEmpty()) {
-            itemRepository.deleteByBatch_IdIn(batchIds);
-            batchRepository.deleteByJobDescriptionId(id);
-        }
+        vectorStoreService.deleteByJobDescription(id);
+        snapshotRepository.deleteByJdId(id);
+        contactRepository.deleteByJobDescriptionId(id);
+        linkRepository.deleteByJobDescriptionId(id);
+        honorRepository.deleteByJobDescriptionId(id);
+        educationRepository.deleteByJobDescriptionId(id);
+        experienceRepository.deleteByJobDescriptionId(id);
+        candidateRepository.deleteByJobDescriptionId(id);
+        itemRepository.deleteByJobDescriptionId(id);
+        batchRepository.deleteByJobDescriptionId(id);
 
         jdRepository.delete(jd);
         return ResponseEntity.noContent().build();

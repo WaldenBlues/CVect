@@ -4,7 +4,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.List;
@@ -62,18 +61,20 @@ public class EmbeddingService {
                     .retrieve()
                     .bodyToMono(EmbeddingResponse.class)
                     .timeout(requestTimeout)
-                    .onErrorResume(e -> {
-                        log.error("Embedding service error: {}", e.getMessage());
-                        return Mono.empty();
-                    })
                     .block();
 
             if (response == null || response.embeddings() == null) {
-                log.warn("Embedding service returned empty response, using zero-vectors fallback.");
-                return zeroVectors(texts.size());
+                throw new IllegalStateException("Embedding service returned empty response");
             }
             if (response.embeddings().size() != texts.size()) {
                 throw new IllegalStateException("Embedding response size mismatch");
+            }
+            for (List<Float> vector : response.embeddings()) {
+                if (vector == null || vector.size() != config.getDimension()) {
+                    throw new IllegalStateException(
+                            "Embedding dimension mismatch, expected=" + config.getDimension()
+                                    + ", actual=" + (vector == null ? 0 : vector.size()));
+                }
             }
             log.info("Generated {} embeddings", response.embeddings().size());
             // 转换 List<Float> -> float[]
@@ -91,12 +92,6 @@ public class EmbeddingService {
             log.error("Failed to generate embeddings: {}", e.getMessage());
             throw new RuntimeException("Embedding generation failed", e);
         }
-    }
-
-    private List<float[]> zeroVectors(int count) {
-        return java.util.stream.IntStream.range(0, Math.max(0, count))
-                .mapToObj(i -> new float[config.getDimension()])
-                .toList();
     }
 
     public int getDimension() {

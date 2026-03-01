@@ -3,12 +3,9 @@ package com.walden.cvect.model.entity;
 import java.util.Locale;
 
 public enum UploadItemStatus {
-    PENDING,
     QUEUED,
     PROCESSING,
-    RETRYING,
     DONE,
-    SUCCEEDED,
     DUPLICATE,
     FAILED;
 
@@ -20,8 +17,15 @@ public enum UploadItemStatus {
         if (normalized.isEmpty()) {
             return null;
         }
+        String upper = normalized.toUpperCase(Locale.ROOT);
+        if ("PENDING".equals(upper) || "RETRYING".equals(upper)) {
+            return QUEUED;
+        }
+        if ("SUCCEEDED".equals(upper)) {
+            return DONE;
+        }
         try {
-            return UploadItemStatus.valueOf(normalized.toUpperCase(Locale.ROOT));
+            return UploadItemStatus.valueOf(upper);
         } catch (IllegalArgumentException ex) {
             return null;
         }

@@ -1,0 +1,50 @@
+工作经历
+- 某头部金融科技公司（A公司） | Java技术负责人 / 交易与支付方向 | 2021-06 至今
+- 负责支付核心链路（下单/收银台/分账/退款/对账）微服务架构治理，支撑峰值 12 万 TPS，核心接口 P99 < 35ms；推进服务拆分与限流熔断，稳定性事故下降 60%。
+- 精通 Spring 生态：Spring Boot/Cloud、MVC、AOP、事务；落地统一网关鉴权与灰度发布（Spring Cloud Gateway + Nacos），发布失败率下降 70%。
+- 熟练使用 MyBatis + MySQL：设计分库分表与读写分离，优化慢 SQL（索引、执行计划、覆盖索引、分页策略）；核心表写入耗时下降 45%，锁等待下降 52%。
+- 深入研究缓存与一致性：Redis（Lua/Cluster/热点保护）+ 本地缓存（Caffeine），实践“旁路缓存 + 双删/延迟删除”；收银台 QPS 降低 35%。
+- 研究过 JVM 调优：G1/ZGC、JFR/async-profiler、堆外内存与线程池；线上 Full GC 由日均 8 次降至 0-1 次。
+- 研读并分享开源源码：Spring Framework 事务与 Bean 生命周期、Netty EventLoop、Dubbo SPI；沉淀 30+ 篇源码笔记与团队分享。
+
+- 某大型电商平台（B公司） | 高级Java工程师 | 2017-07 至 2021-05
+- 负责订单与营销系统（优惠券/满减/拼团）研发，实践常见设计模式（策略/工厂/责任链）构建规则引擎，规则迭代效率提升 2 倍。
+- 熟悉 Queue 与场景限制：RocketMQ/Kafka 用于异步化与削峰填谷，构建“下单事件总线”；峰值削峰 40%，下游超时率下降 33%。
+- 深入理解 HTTP 协议与缓存：ETag/Cache-Control、幂等与重试、请求签名；与 CDN/网关联动降低重复请求 18%。
+
+教育背景
+- 南京大学 | 学士 计算机科学与技术 | 2013 至 2017
+
+技术栈
+- Java 8/11/17，Spring Boot / Spring Cloud / Spring MVC / Spring Security
+- ORM：MyBatis（主），JPA/Hibernate（熟悉）
+- MySQL（索引/事务/锁/执行计划/分库分表/读写分离），Redis（Cluster/Lua），Elasticsearch
+- MQ：RocketMQ / Kafka（顺序消息、事务消息、消费幂等）
+- RPC：Dubbo / gRPC，Netty 基础，HTTP/1.1/2、TLS、缓存策略
+- JVM：G1/ZGC、JFR、async-profiler、线程池与并发（JUC）
+- 工程化：Docker/K8s、CI/CD、灰度发布、可观测性（Prometheus/Grafana/ELK）
+
+证书/荣誉
+- 公司“年度稳定性贡献奖”
+- 开源阅读与分享：Spring / Netty / Dubbo 源码系列（内部专栏）
+
+个人信息
+姓名：李昊然
+目标岗位：资深Java工程师 / Java技术负责人
+邮箱：haoran.li@example.com
+电话：+86 139-1200-1826
+经验年限：8 年
+
+方向：后端 + Java/分布式/支付
+简介：8年Java后端经验，长期负责高并发交易链路与微服务治理，精通 Spring 生态、MyBatis/MySQL 性能优化、Redis/MQ 与 RPC 框架；深入研究 HTTP/缓存/JVM 调优，并持续研读 Spring/Netty/Dubbo 等开源源码输出心得，注重用工程化与数据化手段提升稳定性与业务转化。
+
+项目经历
+- 支付收银台与分账系统（Payment Core）
+技术栈：Java17, Spring Boot/Cloud, MyBatis, MySQL, Redis, RocketMQ, Dubbo, Prometheus
+职责：负责核心链路架构设计、幂等与一致性方案、缓存与限流策略；推动可观测性与应急预案。
+成果：峰值 12 万 TPS 稳定运行；P99 延迟下降 38%；退款链路成功率提升到 99.95%；MTTR 由 28min 降至 10min。
+
+- 订单规则引擎（Promotion Engine）
+技术栈：Java11, Spring, MyBatis, MySQL, Kafka, Redis, JUnit, JMeter
+职责：用策略/责任链等模式抽象促销规则；设计可配置规则 DSL 与灰度发布；建设压测与容量基线。
+成果：规则上线周期从 2 天缩短到 2 小时；峰值削峰 40%；活动期间故障数下降 55%。

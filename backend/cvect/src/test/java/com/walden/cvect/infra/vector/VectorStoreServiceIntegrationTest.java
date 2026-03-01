@@ -12,8 +12,7 @@ import com.walden.cvect.service.ChunkerService;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
+import com.walden.cvect.config.PostgresIntegrationTestBase;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -28,56 +27,18 @@ import static org.junit.jupiter.api.Assertions.*;
  * 测试原则：遵循完整流水线测试模式
  * PDF -> parser -> normalizer -> chunker -> fact extraction -> vector storage
  *
- * 前置条件：需要 Docker 启动 PostgreSQL + pgvector
- * 启动命令: docker-compose up -d
+ * 前置条件：Testcontainers 提供 PostgreSQL + pgvector
  *
- * 如果 Docker 未启动，测试会自动跳过
+ * 如果 Docker 不可用，测试会自动跳过
  */
-@SpringBootTest
+@SpringBootTest(properties = {
+        "app.upload.worker.enabled=false",
+        "app.vector.ingest.worker.enabled=false"
+})
 @Tag("integration")
 @Tag("vector")
 @DisplayName("VectorStoreService 集成测试（流水线测试）")
-class VectorStoreServiceIntegrationTest {
-
-    private static final boolean DOCKER_RUNNING = Boolean.parseBoolean(System.getenv("DOCKER_ACTIVE"))
-            || isPortInUse(5432);
-
-    private static boolean isPortInUse(int port) {
-        try (var socket = new java.net.ServerSocket(port)) {
-            return false;
-        } catch (Exception e) {
-            return true;
-        }
-    }
-
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        if (DOCKER_RUNNING) {
-            // Docker 模式：PostgreSQL + pgvector
-            registry.add("spring.datasource.url", () -> "jdbc:postgresql://localhost:5432/cvect");
-            registry.add("spring.datasource.username", () -> "postgres");
-            registry.add("spring.datasource.password", () -> "postgres");
-            registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-            registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
-            registry.add("app.vector.enabled", () -> "true");
-            registry.add("app.vector.table-name", () -> "resume_chunks");
-            registry.add("app.vector.index-type", () -> "hnsw");
-            registry.add("app.vector.metric", () -> "cosine");
-            registry.add("app.vector.ef-construction", () -> "64");
-            registry.add("app.vector.m", () -> "16");
-        } else {
-            // 开发模式：使用 H2 内存数据库
-            registry.add("spring.datasource.url", () -> "jdbc:h2:mem:cvect;MODE=PostgreSQL");
-            registry.add("spring.datasource.username", () -> "sa");
-            registry.add("spring.datasource.password", () -> "");
-            registry.add("spring.datasource.driver-class-name", () -> "org.h2.Driver");
-            registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.H2Dialect");
-            registry.add("app.vector.enabled", () -> "false");
-            registry.add("app.vector.table-name", () -> "resume_chunks");
-            registry.add("app.vector.index-type", () -> "hnsw");
-            registry.add("app.vector.metric", () -> "cosine");
-        }
-    }
+class VectorStoreServiceIntegrationTest extends PostgresIntegrationTestBase {
 
     @Autowired(required = false)
     private VectorStoreService vectorStore;
@@ -135,26 +96,19 @@ class VectorStoreServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("服务应正确初始化（根据环境自动选择数据库）")
+    @DisplayName("服务应正确初始化")
     void should_initialize_correctly() {
-        if (DOCKER_RUNNING) {
-            // Docker 模式：需要 VectorStoreService
-            Assumptions.assumeTrue(vectorStore != null,
-                "跳过：PostgreSQL 未启动 (运行: docker-compose up -d)");
-            assertNotNull(vectorStore);
-        } else {
-            // 开发模式：可以使用 H2
-            assertNotNull(parser);
-            assertNotNull(normalizer);
-            assertNotNull(chunker);
-        }
+        assertNotNull(vectorStore);
+        assertNotNull(parser);
+        assertNotNull(normalizer);
+        assertNotNull(chunker);
     }
 
     @Test
     @DisplayName("应能保存 EXPERIENCE chunk 的向量（从真实 PDF 解析）")
     void should_save_experience_vector_from_pdf() throws Exception {
         Assumptions.assumeTrue(vectorStore != null,
-            "跳过：需要 PostgreSQL + pgvector (运行: docker-compose up -d)");
+            "跳过：需要 PostgreSQL + pgvector");
 
         // Given: 从 My.pdf 解析获取 EXPERIENCE chunks（遵循完整流水线）
         List<ResumeChunk> experienceChunks = getChunksFromPdf("/static/My.pdf", ChunkType.EXPERIENCE);
@@ -244,8 +198,8 @@ class VectorStoreServiceIntegrationTest {
     @Test
     @DisplayName("HNSW 索引应能成功创建（Docker 模式）")
     void should_create_hnsw_index() throws Exception {
-        Assumptions.assumeTrue(DOCKER_RUNNING && vectorStore != null,
-            "跳过：需要 PostgreSQL + pgvector (运行: docker-compose up -d)");
+        Assumptions.assumeTrue(vectorStore != null,
+            "跳过：需要 PostgreSQL + pgvector");
 
         try {
             vectorStore.createHnswIndex();

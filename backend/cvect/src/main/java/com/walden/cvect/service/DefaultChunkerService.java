@@ -140,10 +140,7 @@ public class DefaultChunkerService implements ChunkerService {
      */
     private ChunkType inferType(String text) {
         String lower = text.toLowerCase();
-
-        if (text.length() > LONG_TEXT_THRESHOLD && !containsColon(text)) {
-            return ChunkType.OTHER;
-        }
+        boolean longWithoutColon = text.length() > LONG_TEXT_THRESHOLD && !containsColon(text);
 
         if (isContactSignal(text)) {
             return ChunkType.CONTACT;
@@ -171,6 +168,10 @@ public class DefaultChunkerService implements ChunkerService {
 
         if (isLinkLike(lower)) {
             return ChunkType.LINK;
+        }
+
+        if (longWithoutColon) {
+            return ChunkType.OTHER;
         }
 
         return ChunkType.OTHER;

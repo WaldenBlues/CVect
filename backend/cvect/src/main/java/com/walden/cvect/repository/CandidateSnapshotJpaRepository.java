@@ -2,6 +2,9 @@ package com.walden.cvect.repository;
 
 import com.walden.cvect.model.entity.CandidateSnapshot;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.UUID;
@@ -9,4 +12,8 @@ import java.util.UUID;
 public interface CandidateSnapshotJpaRepository extends JpaRepository<CandidateSnapshot, UUID> {
 
     List<CandidateSnapshot> findByJdIdOrderByCandidateCreatedAtDesc(UUID jdId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from CandidateSnapshot s where s.jdId = :jobDescriptionId")
+    int deleteByJdId(@Param("jobDescriptionId") UUID jobDescriptionId);
 }

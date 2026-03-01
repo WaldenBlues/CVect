@@ -1,5 +1,6 @@
 package com.walden.cvect.web.controller;
 
+import com.walden.cvect.config.PostgresIntegrationTestBase;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.model.entity.UploadBatch;
 import com.walden.cvect.model.entity.UploadItem;
@@ -24,11 +25,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "app.upload.worker.enabled=false")
+@SpringBootTest(properties = {
+        "app.upload.worker.enabled=false",
+        "app.vector.ingest.worker.enabled=false"
+})
 @AutoConfigureMockMvc
 @Tag("integration")
 @Tag("api")
-class UploadBatchControllerIntegrationTest {
+class UploadBatchControllerIntegrationTest extends PostgresIntegrationTestBase {
 
     @Autowired
     private MockMvc mockMvc;
@@ -85,6 +89,28 @@ class UploadBatchControllerIntegrationTest {
                 .andExpect(jsonPath("$.content.length()").value(2))
                 .andExpect(jsonPath("$.content[0].status").value("FAILED"))
                 .andExpect(jsonPath("$.content[1].status").value("FAILED"));
+    }
+
+    @Test
+    @DisplayName("GET /api/uploads/batches/{id}/items should accept legacy status aliases")
+    void shouldAcceptLegacyStatusAliases() throws Exception {
+        UploadBatch batch = createBatch();
+        itemRepository.save(newItem(batch, "queued.pdf", "QUEUED", null));
+        itemRepository.save(newItem(batch, "done.pdf", "DONE", null));
+
+        mockMvc.perform(get("/api/uploads/batches/{id}/items", batch.getId())
+                        .param("status", "PENDING"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].fileName").value("queued.pdf"))
+                .andExpect(jsonPath("$.content[0].status").value("QUEUED"));
+
+        mockMvc.perform(get("/api/uploads/batches/{id}/items", batch.getId())
+                        .param("status", "SUCCEEDED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].fileName").value("done.pdf"))
+                .andExpect(jsonPath("$.content[0].status").value("DONE"));
     }
 
     @Test

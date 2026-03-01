@@ -40,7 +40,7 @@ public class ResumeChunkVector {
     private String content;
 
     // H2兼容：使用 TEXT 存储（开发/测试环境）
-    // 生产环境通过 Hibernate 物理命名策略转换为 vector(768)
+    // 生产环境通过 Hibernate 物理命名策略转换为 vector(app.vector.dimension)
     @Column(columnDefinition = "TEXT")
     private float[] embedding;
 

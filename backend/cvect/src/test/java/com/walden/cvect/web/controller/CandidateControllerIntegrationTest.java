@@ -1,5 +1,6 @@
 package com.walden.cvect.web.controller;
 
+import com.walden.cvect.config.PostgresIntegrationTestBase;
 import com.walden.cvect.model.entity.Candidate;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.repository.CandidateJpaRepository;
@@ -21,11 +22,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "app.upload.worker.enabled=false",
+        "app.vector.ingest.worker.enabled=false"
+})
 @AutoConfigureMockMvc
 @Tag("integration")
 @Tag("api")
-class CandidateControllerIntegrationTest {
+class CandidateControllerIntegrationTest extends PostgresIntegrationTestBase {
 
     @Autowired
     private MockMvc mockMvc;

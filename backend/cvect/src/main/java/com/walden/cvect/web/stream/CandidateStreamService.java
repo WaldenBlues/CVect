@@ -42,6 +42,13 @@ public class CandidateStreamService {
         sendEvent("candidate", event);
     }
 
+    public void publishVectorStatus(VectorStatusStreamEvent event) {
+        if (event == null) {
+            return;
+        }
+        sendEvent("vector", event);
+    }
+
     /**
      * SSE 心跳，防止代理/浏览器断开连接
      */

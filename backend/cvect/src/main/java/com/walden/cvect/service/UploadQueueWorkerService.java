@@ -1,7 +1,6 @@
 package com.walden.cvect.service;
 
 import com.walden.cvect.model.entity.UploadBatch;
-import com.walden.cvect.model.entity.UploadBatchStatus;
 import com.walden.cvect.model.entity.UploadItem;
 import com.walden.cvect.model.entity.UploadItemStatus;
 import com.walden.cvect.repository.UploadBatchJpaRepository;
@@ -23,14 +22,13 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 消费 upload_items.QUEUED 的轻量 DB worker
@@ -49,6 +47,9 @@ public class UploadQueueWorkerService {
     private final TransactionTemplate requiresNewTx;
     private final Duration staleProcessingTimeout;
     private final Path storageDir;
+    private final int claimBatchSize;
+    private final long maintenanceIntervalMs;
+    private final AtomicLong lastMaintenanceAtMs = new AtomicLong(0L);
 
     public UploadQueueWorkerService(
             UploadItemJpaRepository itemRepository,
@@ -57,7 +58,9 @@ public class UploadQueueWorkerService {
             BatchStreamService batchStreamService,
             PlatformTransactionManager transactionManager,
             @Value("${app.upload.worker.stale-processing-ms:300000}") long staleProcessingMs,
-            @Value("${app.upload.storage-dir:storage}") String storageDir) {
+            @Value("${app.upload.storage-dir:storage}") String storageDir,
+            @Value("${app.upload.worker.claim-batch-size:100}") int claimBatchSize,
+            @Value("${app.upload.worker.maintenance-interval-ms:5000}") long maintenanceIntervalMs) {
         this.itemRepository = itemRepository;
         this.batchRepository = batchRepository;
         this.resumeProcessService = resumeProcessService;
@@ -65,35 +68,35 @@ public class UploadQueueWorkerService {
         this.requiresNewTx = new TransactionTemplate(transactionManager);
         this.staleProcessingTimeout = Duration.ofMillis(Math.max(0L, staleProcessingMs));
         this.storageDir = resolveStorageDir(storageDir);
+        this.claimBatchSize = Math.max(1, Math.min(claimBatchSize, 500));
+        this.maintenanceIntervalMs = Math.max(1000L, maintenanceIntervalMs);
     }
 
-    public void consumeQueuedItems() {
-        recoverStaleProcessingItems();
-        repairQueuedItemsWithoutJobKey();
+    public int consumeQueuedItems() {
+        runMaintenanceIfDue();
 
-        List<UploadItem> queuedItems = itemRepository.findTop20ByStatusAndStoragePathIsNotNullOrderByUpdatedAtAsc(
-                UploadItemStatus.QUEUED);
-        if (queuedItems.isEmpty()) {
+        List<UUID> claimedItemIds = inTx(() -> itemRepository.claimNextQueuedBatch(claimBatchSize), List.of());
+        if (claimedItemIds.isEmpty()) {
+            return 0;
+        }
+
+        for (UUID itemId : claimedItemIds) {
+            inTxNoResult(() -> processClaimedItem(itemId));
+        }
+        return claimedItemIds.size();
+    }
+
+    private void runMaintenanceIfDue() {
+        long now = System.currentTimeMillis();
+        long last = lastMaintenanceAtMs.get();
+        if (now - last < maintenanceIntervalMs) {
             return;
         }
-
-        for (UploadItem queued : queuedItems) {
-            UUID itemId = queued.getId();
-            String jobKey = ensureQueueJobKey(itemId, queued.getQueueJobKey());
-            if (jobKey == null) {
-                continue;
-            }
-            String expectedJobKey = jobKey;
-            boolean claimed = inTx(() -> itemRepository.claimQueuedById(
-                    itemId,
-                    expectedJobKey,
-                    UploadItemStatus.PROCESSING,
-                    UploadItemStatus.QUEUED) > 0, false);
-            if (!claimed) {
-                continue;
-            }
-            inTxNoResult(() -> processClaimedItem(itemId, expectedJobKey));
+        if (!lastMaintenanceAtMs.compareAndSet(last, now)) {
+            return;
         }
+        recoverStaleProcessingItems();
+        repairQueuedItemsWithoutJobKey();
     }
 
     void recoverStaleProcessingItems() {
@@ -158,7 +161,7 @@ public class UploadQueueWorkerService {
         void run();
     }
 
-    void processClaimedItem(UUID itemId, String expectedJobKey) {
+    void processClaimedItem(UUID itemId) {
         UploadItem item = itemRepository.findById(itemId).orElse(null);
         if (item == null) {
             return;
@@ -166,7 +169,8 @@ public class UploadQueueWorkerService {
         if (item.getStatus() != UploadItemStatus.PROCESSING) {
             return;
         }
-        if (!expectedJobKey.equals(normalizeJobKey(item.getQueueJobKey()))) {
+        String leaseJobKey = normalizeJobKey(item.getQueueJobKey());
+        if (leaseJobKey == null) {
             return;
         }
         UploadBatch batch = item.getBatch();
@@ -204,13 +208,13 @@ public class UploadQueueWorkerService {
             finalStatus = result.duplicated() ? UploadItemStatus.DUPLICATE : UploadItemStatus.DONE;
             int updated = itemRepository.completeProcessingSuccess(
                     itemId,
-                    expectedJobKey,
+                    leaseJobKey,
                     finalStatus,
                     candidateId,
                     finalStoragePath,
                     UploadItemStatus.PROCESSING);
             if (updated == 0) {
-                log.info("Skip stale success commit for itemId={}, jobKey={}", itemId, expectedJobKey);
+                log.info("Skip stale success commit for itemId={}, jobKey={}", itemId, leaseJobKey);
                 return;
             }
         } catch (Exception e) {
@@ -218,12 +222,12 @@ public class UploadQueueWorkerService {
             finalStatus = UploadItemStatus.FAILED;
             int updated = itemRepository.completeProcessingFailure(
                     itemId,
-                    expectedJobKey,
+                    leaseJobKey,
                     errorMessage,
                     UploadItemStatus.FAILED,
                     UploadItemStatus.PROCESSING);
             if (updated == 0) {
-                log.info("Skip stale failure commit for itemId={}, jobKey={}", itemId, expectedJobKey);
+                log.info("Skip stale failure commit for itemId={}, jobKey={}", itemId, leaseJobKey);
                 return;
             }
             log.warn("Failed to process queued upload item: itemId={}", itemId, e);
@@ -271,33 +275,13 @@ public class UploadQueueWorkerService {
     }
 
     BatchProgress refreshBatchProgress(UUID batchId) {
+        batchRepository.refreshProgressFromItems(batchId);
         UploadBatch batch = batchRepository.findById(batchId).orElse(null);
         if (batch == null) {
             return new BatchProgress(0, 0);
         }
-
-        Map<UploadItemStatus, Long> countsByStatus = new EnumMap<>(UploadItemStatus.class);
-        itemRepository.countGroupedByStatus(batchId).forEach(count ->
-                countsByStatus.put(count.getStatus(), count.getCount()));
-
-        long done = get(countsByStatus, UploadItemStatus.DONE);
-        long duplicate = get(countsByStatus, UploadItemStatus.DUPLICATE);
-        long failed = get(countsByStatus, UploadItemStatus.FAILED);
-        long processing = get(countsByStatus, UploadItemStatus.PROCESSING) + get(countsByStatus, UploadItemStatus.RETRYING);
-        long queued = get(countsByStatus, UploadItemStatus.QUEUED) + get(countsByStatus, UploadItemStatus.PENDING);
-
-        int processedFiles = toInt(done + duplicate + failed);
-        int totalFiles = batch.getTotalFiles() == null || batch.getTotalFiles() <= 0
-                ? toInt(itemRepository.countByBatch_Id(batchId))
-                : batch.getTotalFiles();
-
-        batch.setProcessedFiles(processedFiles);
-        if (processing == 0 && queued == 0 && processedFiles >= totalFiles) {
-            batch.setStatus(UploadBatchStatus.DONE);
-        } else {
-            batch.setStatus(UploadBatchStatus.PROCESSING);
-        }
-        batchRepository.save(batch);
+        int totalFiles = batch.getTotalFiles() == null ? 0 : Math.max(0, batch.getTotalFiles());
+        int processedFiles = batch.getProcessedFiles() == null ? 0 : Math.max(0, batch.getProcessedFiles());
         return new BatchProgress(totalFiles, processedFiles);
     }
 
@@ -322,7 +306,12 @@ public class UploadQueueWorkerService {
         if (storagePath == null || storagePath.isBlank()) {
             return null;
         }
-        return Paths.get(storagePath).toAbsolutePath().normalize();
+        Path resolved = Paths.get(storagePath).toAbsolutePath().normalize();
+        if (!resolved.startsWith(storageDir)) {
+            log.warn("Reject storage path outside storage-dir: {}", resolved);
+            return null;
+        }
+        return resolved;
     }
 
     private Path reconcileStorage(Path source, String fileHash) {
@@ -352,14 +341,6 @@ public class UploadQueueWorkerService {
         }
         String normalized = jobKey.trim();
         return normalized.isEmpty() ? null : normalized;
-    }
-
-    private static long get(Map<UploadItemStatus, Long> counts, UploadItemStatus key) {
-        return counts.getOrDefault(key, 0L);
-    }
-
-    private static int toInt(long value) {
-        return (int) Math.min(Integer.MAX_VALUE, Math.max(0L, value));
     }
 
     private static Path resolveStorageDir(String rawDir) {

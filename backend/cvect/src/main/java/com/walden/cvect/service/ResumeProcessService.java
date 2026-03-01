@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.walden.cvect.exception.ResumeProcessingException;
+import com.walden.cvect.model.ChunkType;
 import com.walden.cvect.model.ResumeChunk;
 import com.walden.cvect.infra.parser.ResumeParser;
 import com.walden.cvect.infra.process.NameExtractor;
@@ -39,6 +40,7 @@ public class ResumeProcessService {
     private final JobDescriptionJpaRepository jobDescriptionRepository;
     private final CandidateSnapshotService snapshotService;
     private final CandidateStreamService streamService;
+    private final VectorIngestService vectorIngestService;
 
     public ResumeProcessService(
             ResumeParser parser,
@@ -49,7 +51,8 @@ public class ResumeProcessService {
             CandidateJpaRepository candidateRepository,
             JobDescriptionJpaRepository jobDescriptionRepository,
             CandidateSnapshotService snapshotService,
-            CandidateStreamService streamService) {
+            CandidateStreamService streamService,
+            VectorIngestService vectorIngestService) {
         this.parser = parser;
         this.normalizer = normalizer;
         this.nameExtractor = nameExtractor;
@@ -59,6 +62,7 @@ public class ResumeProcessService {
         this.jobDescriptionRepository = jobDescriptionRepository;
         this.snapshotService = snapshotService;
         this.streamService = streamService;
+        this.vectorIngestService = vectorIngestService;
     }
 
     /**
@@ -68,9 +72,8 @@ public class ResumeProcessService {
         try {
             byte[] fileBytes = readAllBytes(Objects.requireNonNull(is, "input stream must not be null"));
             String fileHash = sha256Hex(fileBytes);
-
-            Candidate existing = candidateRepository.findByFileHash(fileHash).orElse(null);
             JobDescription jobDescription = resolveJobDescription(jdId);
+            Candidate existing = findExistingCandidate(fileHash, jdId);
 
             ParseResult parsed = Objects.requireNonNull(
                     parser.parse(new ByteArrayInputStream(fileBytes), contentType),
@@ -105,6 +108,13 @@ public class ResumeProcessService {
         } catch (Exception e) {
             throw new ResumeProcessingException("Failed to process resume", e);
         }
+    }
+
+    private Candidate findExistingCandidate(String fileHash, UUID jdId) {
+        if (jdId != null) {
+            return candidateRepository.findByFileHashAndJobDescriptionId(fileHash, jdId).orElse(null);
+        }
+        return candidateRepository.findByFileHashAndJobDescriptionIsNull(fileHash).orElse(null);
     }
 
     /**
@@ -164,7 +174,22 @@ public class ResumeProcessService {
             } catch (Exception e) {
                 log.warn("Failed to process chunk: type={}, index={}", chunk.getType(), chunk.getIndex(), e);
             }
+            if (!isVectorizableChunk(chunk)) {
+                continue;
+            }
+            vectorIngestService.ingest(candidateId, chunk.getType(), chunk.getContent());
         }
+    }
+
+    private static boolean isVectorizableChunk(ResumeChunk chunk) {
+        if (chunk == null) {
+            return false;
+        }
+        if (chunk.getType() != ChunkType.EXPERIENCE && chunk.getType() != ChunkType.SKILL) {
+            return false;
+        }
+        String content = chunk.getContent();
+        return content != null && !content.isBlank();
     }
 
     /**

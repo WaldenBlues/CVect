@@ -16,7 +16,7 @@ CVect 是一个面向 HR 场景的简历处理系统：支持 JD 管理、批量
 - 候选人列表与状态更新：支持 `TO_CONTACT / TO_INTERVIEW / REJECTED`
 - 快照 + SSE：
   - 候选人增量推送（`/api/candidates/stream`）
-  - 批次进度推送（`/api/uploads/batches/{id}/stream`）
+  - 批次进度推送（主路径：`/api/sse/batches/{id}`，兼容路径：`/api/uploads/batches/{id}/stream`）
 - 文件幂等：基于 `file_hash` 去重，避免重复解析/重复入库
 
 ### 当前默认环境
@@ -58,6 +58,39 @@ npm run dev -- --host
 curl http://localhost:8080/api/resumes/health
 ```
 
+## Local vLLM (Qwen3)
+
+目标：本地提供 OpenAI 兼容接口，并通过统一网关只暴露一个 `base_url`。
+
+- LLM 服务：`http://localhost:8000`（`Qwen/Qwen3-0.6B`）
+- Embedding 服务：`http://localhost:8001`（`Qwen/Qwen3-Embedding-0.6B`，`--runner pooling`）
+- 统一网关：`http://localhost:8002`
+
+### 使用步骤
+
+```bash
+# 1) 可选：若需下载受限模型，先设置 token
+export HF_TOKEN=your_token
+
+# 2) 启动 vLLM 双服务 + nginx 网关
+./scripts/vllm-up.sh
+
+# 3) 运行联通性与功能验证
+./scripts/vllm-smoke-test.sh
+```
+
+上层配置建议：
+
+```text
+base_url=http://localhost:8002
+```
+
+### 注意事项
+
+- `Qwen/Qwen3-Embedding-0.6B` 默认维度通常为 `1024`。如果现有库按 `768` 建模，需要迁移或自行截断/降维。
+- 调用 embeddings 时，先不要传 `dimensions` 参数（部分实现会返回 400）。
+- 当前配置不默认开启 reasoning parser，以保持 OpenAI 兼容响应字段最小化。
+
 ## 测试与质量门禁
 
 ```bash
@@ -87,7 +120,7 @@ cd backend/cvect
   - `PATCH /api/candidates/{id}/recruitment-status`
 - SSE：
   - `GET /api/candidates/stream`
-  - `GET /api/uploads/batches/{id}/stream`
+  - `GET /api/sse/batches/{id}`（兼容：`GET /api/uploads/batches/{id}/stream`）
 
 ## 下一阶段计划（已对齐当前方向）
 

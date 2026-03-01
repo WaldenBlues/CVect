@@ -6,6 +6,10 @@ import com.walden.cvect.model.entity.UploadItem;
 import com.walden.cvect.model.entity.UploadItemStatus;
 import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -20,13 +24,18 @@ import java.util.UUID;
 @Service
 public class UploadBatchService {
 
+    private static final Logger log = LoggerFactory.getLogger(UploadBatchService.class);
+
     private final UploadBatchJpaRepository batchRepository;
     private final UploadItemJpaRepository itemRepository;
+    private final MeterRegistry meterRegistry;
 
     public UploadBatchService(UploadBatchJpaRepository batchRepository,
-            UploadItemJpaRepository itemRepository) {
+            UploadItemJpaRepository itemRepository,
+            ObjectProvider<MeterRegistry> meterRegistryProvider) {
         this.batchRepository = batchRepository;
         this.itemRepository = itemRepository;
+        this.meterRegistry = meterRegistryProvider.getIfAvailable();
     }
 
     @Transactional(readOnly = true)
@@ -43,11 +52,10 @@ public class UploadBatchService {
 
         long total = countsByStatus.values().stream().mapToLong(Long::longValue).sum();
         long succeeded = get(countsByStatus, UploadItemStatus.DONE)
-                + get(countsByStatus, UploadItemStatus.DUPLICATE)
-                + get(countsByStatus, UploadItemStatus.SUCCEEDED);
+                + get(countsByStatus, UploadItemStatus.DUPLICATE);
         long failed = get(countsByStatus, UploadItemStatus.FAILED);
-        long processing = get(countsByStatus, UploadItemStatus.PROCESSING) + get(countsByStatus, UploadItemStatus.RETRYING);
-        long pending = get(countsByStatus, UploadItemStatus.PENDING) + get(countsByStatus, UploadItemStatus.QUEUED);
+        long processing = get(countsByStatus, UploadItemStatus.PROCESSING);
+        long pending = get(countsByStatus, UploadItemStatus.QUEUED);
 
         String lastError = itemRepository.findFirstByBatch_IdAndStatusOrderByUpdatedAtDesc(batchId, UploadItemStatus.FAILED)
                 .map(UploadItem::getErrorMessage)
@@ -74,6 +82,7 @@ public class UploadBatchService {
         if (status == null || status.isBlank()) {
             page = itemRepository.findByBatch_Id(batchId, pageable);
         } else {
+            recordLegacyStatusUsage(status);
             UploadItemStatus parsedStatus = UploadItemStatus.parseOrNull(status);
             if (parsedStatus == null) {
                 return Optional.of(Page.empty(pageable));
@@ -116,6 +125,20 @@ public class UploadBatchService {
 
     private static long get(Map<UploadItemStatus, Long> counts, UploadItemStatus status) {
         return counts.getOrDefault(status, 0L);
+    }
+
+    private void recordLegacyStatusUsage(String raw) {
+        if (raw == null) {
+            return;
+        }
+        String normalized = raw.trim().toUpperCase();
+        if (!normalized.equals("PENDING") && !normalized.equals("RETRYING") && !normalized.equals("SUCCEEDED")) {
+            return;
+        }
+        if (meterRegistry != null) {
+            meterRegistry.counter("cvect.compat.upload_status_legacy", "legacy_status", normalized).increment();
+        }
+        log.info("Legacy upload status filter received: {}", normalized);
     }
 
     public record BatchOverview(

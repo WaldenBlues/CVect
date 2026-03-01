@@ -2,6 +2,12 @@ spring:
   application:
     name: cvect
 
+  servlet:
+    multipart:
+      # Align with UploadController ZIP limits (single entry 20MB, total 200MB).
+      max-file-size: 220MB
+      max-request-size: 220MB
+
   datasource:
     url: ${CVECT_DB_URL:jdbc:postgresql://localhost:5432/cvect}
     username: ${CVECT_DB_USERNAME:postgres}
@@ -10,52 +16,83 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      # Flyway is the single schema source of truth in runtime environments.
+      ddl-auto: validate
+    show-sql: ${CVECT_SHOW_SQL:false}
     properties:
       hibernate:
         format_sql: true
     open-in-view: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
 
 server:
   port: ${CVECT_SERVER_PORT:8080}
 
 app:
   embedding:
-    model-name: ${CVECT_EMBEDDING_MODEL:Qwen/Qwen2.5-Embedding-0.6B-Instruct}
+    model-name: ${CVECT_EMBEDDING_MODEL:Qwen/Qwen3-Embedding-0.6B}
     service-url: ${CVECT_EMBEDDING_SERVICE_URL:http://localhost:8001/embed}
     timeout-seconds: ${CVECT_EMBEDDING_TIMEOUT_SECONDS:60}
     device: ${CVECT_EMBEDDING_DEVICE:cpu}
     batch-size: ${CVECT_EMBEDDING_BATCH_SIZE:32}
-    dimension: ${CVECT_EMBEDDING_DIMENSION:768}
+    dimension: ${CVECT_EMBEDDING_DIMENSION:1024}
     max-input-length: ${CVECT_EMBEDDING_MAX_INPUT_LENGTH:8192}
 
   vector:
-    enabled: ${CVECT_VECTOR_ENABLED:false}
+    enabled: ${CVECT_VECTOR_ENABLED:true}
     table-name: ${CVECT_VECTOR_TABLE:resume_chunks}
     index-type: ${CVECT_VECTOR_INDEX_TYPE:hnsw}
     metric: ${CVECT_VECTOR_METRIC:cosine}
     ef-construction: ${CVECT_VECTOR_EF_CONSTRUCTION:64}
     m: ${CVECT_VECTOR_M:16}
+    dimension: ${CVECT_VECTOR_DIMENSION:${CVECT_EMBEDDING_DIMENSION:1024}}
+    max-concurrent-writes: ${CVECT_VECTOR_MAX_CONCURRENT_WRITES:2}
+    write-acquire-timeout-ms: ${CVECT_VECTOR_WRITE_ACQUIRE_TIMEOUT_MS:2000}
+    ingest:
+      max-pending-items: ${CVECT_VECTOR_INGEST_MAX_PENDING_ITEMS:5000}
+      worker:
+        enabled: ${CVECT_VECTOR_INGEST_WORKER_ENABLED:true}
+        initial-delay-ms: ${CVECT_VECTOR_INGEST_WORKER_INITIAL_DELAY_MS:3000}
+        idle-sleep-ms: ${CVECT_VECTOR_INGEST_WORKER_IDLE_SLEEP_MS:500}
+        consumer-count: ${CVECT_VECTOR_INGEST_WORKER_CONSUMER_COUNT:1}
+        claim-batch-size: ${CVECT_VECTOR_INGEST_WORKER_CLAIM_BATCH_SIZE:20}
+        max-attempts: ${CVECT_VECTOR_INGEST_WORKER_MAX_ATTEMPTS:3}
+        stale-processing-ms: ${CVECT_VECTOR_INGEST_WORKER_STALE_MS:300000}
+        maintenance-interval-ms: ${CVECT_VECTOR_INGEST_WORKER_MAINTENANCE_MS:5000}
+        executor:
+          core-pool-size: ${CVECT_VECTOR_INGEST_WORKER_CORE_POOL:1}
+          max-pool-size: ${CVECT_VECTOR_INGEST_WORKER_MAX_POOL:2}
+          queue-capacity: ${CVECT_VECTOR_INGEST_WORKER_QUEUE_CAPACITY:100}
+          thread-name-prefix: ${CVECT_VECTOR_INGEST_WORKER_THREAD_PREFIX:vector-ingest-worker-}
 
   upload:
     storage-dir: ${CVECT_UPLOAD_STORAGE_DIR:storage}
+    max-inflight-items: ${CVECT_UPLOAD_MAX_INFLIGHT_ITEMS:200}
     worker:
-      enabled: ${CVECT_UPLOAD_WORKER_ENABLED:true}
-      initial-delay-ms: ${CVECT_UPLOAD_WORKER_INITIAL_DELAY_MS:3000}
-      fixed-delay-ms: ${CVECT_UPLOAD_WORKER_FIXED_DELAY_MS:2000}
-      stale-processing-ms: ${CVECT_UPLOAD_WORKER_STALE_MS:300000}
+      enabled: true
+      initial-delay-ms: 3000
+      idle-sleep-ms: 300
+      consumer-count: 2
+      fixed-delay-ms: 2000
+      claim-batch-size: 10
+      maintenance-interval-ms: 5000
+      stale-processing-ms: 300000
       executor:
-        core-pool-size: ${CVECT_UPLOAD_WORKER_CORE_POOL:1}
-        max-pool-size: ${CVECT_UPLOAD_WORKER_MAX_POOL:2}
-        queue-capacity: ${CVECT_UPLOAD_WORKER_QUEUE_CAPACITY:100}
-        thread-name-prefix: ${CVECT_UPLOAD_WORKER_THREAD_PREFIX:upload-worker-}
+        core-pool-size: 2
+        max-pool-size: 4
+        queue-capacity: 100
+        thread-name-prefix: upload-worker-
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,env,beans,mappings,metrics,loggers
+        include: health,info,env,beans,mappings,metrics,loggers,uploadperformance,vectoringestperformance
   endpoint:
     health:
       show-details: always

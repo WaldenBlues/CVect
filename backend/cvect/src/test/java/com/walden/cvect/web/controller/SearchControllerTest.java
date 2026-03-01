@@ -3,29 +3,35 @@ package com.walden.cvect.web.controller;
 import com.walden.cvect.infra.embedding.EmbeddingService;
 import com.walden.cvect.infra.vector.VectorStoreService;
 import com.walden.cvect.model.ChunkType;
+import com.walden.cvect.model.entity.vector.VectorIngestTaskStatus;
+import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * SearchController 单元测试 - 使用 Mockito 模拟依赖
- * 测试原则：隔离外部依赖，快速验证业务逻辑
- */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("SearchController 单元测试")
+@MockitoSettings(strictness = Strictness.LENIENT)
+@DisplayName("SearchController unit tests")
 class SearchControllerTest {
 
     @Mock
@@ -34,153 +40,189 @@ class SearchControllerTest {
     @Mock
     private EmbeddingService embeddingService;
 
+    @Mock
+    private VectorIngestTaskJpaRepository vectorIngestTaskRepository;
+
     private SearchController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new SearchController(vectorStore, embeddingService);
+        controller = new SearchController(vectorStore, embeddingService, vectorIngestTaskRepository);
     }
 
     @Test
-    @DisplayName("搜索请求应返回按分数排序的候选人列表")
-    void should_return_sorted_candidates_by_score() {
-        // Given
-        UUID candidate1 = UUID.randomUUID();
-        UUID candidate2 = UUID.randomUUID();
-        
-        float[] dummyEmbedding = new float[768];
-        when(embeddingService.embed("Java工程师招聘"))
-                .thenReturn(dummyEmbedding);
-        
-        UUID id1 = UUID.randomUUID();
-        UUID id2 = UUID.randomUUID();
-        UUID id3 = UUID.randomUUID();
-        when(vectorStore.search(dummyEmbedding, 10, new ChunkType[]{ChunkType.EXPERIENCE, ChunkType.SKILL}))
-                .thenReturn(List.of(
-                        new VectorStoreService.SearchResult(id1, candidate1, ChunkType.EXPERIENCE, "Java开发经验", 0.2f),
-                        new VectorStoreService.SearchResult(id2, candidate1, ChunkType.SKILL, "Spring Boot", 0.1f),
-                        new VectorStoreService.SearchResult(id3, candidate2, ChunkType.EXPERIENCE, "Python开发", 0.3f)
-                ));
+    @DisplayName("search should aggregate by candidate and sort by weighted score")
+    void shouldAggregateAndSortByWeightedScore() {
+        UUID candidateA = UUID.randomUUID();
+        UUID candidateB = UUID.randomUUID();
+        float[] embedding = new float[1024];
+        when(embeddingService.embed("Java backend role")).thenReturn(embedding);
+        when(vectorStore.search(any(float[].class), eq(40), any(ChunkType[].class))).thenReturn(List.of(
+                new VectorStoreService.SearchResult(UUID.randomUUID(), candidateA, ChunkType.EXPERIENCE, "A-exp", 0.9f),
+                new VectorStoreService.SearchResult(UUID.randomUUID(), candidateA, ChunkType.SKILL, "A-skill", 0.3f),
+                new VectorStoreService.SearchResult(UUID.randomUUID(), candidateB, ChunkType.EXPERIENCE, "B-exp", 0.5f),
+                new VectorStoreService.SearchResult(UUID.randomUUID(), candidateB, ChunkType.SKILL, "B-skill", 0.5f)
+        ));
 
-        // When
         SearchController.SearchRequest request = new SearchController.SearchRequest(
-                "Java工程师招聘", 10, true, true
+                "Java backend role",
+                10,
+                true,
+                true,
+                null,
+                null,
+                false
         );
+
         ResponseEntity<SearchController.SearchResponse> response = controller.search(request);
 
-        // Then
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        SearchController.SearchResponse body = response.getBody();
-        assertNotNull(body);
-        assertEquals(2, body.totalResults());
-        assertEquals(10, body.requested());
-        
-        List<SearchController.CandidateMatch> candidates = body.candidates();
-        assertEquals(2, candidates.size());
-        
-        // 候选人1应该有最高分 0.9
-        SearchController.CandidateMatch first = candidates.get(0);
-        assertEquals(candidate1, first.candidateId());
-        assertEquals(0.9f, first.score(), 0.001f);
-        assertEquals(2, first.matchedChunks().size());
-        
-        // 候选人2分数 0.7
-        SearchController.CandidateMatch second = candidates.get(1);
-        assertEquals(candidate2, second.candidateId());
-        assertEquals(0.7f, second.score(), 0.001f);
-        assertEquals(1, second.matchedChunks().size());
-    }
-
-    @Test
-    @DisplayName("应支持仅筛选 EXPERIENCE 类型")
-    void should_filter_by_experience_only() {
-        // Given
-        float[] dummyEmbedding = new float[768];
-        when(embeddingService.embed("招聘后端开发"))
-                .thenReturn(dummyEmbedding);
-        
-        when(vectorStore.search(dummyEmbedding, 5, new ChunkType[]{ChunkType.EXPERIENCE}))
-                .thenReturn(List.of());
-
-        // When
-        SearchController.SearchRequest request = new SearchController.SearchRequest(
-                "招聘后端开发", 5, true, false
-        );
-        ResponseEntity<SearchController.SearchResponse> response = controller.search(request);
-
-        // Then
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals(0, response.getBody().totalResults());
-    }
-
-    @Test
-    @DisplayName("应支持仅筛选 SKILL 类型")
-    void should_filter_by_skill_only() {
-        // Given
-        float[] dummyEmbedding = new float[768];
-        when(embeddingService.embed("需要Java技能"))
-                .thenReturn(dummyEmbedding);
-        
-        when(vectorStore.search(dummyEmbedding, 3, new ChunkType[]{ChunkType.SKILL}))
-                .thenReturn(List.of());
-
-        // When
-        SearchController.SearchRequest request = new SearchController.SearchRequest(
-                "需要Java技能", 3, false, true
-        );
-        ResponseEntity<SearchController.SearchResponse> response = controller.search(request);
-
-        // Then
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(0, response.getBody().totalResults());
-    }
-
-    @Test
-    @DisplayName("当不筛选任何类型时应搜索所有类型")
-    void should_search_all_types_when_no_filter() {
-        // Given
-        float[] dummyEmbedding = new float[768];
-        when(embeddingService.embed("通用搜索"))
-                .thenReturn(dummyEmbedding);
-        
-        when(vectorStore.search(dummyEmbedding, 10, null))
-                .thenReturn(List.of());
-
-        // When
-        SearchController.SearchRequest request = new SearchController.SearchRequest(
-                "通用搜索", 10, false, false
-        );
-        ResponseEntity<SearchController.SearchResponse> response = controller.search(request);
-
-        // Then
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(0, response.getBody().totalResults());
-    }
-
-    @Test
-    @DisplayName("topK 参数应在合理范围内自动调整")
-    void should_adjust_topK_within_bounds() {
-        // Given: topK 0 应调整为 10, topK 150 应调整为 100
-        float[] dummyEmbedding = new float[768];
-        when(embeddingService.embed("测试"))
-                .thenReturn(dummyEmbedding);
-        
-        // 测试 topK=0 → 调整为10
-        when(vectorStore.search(dummyEmbedding, 10, new ChunkType[]{ChunkType.EXPERIENCE, ChunkType.SKILL}))
-                .thenReturn(List.of());
-
-        // When
-        SearchController.SearchRequest request = new SearchController.SearchRequest(
-                "测试", 0, true, true
-        );
-        ResponseEntity<SearchController.SearchResponse> response = controller.search(request);
-
-        // Then
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
+        assertEquals(2, response.getBody().totalResults());
         assertEquals(10, response.getBody().requested());
+        Map<UUID, Float> scoreByCandidate = response.getBody().candidates().stream()
+                .collect(Collectors.toMap(SearchController.CandidateMatch::candidateId, SearchController.CandidateMatch::score));
+        assertEquals(0.4f, scoreByCandidate.get(candidateA), 0.0001f);
+        assertEquals(0.5f, scoreByCandidate.get(candidateB), 0.0001f);
+    }
+
+    @Test
+    @DisplayName("single-type search should force that type weight to 1")
+    void shouldForceWeightToOneForSingleTypeSearch() {
+        UUID candidateA = UUID.randomUUID();
+        UUID candidateB = UUID.randomUUID();
+        float[] embedding = new float[1024];
+        when(embeddingService.embed("experience only")).thenReturn(embedding);
+        when(vectorStore.search(any(float[].class), eq(20), any(ChunkType[].class))).thenReturn(List.of(
+                new VectorStoreService.SearchResult(UUID.randomUUID(), candidateA, ChunkType.EXPERIENCE, "A-exp", 0.2f),
+                new VectorStoreService.SearchResult(UUID.randomUUID(), candidateB, ChunkType.EXPERIENCE, "B-exp", 0.9f)
+        ));
+
+        SearchController.SearchRequest request = new SearchController.SearchRequest(
+                "experience only",
+                5,
+                true,
+                false,
+                0.1f,
+                0.9f,
+                false
+        );
+
+        ResponseEntity<SearchController.SearchResponse> response = controller.search(request);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        Map<UUID, Float> scoreByCandidate = response.getBody().candidates().stream()
+                .collect(Collectors.toMap(SearchController.CandidateMatch::candidateId, SearchController.CandidateMatch::score));
+        assertEquals(0.8f, scoreByCandidate.get(candidateA), 0.0001f);
+        assertEquals(0.1f, scoreByCandidate.get(candidateB), 0.0001f);
+    }
+
+    @Test
+    @DisplayName("search should fall back to max overall score when weighted score is zero")
+    void shouldFallbackToOverallScoreWhenNoWeightedMatch() {
+        UUID candidateA = UUID.randomUUID();
+        UUID candidateB = UUID.randomUUID();
+        float[] embedding = new float[1024];
+        when(embeddingService.embed("all types")).thenReturn(embedding);
+        when(vectorStore.search(any(float[].class), eq(40), org.mockito.ArgumentMatchers.<ChunkType[]>isNull())).thenReturn(List.of(
+                new VectorStoreService.SearchResult(UUID.randomUUID(), candidateA, ChunkType.OTHER, "A-other", 0.2f),
+                new VectorStoreService.SearchResult(UUID.randomUUID(), candidateB, ChunkType.OTHER, "B-other", 0.8f)
+        ));
+
+        SearchController.SearchRequest request = new SearchController.SearchRequest(
+                "all types",
+                10,
+                false,
+                false,
+                null,
+                null,
+                false
+        );
+
+        ResponseEntity<SearchController.SearchResponse> response = controller.search(request);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        Map<UUID, Float> scoreByCandidate = response.getBody().candidates().stream()
+                .collect(Collectors.toMap(SearchController.CandidateMatch::candidateId, SearchController.CandidateMatch::score));
+        assertEquals(0.8f, scoreByCandidate.get(candidateA), 0.0001f);
+        assertEquals(0.2f, scoreByCandidate.get(candidateB), 0.0001f);
+    }
+
+    @Test
+    @DisplayName("search should filter only vector-ready candidates when requested")
+    void shouldFilterOnlyVectorReadyCandidates() {
+        UUID pendingCandidate = UUID.randomUUID();
+        UUID readyCandidate = UUID.randomUUID();
+        UUID notReadyCandidate = UUID.randomUUID();
+        float[] embedding = new float[1024];
+        when(embeddingService.embed("ready only")).thenReturn(embedding);
+        when(vectorStore.search(any(float[].class), eq(40), any(ChunkType[].class))).thenReturn(List.of(
+                new VectorStoreService.SearchResult(UUID.randomUUID(), pendingCandidate, ChunkType.EXPERIENCE, "pending", 0.9f),
+                new VectorStoreService.SearchResult(UUID.randomUUID(), readyCandidate, ChunkType.EXPERIENCE, "ready", 0.8f),
+                new VectorStoreService.SearchResult(UUID.randomUUID(), notReadyCandidate, ChunkType.EXPERIENCE, "not-ready", 0.7f)
+        ));
+
+        when(vectorIngestTaskRepository.existsByCandidateIdAndStatusIn(
+                eq(pendingCandidate),
+                eq(List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING)))).thenReturn(true);
+        when(vectorIngestTaskRepository.existsByCandidateIdAndStatusIn(
+                eq(readyCandidate),
+                eq(List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING)))).thenReturn(false);
+        when(vectorIngestTaskRepository.existsByCandidateIdAndStatusIn(
+                eq(notReadyCandidate),
+                eq(List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING)))).thenReturn(false);
+
+        when(vectorIngestTaskRepository.existsByCandidateIdAndStatus(eq(readyCandidate), eq(VectorIngestTaskStatus.DONE)))
+                .thenReturn(true);
+        when(vectorIngestTaskRepository.existsByCandidateIdAndStatus(eq(notReadyCandidate), eq(VectorIngestTaskStatus.DONE)))
+                .thenReturn(false);
+
+        SearchController.SearchRequest request = new SearchController.SearchRequest(
+                "ready only",
+                10,
+                true,
+                true,
+                null,
+                null,
+                true
+        );
+
+        ResponseEntity<SearchController.SearchResponse> response = controller.search(request);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().totalResults());
+        assertEquals(readyCandidate, response.getBody().candidates().get(0).candidateId());
+    }
+
+    @Test
+    @DisplayName("search should not call vector-ready repository checks when filtering disabled")
+    void shouldSkipVectorReadyChecksWhenNotRequested() {
+        UUID candidate = UUID.randomUUID();
+        float[] embedding = new float[1024];
+        when(embeddingService.embed("normal search")).thenReturn(embedding);
+        when(vectorStore.search(any(float[].class), eq(40), any(ChunkType[].class))).thenReturn(List.of(
+                new VectorStoreService.SearchResult(UUID.randomUUID(), candidate, ChunkType.EXPERIENCE, "normal", 0.7f)
+        ));
+
+        SearchController.SearchRequest request = new SearchController.SearchRequest(
+                "normal search",
+                10,
+                true,
+                true,
+                null,
+                null,
+                false
+        );
+
+        ResponseEntity<SearchController.SearchResponse> response = controller.search(request);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().totalResults());
+        verify(vectorIngestTaskRepository, never()).existsByCandidateIdAndStatusIn(any(), any());
+        verify(vectorIngestTaskRepository, never()).existsByCandidateIdAndStatus(any(), any());
     }
 }

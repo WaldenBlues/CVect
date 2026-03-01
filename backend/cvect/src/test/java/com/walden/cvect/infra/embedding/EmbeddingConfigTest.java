@@ -46,10 +46,10 @@ class EmbeddingConfigTest {
         EmbeddingConfig newConfig = new EmbeddingConfig();
 
         // Then: 验证默认值设置
-        assertEquals("Qwen/Qwen2.5-Embedding-0.6B-Instruct", newConfig.getModelName());
+        assertEquals("Qwen/Qwen3-Embedding-0.6B", newConfig.getModelName());
         assertEquals("cpu", newConfig.getDevice());
         assertEquals(32, newConfig.getBatchSize());
-        assertEquals(768, newConfig.getDimension());
+        assertEquals(1024, newConfig.getDimension());
     }
 
     @Test

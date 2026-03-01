@@ -1,0 +1,56 @@
+工作经历
+- 星途科技有限公司 | 高级Android开发工程师 | 2021-04 至今
+  - 主导司机端App架构演进，引入模块化设计，将核心业务模块解耦，编译速度提升30%，并支持多团队并行开发。
+  - 建立并维护司机端线上问题On-call轮值机制，主导处理3起P2级线上事故，平均故障恢复时长（MTTR）控制在1小时内，并产出详细复盘报告推动流程改进。
+  - 推动监控体系完善，集成Firebase Performance Monitoring与自定义埋点，使关键业务链路（如接单-导航）的可观测性覆盖率从70%提升至98%。
+- 云创互联有限公司 | Android开发工程师 | 2019-07 至 2021-03
+  - 负责公司主产品「每日阅读」App的核心阅读器与书籍商城模块开发，使用Kotlin协程重构网络层，使列表页加载失败率下降25%。
+  - 参与App包体积瘦身项目，通过资源混淆、无用代码检测和So库优化，将APK大小从65MB减少至52MB，下载转换率提升约5%。
+  - 独立负责App从Support库向AndroidX的迁移，并推动团队代码规范落地，通过静态代码检查将严重级别Bug数在Code Review阶段降低了40%。
+
+教育背景
+- 华东理工大学 | 学士 软件工程 | 2015 至 2019
+
+技术栈
+- Kotlin
+- Java
+- Android SDK
+- Jetpack Compose
+- Room
+- Coroutines & Flow
+- Dagger/Hilt
+- Retrofit
+- OkHttp
+- Flutter
+- Dart
+- gRPC
+- Protobuf
+- Git
+- Gradle
+- Jenkins
+- Firebase Crashlytics
+- Charles
+- Android Profiler
+
+证书/荣誉
+- Google Associate Android Developer (已过期)
+- Kotlin Bootcamp认证
+
+个人信息
+姓名：陈明轩
+目标岗位：软件工程师
+邮箱：chen.mingxuan@example.com
+电话：+86 138 1234 5678
+经验年限：5 年
+方向：移动端 + none
+简介：拥有5年移动端开发经验，专注于Android平台，具备从0到1构建高可用、高性能App的能力。擅长性能优化、架构设计及复杂业务模块开发，对稳定性保障、线上问题快速响应与复盘有实践经验。熟悉Kotlin、Jetpack组件、Flutter跨端技术，并能结合CI/CD流程提升团队交付效率。
+
+项目经历
+- 星途出行司机端App性能与稳定性专项优化
+  技术栈：Kotlin, Android Profiler, Systrace, LeakCanary, Firebase Performance Monitoring, Jenkins
+  职责：作为核心开发，主导司机端App的性能与稳定性专项。负责启动速度、内存泄漏、ANR率、Crash率等关键指标的监控、根因分析与优化方案落地。建立性能基线，设计并实施灰度发布与回滚策略。
+  成果：通过优化冷启动流程、懒加载及图片库替换，将App冷启动时间从2.8秒降低至1.2秒，降幅达57%。重构核心订单模块的内存管理，结合自动化内存泄漏检测，将OOM Crash率从0.15%降至0.03%。建立关键性能指标仪表盘，推动团队将ANR监控响应时间从24小时缩短至2小时内，全年减少因性能问题导致的客服投诉约40%。
+- 星途出行Flutter跨端营销活动模块
+  技术栈：Flutter, Dart, Provider, Dio, Jenkins Pipeline, Fastlane
+  职责：独立负责使用Flutter重构并开发司机与乘客端共用的营销活动中心模块。包括活动页面、任务系统、积分兑换等核心功能。设计混合栈通信方案，处理与原生模块的数据交互与状态同步。搭建模块独立的CI/CD流水线。
+  成果：成功交付Flutter营销模块，实现Android/iOS双端代码复用率超过95%，模块开发周期相比原双端独立开发缩短了60%。通过状态管理优化与图片缓存策略，模块页面滚动FPS稳定在58以上。该模块支持了日均超50万次的用户访问，上线后通过灰度发布策略逐步放量至100%，期间通过快速热修复解决2个UI兼容性问题，未引发线上事故。

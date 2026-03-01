@@ -12,13 +12,16 @@ import java.util.UUID;
 @Entity
 @Table(
         name = "upload_items",
-        uniqueConstraints = @UniqueConstraint(name = "uk_upload_items_queue_job_key", columnNames = "queue_job_key")
+        uniqueConstraints = @UniqueConstraint(name = "uk_upload_items_queue_job_key", columnNames = "queue_job_key"),
+        indexes = {
+                @Index(name = "idx_upload_items_batch_id", columnList = "batch_id"),
+                @Index(name = "idx_upload_items_status_updated_at", columnList = "status,updated_at")
+        }
 )
-@Check(constraints = "status in ('PENDING','QUEUED','PROCESSING','RETRYING','DONE','SUCCEEDED','DUPLICATE','FAILED')")
+@Check(constraints = "status in ('QUEUED','PROCESSING','DONE','DUPLICATE','FAILED')")
 public class UploadItem {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -50,6 +53,9 @@ public class UploadItem {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "started_at")
+    private LocalDateTime startedAt;
+
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
@@ -57,9 +63,10 @@ public class UploadItem {
     }
 
     public UploadItem(UploadBatch batch, String fileName) {
+        this.id = UUID.randomUUID();
         this.batch = batch;
         this.fileName = fileName;
-        this.status = UploadItemStatus.PROCESSING;
+        this.status = UploadItemStatus.QUEUED;
         this.attempt = 0;
     }
 
@@ -133,6 +140,10 @@ public class UploadItem {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public LocalDateTime getStartedAt() {
+        return startedAt;
     }
 
     public String getQueueJobKey() {

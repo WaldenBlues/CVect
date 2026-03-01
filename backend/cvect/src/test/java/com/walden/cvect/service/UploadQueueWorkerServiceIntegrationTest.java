@@ -1,5 +1,6 @@
 package com.walden.cvect.service;
 
+import com.walden.cvect.config.PostgresIntegrationTestBase;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.model.entity.UploadBatch;
 import com.walden.cvect.model.entity.UploadBatchStatus;
@@ -34,13 +35,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.upload.worker.enabled=true",
         "app.upload.worker.initial-delay-ms=600000",
         "app.upload.worker.fixed-delay-ms=600000",
-        "app.upload.worker.stale-processing-ms=0",
-        "spring.datasource.url=jdbc:h2:mem:upload_worker_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"
+        "app.upload.worker.stale-processing-ms=0"
 })
 @AutoConfigureMockMvc
 @Tag("integration")
 @Tag("api")
-class UploadQueueWorkerServiceIntegrationTest {
+class UploadQueueWorkerServiceIntegrationTest extends PostgresIntegrationTestBase {
 
     private static final Path STORAGE_DIR = Paths.get("storage");
 

@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 /**
@@ -32,6 +35,11 @@ public class VectorStoreService {
     private final EmbeddingService embeddingService;
     private final VectorStoreConfig config;
     private final String tableName;
+    private final AtomicBoolean vectorUnavailableLogged = new AtomicBoolean(false);
+    private final AtomicBoolean indexCompatibilityChecked = new AtomicBoolean(false);
+    private final Semaphore writeSemaphore;
+    private final long writeAcquireTimeoutMs;
+    private volatile boolean vectorAvailable;
 
     public VectorStoreService(
             JdbcTemplate jdbcTemplate,
@@ -43,6 +51,10 @@ public class VectorStoreService {
         this.embeddingService = embeddingService;
         this.config = config;
         this.tableName = validateSqlIdentifier(config.getTableName(), "app.vector.table-name");
+        this.writeSemaphore = new Semaphore(Math.max(1, config.getMaxConcurrentWrites()), true);
+        this.writeAcquireTimeoutMs = Math.max(0L, config.getWriteAcquireTimeoutMs());
+        this.vectorAvailable = initializeVectorSupport();
+        ensureIndexCompatibility();
     }
 
     /**
@@ -54,15 +66,38 @@ public class VectorStoreService {
             log.info("Vector store disabled, skipping save for candidateId={}, chunkType={}", candidateId, chunkType);
             return;
         }
-        // 生成 embedding
-        float[] embedding = embeddingService.embed(content);
+        if (!vectorAvailable) {
+            logVectorUnavailableOnce("save");
+            return;
+        }
+        boolean permitAcquired = false;
+        try {
+            permitAcquired = writeSemaphore.tryAcquire(writeAcquireTimeoutMs, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while waiting vector write permit, skip save: candidateId={}", candidateId);
+            return;
+        }
+        if (!permitAcquired) {
+            log.warn("Vector write is throttled (permit timeout), skip save: candidateId={}, chunkType={}",
+                    candidateId, chunkType);
+            return;
+        }
+        try {
+            ensureIndexCompatibility();
+            // 生成 embedding
+            float[] embedding = embeddingService.embed(content);
+            validateVectorInput(embedding, "embedding");
 
-        // 保存到数据库
-        ResumeChunkVector vector = new ResumeChunkVector(candidateId, chunkType, content, embedding);
-        entityManager.persist(vector);
+            // 保存到数据库
+            ResumeChunkVector vector = new ResumeChunkVector(candidateId, chunkType, content, embedding);
+            entityManager.persist(vector);
 
-        log.debug("Saved vector chunk: candidateId={}, chunkType={}, contentLength={}",
-                candidateId, chunkType, content.length());
+            log.debug("Saved vector chunk: candidateId={}, chunkType={}, contentLength={}",
+                    candidateId, chunkType, content.length());
+        } finally {
+            writeSemaphore.release();
+        }
     }
 
     /**
@@ -77,11 +112,20 @@ public class VectorStoreService {
         if (!config.isEnabled()) {
             throw new IllegalStateException("Vector store is disabled");
         }
+        if (!vectorAvailable) {
+            throw new IllegalStateException("pgvector extension is unavailable");
+        }
+        if (topK <= 0) {
+            throw new IllegalArgumentException("topK must be > 0");
+        }
+        ensureIndexCompatibility();
+        validateVectorInput(queryEmbedding, "queryEmbedding");
         StringBuilder sql = new StringBuilder();
-        sql.append("SELECT id, candidate_id, chunk_type, content, embedding ");
-        sql.append("<=> ?::vector AS distance ");
+        String queryVectorType = "vector(" + positiveDimension() + ")";
+        sql.append("SELECT id, candidate_id, chunk_type, content, ");
+        sql.append(normalizedEmbeddingExpression()).append(" <=> ?::").append(queryVectorType).append(" AS distance ");
         sql.append("FROM ").append(tableName).append(" ");
-        sql.append("WHERE 1=1 ");
+        sql.append("WHERE embedding IS NOT NULL ");
 
         // 类型过滤 - 使用验证后的枚举值拼接，确保安全
         if (chunkTypes != null && chunkTypes.length > 0) {
@@ -141,6 +185,7 @@ public class VectorStoreService {
      * pgvector 格式: [1.0, 2.0, 3.0]
      */
     private String vectorToString(float[] vector) {
+        validateVectorInput(vector, "vector");
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < vector.length; i++) {
             if (i > 0)
@@ -162,22 +207,139 @@ public class VectorStoreService {
     }
 
     /**
+     * 按 JD 删除所有相关候选人的向量
+     */
+    @Transactional
+    public void deleteByJobDescription(UUID jobDescriptionId) {
+        String sql = "DELETE FROM " + tableName + " v USING candidates c "
+                + "WHERE v.candidate_id = c.id AND c.jd_id = ?";
+        int deleted = jdbcTemplate.update(sql, jobDescriptionId);
+        log.info("Deleted {} vector chunks for jd: {}", deleted, jobDescriptionId);
+    }
+
+    /**
      * 创建 HNSW 索引 (首次运行或数据大量变化后调用)
      */
     @Transactional
     public void createHnswIndex() {
+        if (!config.isEnabled()) {
+            return;
+        }
+        if (!vectorAvailable) {
+            logVectorUnavailableOnce("createHnswIndex");
+            return;
+        }
         String indexName = "idx_" + tableName + "_embedding";
+        jdbcTemplate.execute("DROP INDEX IF EXISTS " + indexName);
+        String opClass = resolveVectorOpClass(config.getMetric());
         String sql = String.format(
-                "CREATE INDEX IF NOT EXISTS %s " +
-                        "ON %s USING hnsw (embedding %s_ops) " +
+                "CREATE INDEX %s " +
+                        "ON %s USING hnsw ((%s) %s) " +
                         "WITH (m = %d, ef_construction = %d)",
                 indexName,
                 tableName,
-                config.getMetric(),
+                normalizedEmbeddingExpression(),
+                opClass,
                 config.getM(),
                 config.getEfConstruction());
         jdbcTemplate.execute(sql);
-        log.info("Created HNSW index on {}.embedding", tableName);
+        log.info("Created HNSW index on {}.embedding with dimension={}", tableName, positiveDimension());
+    }
+
+    private boolean initializeVectorSupport() {
+        if (!config.isEnabled()) {
+            return false;
+        }
+        try {
+            // pgvector 镜像支持直接创建扩展；若权限不足会在 catch 中降级。
+            jdbcTemplate.execute("CREATE EXTENSION IF NOT EXISTS vector");
+        } catch (Exception e) {
+            log.warn("Unable to auto-create pgvector extension: {}", e.getMessage());
+        }
+        try {
+            Boolean exists = jdbcTemplate.queryForObject(
+                    "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')",
+                    Boolean.class);
+            if (Boolean.TRUE.equals(exists)) {
+                return true;
+            }
+        } catch (Exception e) {
+            log.warn("Failed checking pgvector extension availability: {}", e.getMessage());
+        }
+        log.warn("pgvector extension is unavailable; vector save/search/index will be skipped.");
+        return false;
+    }
+
+    private void logVectorUnavailableOnce(String operation) {
+        if (vectorUnavailableLogged.compareAndSet(false, true)) {
+            log.warn("Skip vector operation '{}' because pgvector extension is unavailable.", operation);
+        }
+    }
+
+    private void ensureIndexCompatibility() {
+        if (!config.isEnabled() || !vectorAvailable) {
+            return;
+        }
+        if (!indexCompatibilityChecked.compareAndSet(false, true)) {
+            return;
+        }
+
+        String indexName = "idx_" + tableName + "_embedding";
+        String expectedVectorType = "vector(" + positiveDimension() + ")";
+        try {
+            String indexDef = jdbcTemplate.query(
+                    "SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() AND tablename = ? AND indexname = ?",
+                    rs -> rs.next() ? rs.getString("indexdef") : null,
+                    tableName,
+                    indexName);
+            if (indexDef == null) {
+                return;
+            }
+            if (indexDef.toLowerCase(Locale.ROOT).contains(expectedVectorType)) {
+                return;
+            }
+            log.warn("Detected incompatible vector index '{}': {}. Rebuilding with {}.",
+                    indexName, indexDef, expectedVectorType);
+            jdbcTemplate.execute("DROP INDEX IF EXISTS " + indexName);
+            createHnswIndex();
+        } catch (Exception e) {
+            log.warn("Failed to verify/rebuild vector index compatibility: {}", e.getMessage());
+        }
+    }
+
+    private String normalizedEmbeddingExpression() {
+        // JPA float[] 在 PostgreSQL text 列里通常是 {1,2,3}，需转成 pgvector 输入格式 [1,2,3]
+        return "REPLACE(REPLACE(embedding, '{', '['), '}', ']')::vector(" + positiveDimension() + ")";
+    }
+
+    private static String resolveVectorOpClass(String metric) {
+        if (metric == null) {
+            return "vector_cosine_ops";
+        }
+        return switch (metric.toLowerCase(Locale.ROOT)) {
+            case "l2" -> "vector_l2_ops";
+            case "ip", "inner_product" -> "vector_ip_ops";
+            case "cosine" -> "vector_cosine_ops";
+            default -> throw new IllegalArgumentException("Unsupported vector metric: " + metric);
+        };
+    }
+
+    private int positiveDimension() {
+        if (config.getDimension() <= 0) {
+            throw new IllegalArgumentException("app.vector.dimension must be > 0");
+        }
+        return config.getDimension();
+    }
+
+    private void validateVectorInput(float[] vector, String fieldName) {
+        if (vector == null) {
+            throw new IllegalArgumentException(fieldName + " must not be null");
+        }
+        int expected = positiveDimension();
+        if (vector.length != expected) {
+            throw new IllegalArgumentException(
+                    fieldName + " dimension mismatch: expected=" + expected + ", actual=" + vector.length);
+        }
     }
 
     private static String validateSqlIdentifier(String value, String configKey) {

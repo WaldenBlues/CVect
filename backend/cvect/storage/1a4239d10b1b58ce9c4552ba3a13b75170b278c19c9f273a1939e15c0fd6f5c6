@@ -1,0 +1,50 @@
+工作经历
+- 某大型企业服务公司（M公司） | Java团队负责人 | 2019-05 至今
+- 带领 12 人团队负责企业中台（审批/采购/财务）后端建设，主导微服务拆分与架构评审，核心链路可用性 99.95%+。
+- 精通 Spring 框架：Spring Boot/Cloud、事务与安全；沉淀统一 Starter、异常码与灰度发布规范。
+- 熟练使用 MyBatis + MySQL：制定索引与 SQL 规范、慢 SQL 治理与分库分表；核心报表查询 P95 下降 48%。
+- 熟悉 NoSQL/Queue 原理：Redis（缓存/分布式锁）、Elasticsearch（检索/聚合）、RocketMQ（异步/削峰/补偿）；峰值削峰 35%。
+- 研究 HTTP 协议、缓存与网关：幂等、重试退避、缓存头；结合网关限流熔断与降级，故障影响面下降 50%。
+- JVM 调优与排障：JFR/async-profiler、线程池隔离；线上 CPU 抖动下降 18%，MTTR 由 40min 降至 15min。
+- 开源源码研究：Spring IOC/AOP、MyBatis Executor、Netty；推动团队每月源码读书会与复盘文化。
+
+- 某互动娱乐公司（N公司） | Java工程师 -> 高级Java工程师 | 2014-07 至 2019-04
+- 负责活动与道具系统，使用设计模式（策略/工厂/责任链）构建规则引擎；活动配置效率提升 3 倍。
+- 参与 RPC 调用框架治理（Dubbo），处理超时、重试与熔断；线上超时故障下降 30%。
+
+教育背景
+- 哈尔滨工业大学 | 学士 计算机科学与技术 | 2010 至 2014
+
+技术栈
+- Java 8/11/17，Spring Boot / Spring Cloud / Spring Security
+- ORM：MyBatis（精通），Hibernate/JPA（熟悉）
+- MySQL（索引/事务/锁/分库分表），Redis，Elasticsearch
+- MQ：RocketMQ / Kafka；异步化、削峰、补偿、幂等
+- RPC：Dubbo / gRPC；HTTP/缓存、网关治理
+- JVM：G1、JFR/async-profiler、并发（JUC）
+- 工程化：Docker/K8s、CI/CD、Prometheus/Grafana、ELK
+
+证书/荣誉
+- 公司“年度技术管理奖”
+- 公开分享：高并发下的缓存一致性与幂等实践
+
+个人信息
+姓名：刘博文
+目标岗位：Java团队负责人 / 资深后端工程师
+邮箱：bowen.liu@example.com
+电话：+86 186-1023-5501
+经验年限：11.5 年
+
+方向：后端 + Java/企业中台/架构治理
+简介：11.5年Java后端经验，精通 Spring 与 MyBatis/MySQL 性能优化，熟悉 Redis/ES/MQ 与 RPC 框架；研究 HTTP/缓存与 JVM 调优，擅长架构分析与工程化落地，逻辑清晰、善于归纳问题并推动团队以高质量代码与稳定性目标交付。
+
+项目经历
+- 企业中台统一审批与审计平台
+技术栈：Java17, Spring Boot/Cloud, MyBatis, MySQL, Redis, RocketMQ, Elasticsearch
+职责：主导服务拆分、权限与审计、消息驱动补偿；建立容量基线与应急预案。
+成果：审批完成率提升 12%；报表查询 P95 下降 48%；故障影响面下降 50%。
+
+- 规则引擎与配置中心（Rule Engine）
+技术栈：Java11, Spring, MySQL, Redis, Kafka, JUnit
+职责：抽象规则 DSL 与策略模型；实现灰度发布、回滚与审计；建设压测。
+成果：规则迭代效率提升 3 倍；线上误配置事故下降 70%；吞吐提升 1.5 倍。

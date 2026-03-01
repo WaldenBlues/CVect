@@ -2,19 +2,32 @@ package com.walden.cvect.repository;
 
 import com.walden.cvect.model.entity.Candidate;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.UUID;
 import java.util.Optional;
+import java.util.List;
 
 /**
  * 候选人基础信息数据访问
  */
 @Repository
 public interface CandidateJpaRepository extends JpaRepository<Candidate, UUID> {
-    Optional<Candidate> findByFileHash(String fileHash);
+    Optional<Candidate> findByFileHashAndJobDescriptionId(String fileHash, UUID jobDescriptionId);
+
+    Optional<Candidate> findByFileHashAndJobDescriptionIsNull(String fileHash);
 
     long countByJobDescriptionId(UUID jobDescriptionId);
 
-    java.util.List<Candidate> findByJobDescriptionIdOrderByCreatedAtDesc(UUID jobDescriptionId);
+    List<Candidate> findByJobDescriptionIdOrderByCreatedAtDesc(UUID jobDescriptionId);
+
+    @Query("select c.id from Candidate c where c.jobDescription.id = :jobDescriptionId")
+    List<UUID> findIdsByJobDescriptionId(@Param("jobDescriptionId") UUID jobDescriptionId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from Candidate c where c.jobDescription.id = :jobDescriptionId")
+    int deleteByJobDescriptionId(@Param("jobDescriptionId") UUID jobDescriptionId);
 }

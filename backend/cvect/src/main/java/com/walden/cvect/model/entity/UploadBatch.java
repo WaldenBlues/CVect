@@ -10,7 +10,10 @@ import java.util.UUID;
  * 简历上传批次
  */
 @Entity
-@Table(name = "upload_batches")
+@Table(
+        name = "upload_batches",
+        indexes = @Index(name = "idx_upload_batches_jd_id", columnList = "jd_id")
+)
 @Check(constraints = "status in ('PROCESSING','DONE')")
 public class UploadBatch {
 

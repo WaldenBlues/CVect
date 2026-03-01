@@ -1,0 +1,47 @@
+工作经历
+- 某智慧物流SaaS公司（K公司） | 资深前端工程师 | 2020-03 至今
+  - 负责运输管理平台（TMS）与司机端移动 WebApp 双端开发：B 端使用 Vue3 + Element-Plus，移动端使用 Vue3 + Vant，统一组件标准与主题系统。
+  - 精通 Web 标准与语义化：重构核心表单与列表页面，做到表现与数据分离（Composition API + domain service），代码可读性提升，新增功能平均交付周期从 5 天降至 3 天。
+  - 工程化建设：搭建 webpack5 从零脚手架（多页/多入口/环境变量/代码分割/按需加载），并为旧系统保留 gulp 流水线；构建速度提升 50%。
+  - 移动端兼容治理：处理 iOS 软键盘顶起、滚动穿透、定位偏移、safe-area；建立可复用“兼容补丁包”，线上兼容问题下降 57%。
+  - 以业务转化为目标：基于埋点与用户访谈优化司机端“接单-到店-签收”流程，关键步骤流失下降 13%，日活提升 6%。
+
+- 某股份制银行（L公司） | 前端开发工程师 | 2017-07 至 2020-02
+  - 参与网银与营销活动页开发，熟练使用 HTML/CSS/JS 与主流类库（jQuery/axios/lodash），采用面向对象方式封装表单校验、弹窗与权限模块。
+  - 引入 Sass/Less 与组件化开发，沉淀 30+ 通用组件；通过资源拆分与缓存策略，首屏时间下降 35%。
+
+教育背景
+- 同济大学 | 学士 计算机科学与技术 | 2013 至 2017
+
+技术栈
+- HTML5/CSS3/JavaScript(ES6+)/TypeScript
+- Vue3 / Vue Router / Pinia / Element-Plus / Vant
+- Webpack5 / Vite / Gulp / ESLint / Prettier
+- Sass/Less / PostCSS / 模块化与前后端分离（BFF/Mock）
+- 性能优化（懒加载/预加载/虚拟列表/Web Worker）
+- 安全（XSS/CSRF/CSP）/ 监控（Sentry）
+- 测试（Jest/Vitest, Cypress）
+
+证书/荣誉
+- 公司“技术标杆”奖（工程化专项）
+- 物流行业解决方案大赛二等奖（团队）
+
+个人信息
+姓名：陈思远
+目标岗位：资深前端工程师（Vue3）
+邮箱：siyuan.chen@example.com
+电话：+86 138-6034-7721
+经验年限：9 年
+方向：前端 + B端/移动端
+简介：9年前端经验，精通 Vue3、Element-Plus、Vant，擅长B端中台与移动端WebApp协同、工程化构建与兼容治理；坚持高质量代码与可维护架构，关注用户体验与业务增长。
+
+项目经历
+- 运输管理平台（TMS）重构
+  技术栈：Vue3, TypeScript, Element-Plus, Webpack5, ECharts, Less, GitLab CI
+  职责：负责架构拆分与模块化（订单/运单/对账）；制定代码规范与评审清单；优化长列表与报表渲染。
+  成果：报表渲染耗时下降 58%；线上缺陷密度下降 46%；新模块交付周期缩短 40%。
+
+- 司机端移动 WebApp（H5）
+  技术栈：Vue3, Vant, Pinia, Service Worker, Sentry, Cypress
+  职责：负责接单/导航/签收核心链路；处理多机型 WebView 兼容；落地“弱网重试 + 离线队列”方案。
+  成果：关键链路成功率提升到 99.3%；操作时延下降 32%；日活提升 6%。

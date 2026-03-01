@@ -8,7 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -26,17 +25,30 @@ public interface UploadItemJpaRepository extends JpaRepository<UploadItem, UUID>
 
     List<UploadItem> findTop20ByStatusOrderByUpdatedAtAsc(UploadItemStatus status);
 
+    List<UploadItem> findByStatusAndStoragePathIsNotNullOrderByUpdatedAtAsc(
+            UploadItemStatus status,
+            Pageable pageable);
+
     List<UploadItem> findTop50ByStatusAndQueueJobKeyIsNullAndStoragePathIsNotNullOrderByUpdatedAtAsc(UploadItemStatus status);
 
     List<UploadItem> findTop50ByStatusAndUpdatedAtBeforeOrderByUpdatedAtAsc(UploadItemStatus status, LocalDateTime updatedAt);
 
-    long deleteByBatch_IdIn(List<UUID> batchIds);
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM upload_items i
+            USING upload_batches b
+            WHERE i.batch_id = b.id
+              AND b.jd_id = :jobDescriptionId
+            """, nativeQuery = true)
+    int deleteByJobDescriptionId(@Param("jobDescriptionId") UUID jobDescriptionId);
 
     Optional<UploadItem> findFirstByBatch_IdAndStatusOrderByUpdatedAtDesc(UUID batchId, UploadItemStatus status);
 
     long countByBatch_Id(UUID batchId);
 
     long countByBatch_IdAndStatusIn(UUID batchId, Collection<UploadItemStatus> statuses);
+
+    long countByStatusIn(Collection<UploadItemStatus> statuses);
 
     @Query("""
             select i.status as status, count(i) as count
@@ -73,20 +85,26 @@ public interface UploadItemJpaRepository extends JpaRepository<UploadItem, UUID>
             @Param("failedStatus") UploadItemStatus failedStatus);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-            update UploadItem i
-            set i.status = :processingStatus,
-                i.updatedAt = current_timestamp
-            where i.id = :itemId
-              and i.status = :queuedStatus
-              and i.queueJobKey = :jobKey
-            """)
-    @Transactional
-    int claimQueuedById(
-            @Param("itemId") UUID itemId,
-            @Param("jobKey") String jobKey,
-            @Param("processingStatus") UploadItemStatus processingStatus,
-            @Param("queuedStatus") UploadItemStatus queuedStatus);
+    @Query(value = """
+            WITH picked AS (
+              SELECT id
+              FROM upload_items
+              WHERE status = 'QUEUED'
+                AND storage_path IS NOT NULL
+                AND queue_job_key IS NOT NULL
+              ORDER BY updated_at ASC
+              FOR UPDATE SKIP LOCKED
+              LIMIT :batchSize
+            )
+            UPDATE upload_items i
+            SET status = 'PROCESSING',
+                started_at = current_timestamp,
+                updated_at = current_timestamp
+            FROM picked
+            WHERE i.id = picked.id
+            RETURNING i.id
+            """, nativeQuery = true)
+    List<UUID> claimNextQueuedBatch(@Param("batchSize") int batchSize);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

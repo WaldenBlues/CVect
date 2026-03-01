@@ -25,7 +25,9 @@ import static org.mockito.Mockito.when;
 @TestPropertySource(properties = {
     "spring.datasource.url=jdbc:h2:mem:testdb;MODE=PostgreSQL",
     "spring.jpa.hibernate.ddl-auto=create-drop",
-    "app.vector.enabled=true"
+    "app.vector.enabled=true",
+    "app.embedding.dimension=1024",
+    "app.vector.dimension=1024"
 })
 @DisplayName("VectorStoreService 错误处理测试")
 class VectorStoreServiceErrorHandlingTest {
@@ -57,30 +59,27 @@ class VectorStoreServiceErrorHandlingTest {
     }
 
     @Test
-    @DisplayName("当 embedding 服务返回空数组时，save 方法应能处理而不崩溃")
+    @DisplayName("当 embedding 服务返回空向量时，save 方法应抛出维度异常")
     void should_handle_empty_embedding_array() {
         // Given
         UUID candidateId = createCandidateId("vector-error-2");
         String content = "Test content";
-        
+
         when(embeddingService.embed(anyString()))
             .thenReturn(new float[0]); // 空数组
-        
-        // When & Then: 验证不崩溃，可能抛出异常也可能不抛
-        try {
-            vectorStore.save(candidateId, ChunkType.EXPERIENCE, content);
-            // 如果不抛异常，测试通过
-        } catch (Exception e) {
-            // 如果抛出异常，也允许，但不是崩溃
-            // 可以记录但不需要断言
-        }
+
+        // When & Then
+        assertThatThrownBy(() ->
+                vectorStore.save(candidateId, ChunkType.EXPERIENCE, content)
+        ).isInstanceOf(IllegalArgumentException.class)
+         .hasMessageContaining("dimension mismatch");
     }
 
     @Test
     @DisplayName("搜索时 embedding 服务失败应抛出异常")
     void should_throw_exception_when_embedding_fails_during_search() {
         // Given
-        float[] queryEmbedding = new float[768];
+        float[] queryEmbedding = new float[1024];
         
         // 模拟 embedding 服务在搜索时失败（通过 search 方法直接使用传入的 embedding）
         // 这里测试 search 方法本身的错误处理
@@ -132,7 +131,7 @@ class VectorStoreServiceErrorHandlingTest {
         // Given
         UUID candidateId = createCandidateId("vector-error-3");
         String content = "Test content";
-        float[] dummyEmbedding = new float[768];
+        float[] dummyEmbedding = new float[1024];
         
         when(embeddingService.embed(anyString()))
             .thenReturn(dummyEmbedding);
@@ -154,7 +153,7 @@ class VectorStoreServiceErrorHandlingTest {
         // Given
         UUID candidateId = createCandidateId("vector-error-4");
         String emptyContent = "";
-        float[] dummyEmbedding = new float[768];
+        float[] dummyEmbedding = new float[1024];
         
         when(embeddingService.embed(anyString()))
             .thenReturn(dummyEmbedding);
@@ -178,7 +177,7 @@ class VectorStoreServiceErrorHandlingTest {
         for (int i = 0; i < 10000; i++) {
             longContent.append("Very long resume content line ").append(i).append(". ");
         }
-        float[] dummyEmbedding = new float[768];
+        float[] dummyEmbedding = new float[1024];
         
         when(embeddingService.embed(anyString()))
             .thenReturn(dummyEmbedding);

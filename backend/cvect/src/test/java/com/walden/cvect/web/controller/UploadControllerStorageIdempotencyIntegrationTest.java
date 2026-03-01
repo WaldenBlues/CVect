@@ -1,9 +1,13 @@
 package com.walden.cvect.web.controller;
 
 import com.jayway.jsonpath.JsonPath;
+import com.walden.cvect.config.PostgresIntegrationTestBase;
 import com.walden.cvect.model.entity.JobDescription;
+import com.walden.cvect.model.entity.UploadBatch;
+import com.walden.cvect.model.entity.UploadItem;
 import com.walden.cvect.model.entity.UploadItemStatus;
 import com.walden.cvect.repository.JobDescriptionJpaRepository;
+import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
 import com.walden.cvect.service.UploadQueueWorkerService;
 import org.junit.jupiter.api.DisplayName;
@@ -36,12 +40,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.upload.worker.enabled=true",
         "app.upload.worker.initial-delay-ms=600000",
         "app.upload.worker.fixed-delay-ms=600000",
-        "spring.datasource.url=jdbc:h2:mem:upload_storage_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"
+        "app.upload.max-inflight-items=1"
 })
 @AutoConfigureMockMvc
 @Tag("integration")
 @Tag("api")
-class UploadControllerStorageIdempotencyIntegrationTest {
+class UploadControllerStorageIdempotencyIntegrationTest extends PostgresIntegrationTestBase {
 
     private static final Path STORAGE_DIR = Paths.get("storage");
 
@@ -53,6 +57,9 @@ class UploadControllerStorageIdempotencyIntegrationTest {
 
     @Autowired
     private UploadItemJpaRepository itemRepository;
+
+    @Autowired
+    private UploadBatchJpaRepository batchRepository;
 
     @Autowired
     private UploadQueueWorkerService workerService;
@@ -108,6 +115,27 @@ class UploadControllerStorageIdempotencyIntegrationTest {
             long count = paths.filter(path -> path.getFileName().toString().equals(hash)).count();
             assertEquals(1L, count, "same content should map to one storage file");
         }
+    }
+
+    @Test
+    @DisplayName("upload resumes should return 429 when inflight queue is full")
+    void uploadShouldReturn429WhenInflightQueueIsFull() throws Exception {
+        JobDescription jd = jobDescriptionRepository.save(new JobDescription("Queue Guard JD", "desc"));
+        UploadBatch batch = batchRepository.save(new UploadBatch(jd, 1));
+        UploadItem queued = new UploadItem(batch, "queued.txt");
+        queued.setStatus(UploadItemStatus.QUEUED);
+        itemRepository.save(queued);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "files",
+                "new.txt",
+                "text/plain",
+                "new-content".getBytes(StandardCharsets.UTF_8));
+
+        mockMvc.perform(multipart("/api/uploads/resumes")
+                        .file(file)
+                        .param("jdId", jd.getId().toString()))
+                .andExpect(status().isTooManyRequests());
     }
 
     private String sha256Hex(byte[] content) throws Exception {

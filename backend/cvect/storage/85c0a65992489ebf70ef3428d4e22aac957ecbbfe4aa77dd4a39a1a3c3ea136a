@@ -1,0 +1,47 @@
+工作经历
+- 某O2O生活服务平台（G公司） | 前端架构师 | 2020-02 至今
+  - 负责“到家/到店/会员”三条业务线前端架构分析与设计，统一 Vue3 技术栈与组件规范（Element-Plus + Vant），支持日均请求 2.5 亿 PV 场景。
+  - 推动前端工程化升级：从多仓库迁移到 Monorepo（pnpm + workspace），制定模块化边界与共享包治理，发布效率提升 2 倍。
+  - 自主搭建前端构建环境：webpack5（多入口/按需加载/代码分割）+ gulp（旧系统资产流水线），并落地 CI（构建、单测、代码扫描）质量门禁。
+  - 深耕移动端兼容：统一 safe-area、滚动与输入框焦点策略；针对 Android 厂商 WebView 兼容 bug 建立“黑名单+降级”机制，线上兼容投诉下降 63%。
+  - 关注安全与可维护性：CSP/SRI、依赖漏洞扫描、XSS/CSRF 防护；坚持 OOP/设计模式（策略/装饰器/观察者）提升代码可读性与扩展性。
+
+- 某通信行业软件企业（H公司） | 前端开发工程师 -> 高级前端工程师 | 2016-07 至 2020-01
+  - 负责运营商 B 端管理系统与移动端工单 H5 开发，基于 Vue + webpack 实现权限体系与模块化路由，沉淀表单与流程组件。
+  - 使用 HTML5 新特性（WebSocket、Web Worker、Canvas）构建实时监控大屏与数据可视化，渲染帧率稳定 45fps+。
+  - 参与用户体验改进：可用性走查、信息架构调整与可访问性（a11y）整改，工单处理效率提升 22%。
+
+教育背景
+- 中山大学 | 学士 计算机科学与技术 | 2012 至 2016
+
+技术栈
+- HTML5/CSS3/JavaScript(ES6+)/TypeScript
+- Vue3 / Vue Router / Pinia / Element-Plus / Vant
+- Webpack5 / Vite / Gulp / Rollup / ESLint / Prettier
+- Sass/Less / PostCSS / 移动端适配与兼容治理
+- 工程化（Monorepo, 模块化, 前后端分离, Mock）
+- 测试（Jest/Vitest, Cypress/Playwright）/ 监控（Sentry）/ 安全（CSP, XSS/CSRF）
+
+证书/荣誉
+- PMP（项目管理专业人士）
+- 公司“年度架构贡献奖”（工程化与性能专项）
+
+个人信息
+姓名：王子轩
+目标岗位：前端架构师 / 资深前端工程师
+邮箱：zixuan.wang@example.com
+电话：+86 136-5521-9980
+经验年限：10 年
+方向：前端 + Vue3/工程化
+简介：10年前端经验，精通 Vue3、Element-Plus、Vant，擅长工程化/模块化/前后端分离与移动端兼容治理；注重代码质量与架构演进，能独立负责复杂项目设计、开发与调试上线。
+
+项目经历
+- 生活服务统一交易 WebApp（H5 + Hybrid）
+  技术栈：Vue3, TypeScript, Vant, Pinia, Webpack5, Service Worker, Sentry
+  职责：设计多端统一路由与状态管理；实现支付/地址/优惠券等通用能力；建设降级与灰度发布流程。
+  成果：首屏加载下降 41%；线上 P1 事故月均 1.2 次降至 0.3 次；业务组件复用率提升到 72%。
+
+- 实时订单与运力监控大屏
+  技术栈：Vue3, Element-Plus, WebSocket, Web Worker, Canvas, ECharts, Less
+  职责：负责大数据量渲染方案（虚拟列表 + Worker 计算 + Canvas 绘制）与交互设计落地。
+  成果：百万级数据聚合渲染耗时降低 55%；关键指标刷新稳定 1s 内完成。

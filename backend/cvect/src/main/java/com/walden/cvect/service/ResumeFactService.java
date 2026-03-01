@@ -1,6 +1,5 @@
 package com.walden.cvect.service;
 
-import com.walden.cvect.infra.vector.VectorStoreService;
 import com.walden.cvect.model.ResumeChunk;
 import com.walden.cvect.model.fact.Regex;
 import com.walden.cvect.model.fact.extract.FactExtractorDispatcher;
@@ -20,15 +19,12 @@ public class ResumeFactService {
 
     private final FactExtractorDispatcher dispatcher;
     private final FactRepository repository;
-    private final VectorStoreService vectorStore;
 
     public ResumeFactService(
             FactExtractorDispatcher dispatcher,
-            FactRepository repository,
-            VectorStoreService vectorStore) {
+            FactRepository repository) {
         this.dispatcher = dispatcher;
         this.repository = repository;
-        this.vectorStore = vectorStore;
     }
 
     /**
@@ -59,8 +55,7 @@ public class ResumeFactService {
             case LINK -> repository.saveLink(candidateId, data);
             case HONOR -> repository.saveHonor(candidateId, data);
             case EDUCATION -> handleEducation(candidateId, data);
-            // EXPERIENCE 和 SKILL 仅向量化存储
-            case EXPERIENCE, SKILL -> vectorStore.save(candidateId, chunk.getType(), chunk.getContent());
+            case EXPERIENCE, SKILL -> { }
             default -> { }
         }
     }

@@ -28,10 +28,10 @@ public class Education {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String school;
 
-    @Column(length = 100)
+    @Column(columnDefinition = "TEXT")
     private String major;
 
-    @Column(length = 20)
+    @Column(columnDefinition = "TEXT")
     private String degree;
 
     @Column(name = "graduation_year", length = 10)

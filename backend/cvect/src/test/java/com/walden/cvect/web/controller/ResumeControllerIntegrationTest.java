@@ -1,5 +1,6 @@
 package com.walden.cvect.web.controller;
 
+import com.walden.cvect.config.PostgresIntegrationTestBase;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import com.walden.cvect.service.ResumeProcessService;
@@ -21,10 +22,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 
 import java.io.InputStream;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "app.upload.worker.enabled=false",
+        "app.vector.ingest.worker.enabled=false"
+})
 @Tag("integration")
 @Tag("api")
-class ResumeControllerIntegrationTest {
+class ResumeControllerIntegrationTest extends PostgresIntegrationTestBase {
 
         @Autowired
         private WebApplicationContext webApplicationContext;

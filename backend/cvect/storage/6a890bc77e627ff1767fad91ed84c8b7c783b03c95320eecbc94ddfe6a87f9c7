@@ -1,0 +1,50 @@
+工作经历
+- 某股份制银行科技子公司（I公司） | 资深Java工程师（账务&风控） | 2020-03 至今
+- 负责账务入账、清结算与风险拦截服务，支撑日均交易 8000 万+；推进服务降级与隔离，核心链路可用性 99.99%。
+- 精通 Spring：Spring Boot/MVC/事务、Spring Batch；落地统一异常码、幂等组件与审计链路。
+- ORM：MyBatis（主）；MySQL 深度优化（索引、分区、锁、执行计划）；对账批处理耗时下降 55%。
+- NoSQL/Queue：Redis（分布式锁/延迟队列）、Elasticsearch（风控检索）、Kafka（事件流）；构建“风控事件流 + 决策缓存”，拦截延迟下降 30%。
+- HTTP/缓存：研究过缓存一致性与代理缓存策略，结合网关缓存与幂等重试规范，接口重复请求下降 14%。
+- JVM 调优：G1/堆外内存、对象复用；通过 async-profiler 解决热点分配与锁竞争，CPU 峰值下降 20%。
+- 开源源码研究：JDK 并发包、Spring Security 过滤链、Redis 客户端；输出性能调优手册。
+
+- 某支付外包与解决方案公司（J公司） | Java工程师 | 2017-07 至 2020-02
+- 参与多家银行/支付机构的清算与对账项目交付，熟练使用设计模式（模板/策略/状态）封装批处理与补偿流程。
+- 熟悉 RPC：Dubbo 与 gRPC 的调用链路与超时治理；线上超时故障定位时间缩短 35%。
+
+教育背景
+- 同济大学 | 学士 计算机科学与技术 | 2013 至 2017
+
+技术栈
+- Java 8/11/17，Spring Boot / Spring MVC / Spring Batch / Spring Security
+- ORM：MyBatis（精通），Hibernate/JPA（熟悉）
+- MySQL（索引/事务/锁/分区/分库分表），Redis，Elasticsearch
+- MQ：Kafka / RocketMQ；事件驱动、补偿、消费幂等
+- RPC：Dubbo / gRPC；HTTP/缓存、网关与熔断
+- JVM：G1、JFR/async-profiler、并发（JUC）
+- 可观测性：Prometheus/Grafana/ELK/Tracing
+
+证书/荣誉
+- 公司“年度性能优化”奖
+- 内部分享：JVM 调优与并发实践（含概率/容量估算方法）
+
+个人信息
+姓名：陈思远
+目标岗位：资深Java工程师
+邮箱：siyuan.chen@example.com
+电话：+86 138-6034-7721
+经验年限：9 年
+
+方向：后端 + Java/账务/风控
+简介：9年Java后端经验，精通 Spring 与 MyBatis/MySQL 性能优化，熟悉 Redis/ES/MQ 与事件驱动架构；研究 HTTP/缓存、JVM 调优与 RPC 框架，具备较强逻辑与概率思维（容量评估/风险阈值/实验对照），善于抽象问题并快速定位与解决。
+
+项目经历
+- 账务入账与对账批处理平台
+技术栈：Java17, Spring Boot/Batch, MyBatis, MySQL, Redis, Kafka
+职责：负责入账规则、批处理作业编排、补偿与审计；建设压测与容量基线。
+成果：对账耗时下降 55%；入账差错率下降 70%；批处理失败自动恢复率 99.6%。
+
+- 风控事件流与决策缓存
+技术栈：Java11, Spring Boot, Kafka Streams, Redis, Elasticsearch, gRPC
+职责：设计风控事件流、决策缓存与降级策略；完善超时与重试、幂等与审计。
+成果：拦截延迟下降 30%；误拦率下降 12%；线上故障定位时间缩短 40%。

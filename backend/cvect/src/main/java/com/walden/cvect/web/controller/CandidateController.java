@@ -3,6 +3,7 @@ package com.walden.cvect.web.controller;
 import com.walden.cvect.model.entity.Candidate;
 import com.walden.cvect.model.entity.CandidateRecruitmentStatus;
 import com.walden.cvect.repository.CandidateJpaRepository;
+import com.walden.cvect.repository.ResumeChunkVectorJpaRepository;
 import com.walden.cvect.service.CandidateSnapshotService;
 import com.walden.cvect.web.stream.CandidateStreamEvent;
 import jakarta.validation.Valid;
@@ -11,9 +12,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -25,15 +28,18 @@ public class CandidateController {
 
     private final CandidateJpaRepository candidateRepository;
     private final CandidateSnapshotService snapshotService;
+    private final ResumeChunkVectorJpaRepository resumeChunkVectorRepository;
 
     public CandidateController(CandidateJpaRepository candidateRepository,
-            CandidateSnapshotService snapshotService) {
+            CandidateSnapshotService snapshotService,
+            ResumeChunkVectorJpaRepository resumeChunkVectorRepository) {
         this.candidateRepository = candidateRepository;
         this.snapshotService = snapshotService;
+        this.resumeChunkVectorRepository = resumeChunkVectorRepository;
     }
 
     @GetMapping
-    public ResponseEntity<List<CandidateStreamEvent>> listByJd(@RequestParam("jdId") UUID jdId) {
+    public ResponseEntity<List<CandidateListItem>> listByJd(@RequestParam("jdId") UUID jdId) {
         List<Candidate> candidates = candidateRepository.findByJobDescriptionIdOrderByCreatedAtDesc(jdId);
         List<CandidateStreamEvent> snapshotEvents = snapshotService.listByJd(jdId);
         Map<UUID, CandidateStreamEvent> byCandidateId = new HashMap<>();
@@ -41,7 +47,12 @@ public class CandidateController {
             byCandidateId.put(event.candidateId(), event);
         }
 
-        List<CandidateStreamEvent> events = new ArrayList<>();
+        Set<UUID> candidateIds = candidates.stream()
+                .map(Candidate::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        Set<UUID> vectorizedCandidateIds = new HashSet<>(resumeChunkVectorRepository.findDistinctCandidateIdsIn(candidateIds));
+
+        List<CandidateListItem> events = new ArrayList<>();
         for (Candidate candidate : candidates) {
             CandidateStreamEvent event = byCandidateId.get(candidate.getId());
             if (event == null) {
@@ -50,7 +61,25 @@ public class CandidateController {
             if (event == null) {
                 continue;
             }
-            events.add(event);
+            boolean noVectorChunk = !vectorizedCandidateIds.contains(candidate.getId());
+            events.add(new CandidateListItem(
+                    event.candidateId(),
+                    event.jdId(),
+                    event.status(),
+                    event.recruitmentStatus(),
+                    event.name(),
+                    event.sourceFileName(),
+                    event.contentType(),
+                    event.fileSizeBytes(),
+                    event.parsedCharCount(),
+                    event.truncated(),
+                    event.createdAt(),
+                    event.emails(),
+                    event.phones(),
+                    event.educations(),
+                    event.honors(),
+                    event.links(),
+                    noVectorChunk));
         }
         return ResponseEntity.ok(events);
     }
@@ -75,6 +104,27 @@ public class CandidateController {
 
     public record UpdateRecruitmentStatusRequest(
             @NotNull CandidateRecruitmentStatus recruitmentStatus
+    ) {
+    }
+
+    public record CandidateListItem(
+            UUID candidateId,
+            UUID jdId,
+            String status,
+            String recruitmentStatus,
+            String name,
+            String sourceFileName,
+            String contentType,
+            Long fileSizeBytes,
+            Integer parsedCharCount,
+            Boolean truncated,
+            java.time.LocalDateTime createdAt,
+            List<String> emails,
+            List<String> phones,
+            List<String> educations,
+            List<String> honors,
+            List<String> links,
+            boolean noVectorChunk
     ) {
     }
 }

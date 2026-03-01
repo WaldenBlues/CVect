@@ -7,11 +7,11 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "app.embedding")
 public class EmbeddingConfig {
 
-    private String modelName = "Qwen/Qwen2.5-Embedding-0.6B-Instruct";
+    private String modelName = "Qwen/Qwen3-Embedding-0.6B";
     private String serviceUrl = "http://localhost:8001/embed";
     private String device = "cpu";
     private int batchSize = 32;
-    private int dimension = 768;
+    private int dimension = 1024;
     private int maxInputLength = 8192;
     private int timeoutSeconds = 60;
 

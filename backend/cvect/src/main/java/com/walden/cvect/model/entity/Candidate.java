@@ -13,7 +13,8 @@ import java.util.UUID;
 @Entity
 @Table(
         name = "candidates",
-        uniqueConstraints = @UniqueConstraint(name = "uk_candidates_file_hash", columnNames = "file_hash")
+        uniqueConstraints = @UniqueConstraint(name = "uk_candidates_file_hash_jd", columnNames = { "file_hash", "jd_id" }),
+        indexes = @Index(name = "idx_candidates_jd_id", columnList = "jd_id")
 )
 @Check(constraints = "recruitment_status in ('TO_CONTACT','TO_INTERVIEW','REJECTED')")
 public class Candidate {

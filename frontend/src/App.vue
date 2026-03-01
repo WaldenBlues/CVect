@@ -157,19 +157,34 @@
       <button v-if="hasActiveFilters" class="secondary small" @click="resetFilters">
         清空筛选
       </button>
-      <span class="filter-stats">显示 {{ filteredCandidates.length }} / {{ events.length }}</span>
+      <span class="filter-stats">显示 {{ pageRangeText }} / {{ filteredCandidates.length }}（总计 {{ events.length }}）</span>
     </section>
+
+    <SemanticPanel
+      :loading="semanticLoading"
+      :message="semanticMessage"
+      v-model:autoTune="semanticAutoTune"
+      v-model:experienceWeight="semanticTuning.experienceWeight"
+      v-model:skillWeight="semanticTuning.skillWeight"
+    />
 
     <section class="layout">
       <section class="cards">
         <article
-          v-for="item in filteredCandidates"
+          v-for="item in pagedCandidates"
           :key="item.id"
           class="card"
           :class="{ active: selectedCandidate?.id === item.id }"
           @click="selectCandidate(item)"
         >
-          <h3>{{ item.title }}</h3>
+          <div class="card-top">
+            <h3>{{ item.title }}</h3>
+            <div class="match-score" :class="matchScoreClass(item.id)">
+              <span>匹配度</span>
+              <strong>{{ semanticScorePercent(item.id) }}</strong>
+              <small>{{ semanticScoreRaw(item.id) }}</small>
+            </div>
+          </div>
           <p>{{ item.summary }}</p>
           <div class="meta">
           <span>ID: {{ item.id }}</span>
@@ -181,6 +196,7 @@
             <span v-if="item.links.length" class="tag">链接 {{ item.links.length }}</span>
             <span v-if="item.educations.length" class="tag">教育 {{ item.educations.length }}</span>
             <span v-if="item.honors.length" class="tag">荣誉 {{ item.honors.length }}</span>
+            <span v-if="item.noVectorChunk" class="tag warning">无向量分块</span>
           </div>
           <div class="recruitment-row">
             <span class="recruitment-badge" :class="`status-${item.recruitmentStatus || 'TO_CONTACT'}`">
@@ -188,6 +204,18 @@
             </span>
           </div>
         </article>
+        <div v-if="!pagedCandidates.length" class="empty cards-empty">暂无候选人</div>
+      </section>
+      <section class="pager" v-if="filteredCandidates.length">
+        <span class="pager-info">第 {{ currentPage }} / {{ totalPages }} 页</span>
+        <div class="pager-actions">
+          <button class="secondary small" :disabled="currentPage <= 1" @click="goToPrevPage">
+            上一页
+          </button>
+          <button class="secondary small" :disabled="currentPage >= totalPages" @click="goToNextPage">
+            下一页
+          </button>
+        </div>
       </section>
 
       <aside class="detail" v-if="selectedCandidate">
@@ -264,6 +292,8 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import SemanticPanel from './components/SemanticPanel.vue'
+import { useSemanticMatching } from './composables/useSemanticMatching'
 
 const sseUrl = import.meta.env.VITE_SSE_URL || '/api/candidates/stream'
 
@@ -283,6 +313,7 @@ const recruitmentFilter = ref('')
 
 let source = null
 let jdRefreshTimer = null
+let vectorFlagPollTimer = null
 
 const jds = ref([])
 const selectedJdId = ref('')
@@ -301,6 +332,25 @@ const editTitle = ref('')
 const editContent = ref('')
 const recruitmentUpdatingId = ref('')
 const recruitmentMessage = ref('')
+const PAGE_SIZE = 20
+const currentPage = ref(1)
+
+const {
+  semanticScoreMap,
+  semanticRankMap,
+  semanticLoading,
+  semanticMessage,
+  semanticTuning,
+  semanticAutoTune,
+  semanticScorePercent,
+  semanticScoreRaw,
+  matchScoreClass,
+  applySemanticTuningFromJd,
+  scheduleSemanticRefresh,
+  refreshSemanticRanking,
+  resetSemanticState,
+  stopSemanticRefreshTimer
+} = useSemanticMatching({ events, selectedJdId, selectedJd })
 
 const recruitmentStatusOptions = [
   { value: 'TO_CONTACT', label: '待沟通' },
@@ -317,6 +367,7 @@ const recruitmentStatusLabelMap = {
 const recruitmentStatusLabel = (status) => {
   return recruitmentStatusLabelMap[status] || '待沟通'
 }
+
 
 const candidateSearchText = (item) => {
   return [
@@ -345,12 +396,13 @@ const hasActiveFilters = computed(() => {
 const resetFilters = () => {
   filterText.value = ''
   recruitmentFilter.value = ''
+  currentPage.value = 1
 }
 
 const filteredCandidates = computed(() => {
   const keyword = filterText.value.trim().toLowerCase()
   const keywordParts = keyword ? keyword.split(/\s+/).filter(Boolean) : []
-  return events.filter((item) => {
+  const filtered = events.filter((item) => {
     if (selectedJdId.value && item.jdId && item.jdId !== selectedJdId.value) {
       return false
     }
@@ -362,15 +414,80 @@ const filteredCandidates = computed(() => {
     const hay = candidateSearchText(item)
     return keywordParts.every((part) => hay.includes(part))
   })
+
+  return filtered.sort((a, b) => {
+    const aScore = semanticScoreMap.value[a.id]
+    const bScore = semanticScoreMap.value[b.id]
+    if (typeof aScore === 'number' && typeof bScore === 'number' && aScore !== bScore) {
+      return bScore - aScore
+    }
+    if (typeof aScore === 'number' && typeof bScore !== 'number') return -1
+    if (typeof aScore !== 'number' && typeof bScore === 'number') return 1
+
+    const aRank = semanticRankMap.value[a.id]
+    const bRank = semanticRankMap.value[b.id]
+    if (typeof aRank === 'number' && typeof bRank === 'number' && aRank !== bRank) {
+      return aRank - bRank
+    }
+    if (typeof aRank === 'number' && typeof bRank !== 'number') return -1
+    if (typeof aRank !== 'number' && typeof bRank === 'number') return 1
+    return 0
+  })
 })
 
+const totalPages = computed(() => {
+  const total = Math.ceil(filteredCandidates.value.length / PAGE_SIZE)
+  return Math.max(1, total)
+})
+
+const pagedCandidates = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  const end = start + PAGE_SIZE
+  return filteredCandidates.value.slice(start, end)
+})
+
+const pageRangeText = computed(() => {
+  const total = filteredCandidates.value.length
+  if (!total) {
+    return '0-0'
+  }
+  const start = (currentPage.value - 1) * PAGE_SIZE + 1
+  const end = Math.min(currentPage.value * PAGE_SIZE, total)
+  return `${start}-${end}`
+})
+
+const goToPrevPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value -= 1
+  }
+}
+
+const goToNextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value += 1
+  }
+}
+
 watch(filteredCandidates, (items) => {
+  if (currentPage.value > totalPages.value) {
+    currentPage.value = totalPages.value
+  }
+  if (currentPage.value < 1) {
+    currentPage.value = 1
+  }
   if (!selectedCandidate.value) return
   const exists = items.some((item) => item.id === selectedCandidate.value?.id)
   if (!exists) {
     selectedCandidate.value = items[0] || null
   }
 })
+
+watch(
+  () => [selectedJdId.value, filterText.value, recruitmentFilter.value],
+  () => {
+    currentPage.value = 1
+  }
+)
 
 const pushLog = (message) => {
   const ts = new Date().toLocaleTimeString()
@@ -379,7 +496,7 @@ const pushLog = (message) => {
 }
 
 const normalizeCandidate = (payload) => {
-  return {
+  const normalized = {
     id: payload.candidateId || payload.id || 'unknown',
     jdId: payload.jdId || payload.jd_id || '',
     status: payload.status || '',
@@ -396,6 +513,10 @@ const normalizeCandidate = (payload) => {
     honors: payload.honors || [],
     links: payload.links || []
   }
+  if (Object.prototype.hasOwnProperty.call(payload, 'noVectorChunk')) {
+    normalized.noVectorChunk = Boolean(payload.noVectorChunk)
+  }
+  return normalized
 }
 
 const applyCandidateUpdate = (candidate) => {
@@ -409,6 +530,57 @@ const applyCandidateUpdate = (candidate) => {
   if (selectedCandidate.value?.id === candidate.id) {
     selectedCandidate.value = { ...selectedCandidate.value, ...candidate }
   }
+}
+
+const refreshCandidateVectorFlags = async (jdId = selectedJdId.value) => {
+  if (!jdId) return
+  try {
+    const resp = await fetch(`/api/candidates?jdId=${jdId}`)
+    if (!resp.ok) return
+    const data = await resp.json()
+    if (!Array.isArray(data)) return
+
+    const noVectorChunkById = new Map()
+    for (const payload of data) {
+      const id = payload?.candidateId || payload?.id
+      if (!id) continue
+      if (!Object.prototype.hasOwnProperty.call(payload, 'noVectorChunk')) continue
+      noVectorChunkById.set(id, Boolean(payload.noVectorChunk))
+    }
+    if (!noVectorChunkById.size) return
+
+    for (let i = 0; i < events.length; i += 1) {
+      const item = events[i]
+      if (!noVectorChunkById.has(item.id)) continue
+      const next = noVectorChunkById.get(item.id)
+      if (item.noVectorChunk !== next) {
+        events[i] = { ...item, noVectorChunk: next }
+      }
+    }
+    if (selectedCandidate.value && noVectorChunkById.has(selectedCandidate.value.id)) {
+      selectedCandidate.value = {
+        ...selectedCandidate.value,
+        noVectorChunk: noVectorChunkById.get(selectedCandidate.value.id)
+      }
+    }
+  } catch (_) {
+    // Ignore transient polling failures.
+  }
+}
+
+const stopVectorFlagPolling = () => {
+  if (vectorFlagPollTimer) {
+    clearInterval(vectorFlagPollTimer)
+    vectorFlagPollTimer = null
+  }
+}
+
+const startVectorFlagPolling = () => {
+  stopVectorFlagPolling()
+  if (!selectedJdId.value) return
+  vectorFlagPollTimer = setInterval(() => {
+    refreshCandidateVectorFlags()
+  }, 5000)
 }
 
 const connect = () => {
@@ -432,6 +604,35 @@ const connect = () => {
       scheduleJdRefresh()
     } catch (err) {
       pushLog(`解析失败: ${err}`)
+    }
+  })
+
+  source.addEventListener('vector', (event) => {
+    try {
+      const payload = JSON.parse(event.data)
+      const candidateId = payload?.candidateId || payload?.id
+      if (!candidateId) return
+      const jdId = payload?.jdId || payload?.jd_id || ''
+      if (selectedJdId.value && jdId && jdId !== selectedJdId.value) return
+
+      const idx = events.findIndex((item) => item.id === candidateId)
+      if (idx >= 0) {
+        events[idx] = {
+          ...events[idx],
+          noVectorChunk: false
+        }
+      }
+      if (selectedCandidate.value?.id === candidateId) {
+        selectedCandidate.value = {
+          ...selectedCandidate.value,
+          noVectorChunk: false
+        }
+      }
+      refreshCandidateVectorFlags(jdId || selectedJdId.value)
+      scheduleSemanticRefresh(120)
+      pushLog(`向量完成: ${candidateId}`)
+    } catch (err) {
+      pushLog(`向量事件解析失败: ${err}`)
     }
   })
 
@@ -509,7 +710,10 @@ const refreshJds = async () => {
 
 const loadCandidatesForJd = async (jdId) => {
   if (!jdId) {
+    resetSemanticState(true)
+    stopVectorFlagPolling()
     events.splice(0, events.length)
+    currentPage.value = 1
     selectedCandidate.value = null
     return
   }
@@ -518,7 +722,11 @@ const loadCandidatesForJd = async (jdId) => {
     if (!resp.ok) throw new Error('加载候选人失败')
     const data = await resp.json()
     events.splice(0, events.length, ...(Array.isArray(data) ? data.map(normalizeCandidate) : []))
+    currentPage.value = 1
     selectedCandidate.value = events[0] || null
+    startVectorFlagPolling()
+    applySemanticTuningFromJd()
+    await refreshSemanticRanking()
   } catch (err) {
     pushLog(`候选人加载失败: ${err.message}`)
   }
@@ -536,6 +744,7 @@ const scheduleJdRefresh = () => {
 }
 
 const clearSelectedJd = () => {
+  stopVectorFlagPolling()
   selectedJdId.value = ''
   jdTitle.value = ''
   jdText.value = ''
@@ -641,10 +850,13 @@ const deleteJd = async (jd) => {
       throw new Error('该 JD 仍有候选人，无法删除')
     }
     if (!resp.ok && resp.status !== 204) throw new Error('删除 JD 失败')
-    await refreshJds()
+    jds.value = jds.value.filter((item) => item.id !== jd.id)
     if (selectedJdId.value === jd.id) {
-      selectedJdId.value = ''
+      clearSelectedJd()
+    } else if (!selectedJdId.value && jds.value.length) {
+      selectJd(jds.value[0])
     }
+    refreshJds()
   } catch (err) {
     jdMessage.value = err.message
   } finally {
@@ -749,6 +961,8 @@ onBeforeUnmount(() => {
     clearTimeout(jdRefreshTimer)
     jdRefreshTimer = null
   }
+  stopSemanticRefreshTimer()
+  stopVectorFlagPolling()
   disconnect()
 })
 </script>

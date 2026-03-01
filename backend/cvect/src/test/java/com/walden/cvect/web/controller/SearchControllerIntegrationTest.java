@@ -20,8 +20,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
+import com.walden.cvect.config.PostgresIntegrationTestBase;
 
 import java.io.InputStream;
 import java.util.List;
@@ -36,60 +35,20 @@ import static org.junit.jupiter.api.Assertions.*;
  * 测试原则：遵循完整流水线测试模式
  * PDF -> parser -> normalizer -> chunker -> fact extraction -> vector storage -> search API
  *
- * 前置条件：需要 Docker 启动 PostgreSQL + pgvector
- * 启动命令: docker-compose up -d
+ * 前置条件：Testcontainers 提供 PostgreSQL + pgvector
  *
- * 如果 Docker 未启动，测试会自动跳过
+ * 如果 Docker 不可用，测试会自动跳过
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+                "app.upload.worker.enabled=false",
+                "app.vector.ingest.worker.enabled=false"
+        })
 @Tag("integration")
 @Tag("api")
 @DisplayName("SearchController API 测试（流水线测试）")
-class SearchControllerIntegrationTest {
-
-    private static final boolean DOCKER_RUNNING = Boolean.parseBoolean(System.getenv("DOCKER_ACTIVE"))
-            || isPortInUse(5432);
-
-    private static boolean isPortInUse(int port) {
-        try (var socket = new java.net.ServerSocket(port)) {
-            return false;
-        } catch (Exception e) {
-            return true;
-        }
-    }
-
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        if (DOCKER_RUNNING) {
-            // Docker 模式：PostgreSQL + pgvector
-            registry.add("spring.datasource.url", () -> "jdbc:postgresql://localhost:5432/cvect");
-            registry.add("spring.datasource.username", () -> "postgres");
-            registry.add("spring.datasource.password", () -> "postgres");
-            registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-            registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
-            registry.add("app.embedding.model-name", () -> "Qwen/Qwen2.5-Embedding-0.6B-Instruct");
-            registry.add("app.embedding.device", () -> "cpu");
-            registry.add("app.embedding.dimension", () -> "768");
-            registry.add("app.vector.enabled", () -> "true");
-            registry.add("app.vector.table-name", () -> "resume_chunks");
-            registry.add("app.vector.index-type", () -> "hnsw");
-            registry.add("app.vector.metric", () -> "cosine");
-        } else {
-            // 开发模式：使用 H2 内存数据库
-            registry.add("spring.datasource.url", () -> "jdbc:h2:mem:cvect;MODE=PostgreSQL");
-            registry.add("spring.datasource.username", () -> "sa");
-            registry.add("spring.datasource.password", () -> "");
-            registry.add("spring.datasource.driver-class-name", () -> "org.h2.Driver");
-            registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.H2Dialect");
-            registry.add("app.embedding.model-name", () -> "Qwen/Qwen2.5-Embedding-0.6B-Instruct");
-            registry.add("app.embedding.device", () -> "cpu");
-            registry.add("app.embedding.dimension", () -> "768");
-            registry.add("app.vector.enabled", () -> "false");
-            registry.add("app.vector.table-name", () -> "resume_chunks");
-            registry.add("app.vector.index-type", () -> "hnsw");
-            registry.add("app.vector.metric", () -> "cosine");
-        }
-    }
+class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
 
     @LocalServerPort
     private int port;
@@ -154,26 +113,21 @@ class SearchControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("服务应正确初始化（根据环境自动选择数据库）")
+    @DisplayName("服务应正确初始化")
     void should_initialize_correctly() {
-        if (DOCKER_RUNNING) {
-            Assumptions.assumeTrue(vectorStore != null,
-                "跳过：PostgreSQL 未启动 (运行: docker-compose up -d)");
-            assertNotNull(searchController);
-        } else {
-            // 开发模式：核心服务仍应可用
-            assertNotNull(parser);
-            assertNotNull(normalizer);
-            assertNotNull(chunker);
-        }
+        assertNotNull(searchController);
+        assertNotNull(vectorStore);
+        assertNotNull(parser);
+        assertNotNull(normalizer);
+        assertNotNull(chunker);
     }
 
     @Test
     @DisplayName("搜索 API 应返回有效响应结构（Docker 模式）")
     @Tag("pipeline")
     void should_return_valid_search_response_structure() {
-        Assumptions.assumeTrue(DOCKER_RUNNING && vectorStore != null && embeddingService != null,
-            "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务 (运行: docker-compose up -d)");
+        Assumptions.assumeTrue(vectorStore != null && embeddingService != null,
+            "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务");
 
         // Given
         String requestBody = """
@@ -204,7 +158,7 @@ class SearchControllerIntegrationTest {
     @DisplayName("搜索请求应支持自定义 topK 参数（Docker 模式）")
     @Tag("pipeline")
     void should_support_custom_topK() {
-        Assumptions.assumeTrue(DOCKER_RUNNING && vectorStore != null && embeddingService != null,
+        Assumptions.assumeTrue(vectorStore != null && embeddingService != null,
             "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务");
 
         // Given
@@ -232,7 +186,7 @@ class SearchControllerIntegrationTest {
     @DisplayName("搜索请求应支持类型过滤（Docker 模式）")
     @Tag("pipeline")
     void should_support_type_filtering() {
-        Assumptions.assumeTrue(DOCKER_RUNNING && vectorStore != null && embeddingService != null,
+        Assumptions.assumeTrue(vectorStore != null && embeddingService != null,
             "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务");
 
         // Given: 只搜索 EXPERIENCE
@@ -258,7 +212,7 @@ class SearchControllerIntegrationTest {
     @DisplayName("空 jobDescription 应返回空结果（Docker 模式）")
     @Tag("pipeline")
     void should_handle_empty_job_description() {
-        Assumptions.assumeTrue(DOCKER_RUNNING && vectorStore != null && embeddingService != null,
+        Assumptions.assumeTrue(vectorStore != null && embeddingService != null,
             "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务");
 
         // Given
@@ -285,8 +239,8 @@ class SearchControllerIntegrationTest {
     @DisplayName("创建索引 API 应正常工作（Docker 模式）")
     @Tag("admin")
     void should_create_index_via_api() {
-        Assumptions.assumeTrue(DOCKER_RUNNING && vectorStore != null,
-            "跳过：需要 PostgreSQL + pgvector (运行: docker-compose up -d)");
+        Assumptions.assumeTrue(vectorStore != null,
+            "跳过：需要 PostgreSQL + pgvector");
 
         // When
         ResponseEntity<String> response = restTemplate.postForEntity(
@@ -307,7 +261,7 @@ class SearchControllerIntegrationTest {
     @DisplayName("全链路测试：从 PDF 解析到搜索 API（Docker 模式）")
     @Tag("pipeline")
     void should_support_full_pipeline_to_search() throws Exception {
-        Assumptions.assumeTrue(DOCKER_RUNNING && vectorStore != null && embeddingService != null,
+        Assumptions.assumeTrue(vectorStore != null && embeddingService != null,
             "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务");
 
         // Given: 从 My.pdf 解析获取 EXPERIENCE chunk
@@ -361,7 +315,7 @@ class SearchControllerIntegrationTest {
     @DisplayName("搜索结果应包含候选人匹配信息（Docker 模式）")
     @Tag("pipeline")
     void should_include_candidate_info_in_results() {
-        Assumptions.assumeTrue(DOCKER_RUNNING && vectorStore != null && embeddingService != null,
+        Assumptions.assumeTrue(vectorStore != null && embeddingService != null,
             "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务");
 
         // Given

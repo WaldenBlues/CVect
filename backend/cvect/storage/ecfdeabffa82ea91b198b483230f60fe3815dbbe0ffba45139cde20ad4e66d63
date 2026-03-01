@@ -1,0 +1,50 @@
+工作经历
+- 某大型金融科技公司（C公司） | 前端技术负责人 | 2021-06 至今
+  - 负责“钱包/支付/账单”移动端WebApp（H5 + Hybrid）前端架构与交付，覆盖日活 120W+；推动前后端分离与接口契约化（OpenAPI + Mock），多人并行效率提升 30%。
+  - 主导 Vue2 -> Vue3 + TypeScript 迁移，重构路由与状态（Vue Router + Pinia），沉淀 60+ 业务组件（Vant 二次封装 + 主题体系），页面复用率提升至 65%。
+  - 深度实践 HTML5 特性（History/Storage/Geolocation/Canvas/Audio）与 PWA（Service Worker + 离线缓存），首屏 FCP 从 2.6s 降至 1.0s，弱网下可用率提升 18%。
+  - 搭建工程化与质量体系：Webpack5/Vite 双栈、ESLint+Prettier、Husky+lint-staged、单测（Vitest/Jest）与 E2E（Cypress）；核心模块单测覆盖率稳定 82%+。
+  - 负责移动端兼容与稳定性治理：iOS WKWebView/Android WebView/小米浏览器等差异适配；接入 Sentry + 自研指标（白屏/接口错误/长任务），线上 JS 误报率下降 45%，MTTR 从 35min 降至 12min。
+  - 与产品/UX 共建用户研究闭环：可用性测试 + 漏斗分析 + A/B 实验（埋点规范 + 实验分流），支付转化率提升 11.6%，退款入口误触下降 28%。
+
+- 某在线旅游平台（D公司） | 高级前端工程师 | 2017-07 至 2021-05
+  - 负责移动端活动页与酒店/机票列表页的性能优化与组件化改造，推进语义化 HTML 与表现/数据分离，LCP 下降 38%。
+  - 自建前端构建环境（gulp + webpack），实现多环境配置、按需加载、图片压缩与 CDN 发布；构建耗时从 9min 降至 3.5min。
+  - 研发 H5 营销页模板系统（可配置表单/券包/抽奖），支持 2000+ 活动投放；通过预渲染 + skeleton，首屏时间降低 42%。
+
+教育背景
+- 南京大学 | 学士 计算机科学与技术 | 2013 至 2017
+
+技术栈
+- HTML5/CSS3/JavaScript(ES6+)/TypeScript
+- Vue3 / Vue Router / Pinia / Vite / Webpack5 / Gulp
+- Element-Plus / Vant / ECharts / Axios / Lodash / Day.js
+- Sass/Less / PostCSS / 移动端适配（vw/vh, rem, safe-area）
+- 组件化与模块化 / Monorepo（pnpm）/ 前后端分离（BFF/Mock）
+- 性能优化（Core Web Vitals, Web Worker, 虚拟列表）
+- 安全（XSS/CSRF/CSP/SRI）/ 监控（Sentry）/ 灰度发布
+- 测试（Vitest/Jest, Cypress）/ CI（GitLab CI）
+
+证书/荣誉
+- Google Analytics Individual Qualification（GAIQ）
+- 公司级“季度技术突破奖”（性能与稳定性专项）
+
+个人信息
+姓名：李昊然
+目标岗位：资深前端工程师 / 前端负责人
+邮箱：haoran.li@example.com
+电话：+86 139-1200-1826
+经验年限：8 年
+方向：前端 + Vue3/移动端WebApp
+简介：8年前端研发经验，长期负责移动端WebApp与中台系统建设，精通 Vue3、Element-Plus、Vant 与工程化体系；擅长性能/稳定性治理、兼容性处理与可用性提升，并能以产品转化为目标推动技术落地。
+
+项目经历
+- 钱包与支付移动端WebApp（Wallet H5）
+  技术栈：Vue3, TypeScript, Vant, Pinia, Vite/Webpack, Service Worker, Sentry, Cypress
+  职责：负责架构设计与核心模块（支付确认/风控校验/账单列表）开发；制定性能基线与监控指标；推动 WebView 兼容方案与降级策略。
+  成果：首屏 FCP 2.6s -> 1.0s；长列表卡顿率下降 60%；支付关键路径错误率下降 35%；月度转化提升 11.6%。
+
+- 运营增长中台（Growth Studio）
+  技术栈：Vue3, Element-Plus, Node.js(BFF), WebSocket, Web Worker, ECharts, Less, GitLab CI
+  职责：主导“活动配置-发布-监控”闭环，建设可复用活动组件库与低代码配置（表单/券包/抽奖）；落地 A/B 实验与漏斗分析。
+  成果：投放配置从 1-2 天缩短至 2 小时；活动页复用率 70%+；页面加载失败率下降 40%；拉新转化提升 9.3%。

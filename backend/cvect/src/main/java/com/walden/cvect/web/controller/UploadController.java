@@ -25,9 +25,7 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
@@ -50,21 +48,24 @@ public class UploadController {
     private final UploadItemJpaRepository itemRepository;
     private final BatchStreamService batchStreamService;
     private final Path storageDir;
+    private final int maxInflightItems;
 
     public UploadController(JobDescriptionJpaRepository jobDescriptionRepository,
             UploadBatchJpaRepository batchRepository,
             UploadItemJpaRepository itemRepository,
             BatchStreamService batchStreamService,
-            @Value("${app.upload.storage-dir:storage}") String storageDir) {
+            @Value("${app.upload.storage-dir:storage}") String storageDir,
+            @Value("${app.upload.max-inflight-items:200}") int maxInflightItems) {
         this.jobDescriptionRepository = jobDescriptionRepository;
         this.batchRepository = batchRepository;
         this.itemRepository = itemRepository;
         this.batchStreamService = batchStreamService;
         this.storageDir = resolveStorageDir(storageDir);
+        this.maxInflightItems = Math.max(1, maxInflightItems);
     }
 
     @PostMapping("/resumes")
-    public ResponseEntity<BatchUploadResponse> uploadResumes(
+    public ResponseEntity<?> uploadResumes(
             @RequestParam("jdId") String jdId,
             @RequestParam("files") MultipartFile[] files) throws IOException {
         JobDescription jd = resolveJobDescription(jdId);
@@ -73,6 +74,9 @@ public class UploadController {
         }
         if (files == null || files.length == 0) {
             return ResponseEntity.badRequest().build();
+        }
+        if (isQueueOverloaded(files.length)) {
+            return ResponseEntity.status(429).build();
         }
 
         UploadBatch batch = batchRepository.save(new UploadBatch(jd, files.length));
@@ -87,12 +91,15 @@ public class UploadController {
     }
 
     @PostMapping("/zip")
-    public ResponseEntity<ZipUploadResponse> uploadZip(
+    public ResponseEntity<?> uploadZip(
             @RequestParam("jdId") String jdId,
             @RequestParam("zipFile") MultipartFile zipFile) throws IOException {
         JobDescription jd = resolveJobDescription(jdId);
         if (jd == null || zipFile == null) {
             return ResponseEntity.badRequest().build();
+        }
+        if (isQueueOverloaded(1)) {
+            return ResponseEntity.status(429).build();
         }
 
         ensureStorage();
@@ -100,6 +107,8 @@ public class UploadController {
         UploadBatch batch = batchRepository.save(new UploadBatch(jd, 0));
         int totalFiles = 0;
         long totalBytes = 0;
+        boolean truncated = false;
+        long availableSlots = Math.max(0L, (long) maxInflightItems - inflightItemCount());
 
         try (ZipInputStream zis = new ZipInputStream(zipFile.getInputStream())) {
             ZipEntry entry;
@@ -108,20 +117,30 @@ public class UploadController {
                     continue;
                 }
                 if (totalFiles >= MAX_FILES) {
+                    truncated = true;
                     break;
                 }
                 totalFiles++;
-                batch.setTotalFiles(totalFiles);
-                batchRepository.save(batch);
 
                 String fileName = entry.getName();
                 if (!isAllowedExtension(fileName)) {
                     failRejected(batch, fileName, "Unsupported file type");
                     continue;
                 }
+                if (availableSlots <= 0) {
+                    failRejected(batch, fileName, "Upload queue is busy, please retry later");
+                    continue;
+                }
 
                 Path storedPath = newStoragePath(fileName);
-                long entrySize = writeEntryToFile(zis, storedPath);
+                long entrySize;
+                try {
+                    entrySize = writeEntryToFile(zis, storedPath);
+                } catch (IOException ex) {
+                    Files.deleteIfExists(storedPath);
+                    failRejected(batch, fileName, ex.getMessage());
+                    continue;
+                }
                 totalBytes += entrySize;
                 if (entrySize > MAX_ENTRY_BYTES || totalBytes > MAX_TOTAL_BYTES) {
                     Files.deleteIfExists(storedPath);
@@ -130,13 +149,14 @@ public class UploadController {
                 }
 
                 processStoredFile(batch, fileName, storedPath);
+                availableSlots--;
             }
         }
 
         batch.setTotalFiles(totalFiles);
         batchRepository.save(batch);
         refreshBatchProgress(batch.getId());
-        return ResponseEntity.ok(new ZipUploadResponse(batch.getId(), totalFiles));
+        return ResponseEntity.ok(new ZipUploadResponse(batch.getId(), totalFiles, truncated));
     }
 
     private FileUploadResult processUploadedFile(UploadBatch batch, MultipartFile file) throws IOException {
@@ -157,20 +177,20 @@ public class UploadController {
     }
 
     private FileUploadResult processStoredFile(UploadBatch batch, String fileName, Path storedPath) {
-        UploadItem item = itemRepository.save(new UploadItem(batch, fileName));
+        UploadItem item = new UploadItem(batch, fileName);
         item.setStatus(UploadItemStatus.QUEUED);
         item.setStoragePath(storedPath.toString());
         item.setQueueJobKey(UploadQueueJobKeyGenerator.nextKey(item.getId()));
-        itemRepository.save(item);
+        item = itemRepository.save(item);
         publishBatchEvent(batch, item, null);
         return new FileUploadResult(fileName, null, "QUEUED", null);
     }
 
     private FileUploadResult failRejected(UploadBatch batch, String fileName, String reason) {
-        UploadItem item = itemRepository.save(new UploadItem(batch, fileName));
+        UploadItem item = new UploadItem(batch, fileName);
         item.setStatus(UploadItemStatus.FAILED);
         item.setErrorMessage(reason);
-        itemRepository.save(item);
+        item = itemRepository.save(item);
         publishBatchEvent(batch, item, reason);
         return new FileUploadResult(fileName, null, "FAILED", reason);
     }
@@ -189,36 +209,17 @@ public class UploadController {
     }
 
     private void refreshBatchProgress(UUID batchId) {
+        batchRepository.refreshProgressFromItems(batchId);
         UploadBatch batch = batchRepository.findById(batchId).orElse(null);
         if (batch == null) {
             return;
         }
-
-        Map<UploadItemStatus, Long> countsByStatus = new EnumMap<>(UploadItemStatus.class);
-        itemRepository.countGroupedByStatus(batchId).forEach(count ->
-                countsByStatus.put(count.getStatus(), count.getCount()));
-
-        long done = get(countsByStatus, UploadItemStatus.DONE);
-        long duplicate = get(countsByStatus, UploadItemStatus.DUPLICATE);
-        long failed = get(countsByStatus, UploadItemStatus.FAILED);
-        long processing = get(countsByStatus, UploadItemStatus.PROCESSING) + get(countsByStatus, UploadItemStatus.RETRYING);
-        long queued = get(countsByStatus, UploadItemStatus.QUEUED) + get(countsByStatus, UploadItemStatus.PENDING);
-
-        int processedFiles = toInt(done + duplicate + failed);
-        int totalFiles = batch.getTotalFiles() == null || batch.getTotalFiles() <= 0
-                ? toInt(itemRepository.countByBatch_Id(batchId))
-                : batch.getTotalFiles();
-
-        batch.setProcessedFiles(processedFiles);
-        if (processing == 0 && queued == 0 && processedFiles >= totalFiles) {
-            batch.setStatus(UploadBatchStatus.DONE);
-        } else {
-            batch.setStatus(UploadBatchStatus.PROCESSING);
-        }
-        batchRepository.save(batch);
+        int totalFiles = batch.getTotalFiles() == null ? 0 : Math.max(0, batch.getTotalFiles());
+        int processedFiles = batch.getProcessedFiles() == null ? 0 : Math.max(0, batch.getProcessedFiles());
+        String batchStatus = batch.getStatus() == null ? UploadBatchStatus.PROCESSING.name() : batch.getStatus().name();
         batchStreamService.publish(batchId, new BatchStreamEvent(
                 batchId,
-                batch.getStatus().name(),
+                batchStatus,
                 totalFiles,
                 processedFiles,
                 null,
@@ -242,7 +243,7 @@ public class UploadController {
 
     public record BatchUploadResponse(UUID batchId, List<FileUploadResult> files) {}
 
-    public record ZipUploadResponse(UUID batchId, int totalFiles) {}
+    public record ZipUploadResponse(UUID batchId, int totalFiles, boolean truncated) {}
 
     public record FileUploadResult(String fileName, UUID candidateId, String status, String errorMessage) {}
 
@@ -274,6 +275,14 @@ public class UploadController {
         return false;
     }
 
+    private boolean isQueueOverloaded(int incomingItems) {
+        return inflightItemCount() + Math.max(1, incomingItems) > maxInflightItems;
+    }
+
+    private long inflightItemCount() {
+        return itemRepository.countByStatusIn(List.of(UploadItemStatus.QUEUED, UploadItemStatus.PROCESSING));
+    }
+
     private long writeEntryToFile(ZipInputStream zis, Path target) throws IOException {
         return copyToFileWithLimit(zis, target, MAX_ENTRY_BYTES);
     }
@@ -292,14 +301,6 @@ public class UploadController {
             }
         }
         return total;
-    }
-
-    private static long get(Map<UploadItemStatus, Long> counts, UploadItemStatus key) {
-        return counts.getOrDefault(key, 0L);
-    }
-
-    private static int toInt(long value) {
-        return (int) Math.min(Integer.MAX_VALUE, Math.max(0L, value));
     }
 
     private static Path resolveStorageDir(String rawDir) {

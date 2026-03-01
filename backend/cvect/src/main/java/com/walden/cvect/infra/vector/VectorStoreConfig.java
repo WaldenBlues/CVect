@@ -13,6 +13,9 @@ public class VectorStoreConfig {
     private String metric = "cosine";
     private int efConstruction = 64;
     private int m = 16;
+    private int dimension = 1024;
+    private int maxConcurrentWrites = 2;
+    private long writeAcquireTimeoutMs = 2000;
 
     public boolean isEnabled() {
         return enabled;
@@ -60,5 +63,29 @@ public class VectorStoreConfig {
 
     public void setM(int m) {
         this.m = m;
+    }
+
+    public int getDimension() {
+        return dimension;
+    }
+
+    public void setDimension(int dimension) {
+        this.dimension = dimension;
+    }
+
+    public int getMaxConcurrentWrites() {
+        return maxConcurrentWrites;
+    }
+
+    public void setMaxConcurrentWrites(int maxConcurrentWrites) {
+        this.maxConcurrentWrites = maxConcurrentWrites;
+    }
+
+    public long getWriteAcquireTimeoutMs() {
+        return writeAcquireTimeoutMs;
+    }
+
+    public void setWriteAcquireTimeoutMs(long writeAcquireTimeoutMs) {
+        this.writeAcquireTimeoutMs = writeAcquireTimeoutMs;
     }
 }
