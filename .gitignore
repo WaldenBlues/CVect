@@ -2,13 +2,15 @@
 # CVect 项目 .gitignore（MVP 阶段推荐）
 # =========================
 
+# ---------- Local deployments ----------
+Qwen/
+
 # ---------- 通用 ----------
 .DS_Store
 Thumbs.db
 *.log
 *.tmp
 *.swp
-
 # ---------- Conda / Python ----------
 __pycache__/
 *.py[cod]
@@ -60,3 +62,13 @@ scripts/*.local.sh
 
 # ---------- Docs ----------
 docs/_build/
+# ---------- Docs / Attachments ----------
+# 允许 README.md，其它 Markdown 一律不提交
+*.md
+!**/README.md
+
+# 禁止常见文档/附件
+*.pdf
+*.txt
+*.docx
+*.zip
