@@ -1,4 +1,4 @@
-name: CI Python Embedding Service
+name: CI - Python Qwen
 
 on:
   pull_request:
@@ -16,12 +16,23 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-python-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  syntax-check:
+  checks:
+    name: Syntax and Lint (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
     defaults:
       run:
         working-directory: Qwen
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,7 +40,17 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
 
-      - name: Syntax check
-        run: python -m compileall -q .
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Ruff syntax checks
+        run: |
+          python -m pip install --upgrade ruff
+          ruff check . --select E9,F63,F7,F82
+
+      - name: Bytecode compile checks
+        run: |
+          python -m py_compile embedding_service.py dataGen.py run_datagen_long.py
+          python -m compileall -q .

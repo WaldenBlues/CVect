@@ -1,4 +1,4 @@
-name: CI Java Backend
+name: CI - Java Backend
 
 on:
   pull_request:
@@ -16,25 +16,51 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-java-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
+    name: Build and Test (Java 17)
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: backend/cvect
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java 17 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
           cache: maven
 
-      - name: Build
-        run: ./mvnw -B -q -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -DskipTests compile
+      - name: Ensure Maven wrapper is executable
+        run: chmod +x mvnw
 
-      - name: Run tests
-        run: ./mvnw -B -q -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" test
+      - name: Compile
+        run: |
+          ./mvnw --batch-mode --no-transfer-progress \
+            -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            -DskipTests compile
+
+      - name: Test
+        run: |
+          ./mvnw --batch-mode --no-transfer-progress \
+            -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            test
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-test-reports
+          path: |
+            backend/cvect/target/surefire-reports/**
+            backend/cvect/target/failsafe-reports/**
+          if-no-files-found: ignore
