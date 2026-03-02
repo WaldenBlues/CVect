@@ -33,6 +33,7 @@ ml/output/          # embedding / cache / 推理结果
 # ---------- Java / Backend ----------
 backend/target/
 backend/build/
+backend/storage/
 *.class
 *.jar
 *.war
