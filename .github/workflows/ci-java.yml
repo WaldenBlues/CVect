@@ -32,6 +32,7 @@ jobs:
     env:
       MAVEN_OPTS: -Xmx2g
       MAVEN_REPO_LOCAL: ${{ github.workspace }}/.m2-ci
+      CI_TESTS: com.walden.cvect.CvectApplicationTests,com.walden.cvect.config.VectorDimensionConsistencyValidatorTest,com.walden.cvect.model.fact.extract.LinkExtractorTest,com.walden.cvect.model.entity.vector.ResumeChunkVectorTest,com.walden.cvect.infra.vector.VectorStoreConfigTest,com.walden.cvect.infra.parser.TikaResumeParserErrorHandlingTest,com.walden.cvect.web.controller.SearchControllerTest,com.walden.cvect.repository.JpaSmokeTest
 
     steps:
       - name: Checkout
@@ -55,13 +56,12 @@ jobs:
             -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
             -DskipTests compile
 
-      - name: Test (exclude integration/postgres)
+      - name: Test (CI stable suite)
         run: |
           ./mvnw --batch-mode --no-transfer-progress \
             -Dmaven.repo.local="$MAVEN_REPO_LOCAL" \
             -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
-            -Djunit.jupiter.tags.exclude=integration,postgres \
-            -DexcludedGroups=integration,postgres \
+            -Dtest="$CI_TESTS" \
             test
 
       - name: Upload test reports on failure

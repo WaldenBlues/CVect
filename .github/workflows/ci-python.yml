@@ -46,20 +46,27 @@ jobs:
         run: |
           if [ -d "Qwen" ]; then
             echo "py_dir=Qwen" >> "$GITHUB_OUTPUT"
+            echo "has_py=true" >> "$GITHUB_OUTPUT"
           elif [ -d "qwen" ]; then
             echo "py_dir=qwen" >> "$GITHUB_OUTPUT"
+            echo "has_py=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Neither Qwen/ nor qwen/ exists in repo root."
-            ls -la
-            exit 1
+            echo "has_py=false" >> "$GITHUB_OUTPUT"
+            echo "No Python service directory (Qwen/ or qwen/) found. Skipping Python checks."
           fi
 
       - name: Strict parse check (project entry scripts)
+        if: steps.paths.outputs.has_py == 'true'
         working-directory: ${{ steps.paths.outputs.py_dir }}
         run: |
           python -m py_compile embedding_service.py dataGen.py run_datagen_long.py
 
       - name: Compile all Python files
+        if: steps.paths.outputs.has_py == 'true'
         working-directory: ${{ steps.paths.outputs.py_dir }}
         run: |
           python -m compileall -q .
+
+      - name: Python checks skipped
+        if: steps.paths.outputs.has_py != 'true'
+        run: echo "Skipped: repository does not contain Qwen/qwen Python service code."

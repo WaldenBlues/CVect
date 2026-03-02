@@ -1,75 +1,66 @@
 # =========================
-# CVect 项目 .gitignore（MVP 阶段推荐）
+# CVect project .gitignore
+# Track source, config, docs, and test fixtures.
+# Ignore only local/runtime/generated artifacts.
 # =========================
 
-# ---------- Local deployments ----------
-Qwen/
-
-# ---------- 通用 ----------
+# ---------- OS ----------
 .DS_Store
 Thumbs.db
-*.log
-*.tmp
-*.swp
-# ---------- Conda / Python ----------
-__pycache__/
-*.py[cod]
-*.pyo
-.env
-.venv
-venv/
-.envrc
-.ipynb_checkpoints/
 
-# Conda 本地环境（绝不提交）
-/miniconda3/
-/envs/
-
-# ---------- Python ML ----------
-ml/models/          # 本地下载的大模型
-ml/data/            # 本地数据 / 临时样本
-ml/output/          # embedding / cache / 推理结果
-
-# ---------- Java / Backend ----------
-backend/target/
-backend/build/
-backend/storage/
-*.class
-*.jar
-*.war
-
-# Maven / Gradle
-.mvn/wrapper/maven-wrapper.jar
-.gradle/
-!gradle/wrapper/gradle-wrapper.jar
-
-# IDE
+# ---------- Editors ----------
 .idea/
 .vscode/
 *.iml
 
-# ---------- Frontend ----------
+# ---------- Generic temp/log ----------
+*.log
+*.tmp
+*.swp
+*.bak
+*.orig
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+.envrc
+.ipynb_checkpoints/
+
+# ---------- Local env tools ----------
+miniconda3/
+envs/
+
+# ---------- Java / Maven / Gradle ----------
+**/target/
+**/build/
+.gradle/
+.m2/wrapper/dists/
+
+# ---------- Backend runtime data ----------
+backend/cvect/storage/
+
+# ---------- Frontend artifacts ----------
 frontend/node_modules/
 frontend/dist/
 frontend/.next/
 frontend/.env
 
-# ---------- OS / WSL ----------
-*.bak
-*.orig
+# ---------- Local run artifacts ----------
+.run/
 
-# ---------- Scripts ----------
+# ---------- Qwen local/generated artifacts ----------
+Qwen/.venv/
+Qwen/.hf_cache/
+Qwen/.service_logs/
+Qwen/.datagen_work/
+Qwen/.datagen_logs/
+Qwen/generated_resumes_1000/
+
+# ---------- Local scripts ----------
 scripts/*.local.sh
 
-# ---------- Docs ----------
+# ---------- Docs build output ----------
 docs/_build/
-# ---------- Docs / Attachments ----------
-# 允许 README.md，其它 Markdown 一律不提交
-*.md
-!**/README.md
-
-# 禁止常见文档/附件
-*.pdf
-*.txt
-*.docx
-*.zip
