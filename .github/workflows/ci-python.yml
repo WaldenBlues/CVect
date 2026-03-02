@@ -74,23 +74,25 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Strict parse check (tracked .py files)
-        if: steps.paths.outputs.has_py == 'true' && steps.files.outputs.has_files == 'true'
+        if: ${{ steps.paths.outputs.has_py == 'true' && steps.files.outputs.has_files == 'true' }}
         run: |
           while IFS= read -r f; do
             python -m py_compile "$f"
           done <<< "${{ steps.files.outputs.py_files }}"
 
       - name: Bytecode compile check (tracked .py files)
-        if: steps.paths.outputs.has_py == 'true' && steps.files.outputs.has_files == 'true'
+        if: ${{ steps.paths.outputs.has_py == 'true' && steps.files.outputs.has_files == 'true' }}
         run: |
           while IFS= read -r f; do
             python -m compileall -q "$f"
           done <<< "${{ steps.files.outputs.py_files }}"
 
       - name: Python checks skipped
-        if: steps.paths.outputs.has_py != 'true'
-        run: echo "Skipped: repository does not contain Qwen/qwen Python service code."
+        if: ${{ steps.paths.outputs.has_py != 'true' }}
+        run: |
+          echo "Skipped: repository does not contain Qwen/qwen Python service code."
 
       - name: Python checks skipped (no tracked .py files)
-        if: steps.paths.outputs.has_py == 'true' && steps.files.outputs.has_files != 'true'
-        run: echo "Skipped: no tracked Python files found under the Python service directory."
+        if: ${{ steps.paths.outputs.has_py == 'true' && steps.files.outputs.has_files != 'true' }}
+        run: |
+          echo "Skipped: no tracked Python files found under the Python service directory."
