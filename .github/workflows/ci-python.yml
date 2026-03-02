@@ -55,18 +55,42 @@ jobs:
             echo "No Python service directory (Qwen/ or qwen/) found. Skipping Python checks."
           fi
 
-      - name: Strict parse check (project entry scripts)
+      - name: Resolve tracked Python files
+        id: files
         if: steps.paths.outputs.has_py == 'true'
-        working-directory: ${{ steps.paths.outputs.py_dir }}
         run: |
-          python -m py_compile embedding_service.py dataGen.py run_datagen_long.py
+          PY_DIR="${{ steps.paths.outputs.py_dir }}"
+          PY_FILES="$(git ls-files "${PY_DIR}" | grep -E '\.py$' || true)"
+          if [ -z "${PY_FILES}" ]; then
+            echo "has_files=false" >> "$GITHUB_OUTPUT"
+            echo "No tracked Python files in ${PY_DIR}. Skipping."
+            exit 0
+          fi
+          echo "has_files=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "py_files<<EOF"
+            echo "${PY_FILES}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Compile all Python files
-        if: steps.paths.outputs.has_py == 'true'
-        working-directory: ${{ steps.paths.outputs.py_dir }}
+      - name: Strict parse check (tracked .py files)
+        if: steps.paths.outputs.has_py == 'true' && steps.files.outputs.has_files == 'true'
         run: |
-          python -m compileall -q .
+          while IFS= read -r f; do
+            python -m py_compile "$f"
+          done <<< "${{ steps.files.outputs.py_files }}"
+
+      - name: Bytecode compile check (tracked .py files)
+        if: steps.paths.outputs.has_py == 'true' && steps.files.outputs.has_files == 'true'
+        run: |
+          while IFS= read -r f; do
+            python -m compileall -q "$f"
+          done <<< "${{ steps.files.outputs.py_files }}"
 
       - name: Python checks skipped
         if: steps.paths.outputs.has_py != 'true'
         run: echo "Skipped: repository does not contain Qwen/qwen Python service code."
+
+      - name: Python checks skipped (no tracked .py files)
+        if: steps.paths.outputs.has_py == 'true' && steps.files.outputs.has_files != 'true'
+        run: echo "Skipped: no tracked Python files found under the Python service directory."
