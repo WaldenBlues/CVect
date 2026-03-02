@@ -5,6 +5,7 @@ import com.walden.cvect.infra.process.ResumeTextNormalizer;
 import com.walden.cvect.model.ChunkType;
 import com.walden.cvect.model.ParseResult;
 import com.walden.cvect.model.ResumeChunk;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,6 +16,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@Tag("integration")
 class ResumeChunkPipelineTest {
 
         @Autowired

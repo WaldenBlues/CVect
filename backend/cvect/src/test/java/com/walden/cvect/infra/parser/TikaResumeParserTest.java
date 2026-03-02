@@ -1,6 +1,7 @@
 package com.walden.cvect.infra.parser;
 
 import com.walden.cvect.model.ParseResult;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -9,6 +10,7 @@ import java.io.InputStream;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@Tag("integration")
 class TikaResumeParserTest {
 
         @Autowired

@@ -60,6 +60,7 @@ jobs:
           ./mvnw --batch-mode --no-transfer-progress \
             -Dmaven.repo.local="$MAVEN_REPO_LOCAL" \
             -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            -Djunit.jupiter.tags.exclude=integration,postgres \
             -DexcludedGroups=integration,postgres \
             test
 

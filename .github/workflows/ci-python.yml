@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - "Qwen/**"
+      - "qwen/**"
       - ".github/workflows/ci-python.yml"
   push:
     branches:
       - main
     paths:
       - "Qwen/**"
+      - "qwen/**"
       - ".github/workflows/ci-python.yml"
   workflow_dispatch:
 
@@ -29,9 +31,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
-    defaults:
-      run:
-        working-directory: Qwen
 
     steps:
       - name: Checkout
@@ -42,10 +41,25 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Resolve Python service directory
+        id: paths
+        run: |
+          if [ -d "Qwen" ]; then
+            echo "py_dir=Qwen" >> "$GITHUB_OUTPUT"
+          elif [ -d "qwen" ]; then
+            echo "py_dir=qwen" >> "$GITHUB_OUTPUT"
+          else
+            echo "Neither Qwen/ nor qwen/ exists in repo root."
+            ls -la
+            exit 1
+          fi
+
       - name: Strict parse check (project entry scripts)
+        working-directory: ${{ steps.paths.outputs.py_dir }}
         run: |
           python -m py_compile embedding_service.py dataGen.py run_datagen_long.py
 
       - name: Compile all Python files
+        working-directory: ${{ steps.paths.outputs.py_dir }}
         run: |
           python -m compileall -q .
