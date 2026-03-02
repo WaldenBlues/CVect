@@ -1,0 +1,46 @@
+工作经历
+- 上海星云科技有限公司 | Android开发实习生 | 2023-07 至 2024-02
+  - 参与维护公司核心电商App，独立负责「我的订单」模块迭代开发，使用Kotlin与MVVM架构，按时交付了订单筛选、状态跟踪等3个新功能，上线后模块周均UV超过50万。
+  - 在导师指导下参与oncall轮值，处理了2起线上P3级别事故（包括一次图片加载库导致的OOM），通过分析Crashlytics日志与内存快照，在2小时内定位根因并协助发布热修复版本，将故障影响时长控制在4小时以内。
+- 北京字节跳动（抖音电商部门） | 软件工程实习生（移动端） | 2022-11 至 2023-04
+  - 在电商直播场景团队，负责开发一个用于展示主播实时数据的内部辅助工具App。使用Jetpack Compose快速构建了数据看板UI，并通过WebSocket与后端服务保持长连接，数据更新延迟低于200毫秒。
+  - 为该项目搭建了基础的CI流水线，使用GitLab Runner实现代码合并时自动执行单元测试与Lint检查，将代码规范问题在合并前拦截率提升至90%。实习结束时完成了项目文档的撰写与知识转移。
+
+教育背景
+- 华中科技大学 | 工学学士 软件工程 | 2019 至 2023
+
+技术栈
+- Kotlin
+- Java
+- Android SDK
+- Jetpack Compose
+- Room
+- Retrofit
+- Coroutines
+- Git
+- Gradle
+- JUnit
+- Espresso
+- Firebase Crashlytics
+
+证书/荣誉
+- Google Associate Android Developer (备考中）
+
+个人信息
+姓名：陈明轩
+目标岗位：移动端实习工程师
+邮箱：chenmingxuan@example.com
+电话：+86 13800138000
+经验年限：1 年
+方向：移动端 + none
+简介：拥有1年移动端开发经验，专注于Android原生应用开发，熟悉Kotlin与Jetpack组件。在实习期间参与了电商类App核心模块的开发与维护，对UI性能优化、内存泄漏排查有实践经验，并初步接触了CI/CD流程与线上问题监控。
+
+项目经历
+- 「易购」电商App商品详情页重构
+  技术栈：Kotlin, Jetpack Compose, Coroutines, Room, Retrofit, Coil
+  职责：负责将原有基于View体系的商品详情页迁移至Jetpack Compose，实现UI层现代化。具体包括Compose UI组件开发、与现有ViewModel及Repository层的数据对接、图片加载优化，并编写单元测试与UI测试。
+  成果：新页面帧率稳定在60 FPS，较旧版提升约15%。通过懒加载与分页预取策略，页面冷启动时间从1.2秒缩短至800毫秒。重构后代码量减少约30%，并通过Compose Preview提升了UI调试效率。在灰度发布至5%用户期间，监控到Crash率为0。
+- App启动性能与依赖注入框架优化
+  技术栈：Android Startup, Dagger Hilt, Trace API, Firebase Performance Monitoring
+  职责：分析App冷启动耗时，定位初始化瓶颈。负责将部分第三方SDK及工具类从Application的onCreate迁移至Android Startup库进行异步初始化。同时，协助导师优化Dagger Hilt组件结构，减少不必要的依赖注入开销。
+  成果：通过异步初始化与延迟加载，App冷启动时间（从点击图标到首帧渲染）从2.5秒优化至1.8秒，优化幅度达28%。依赖注入的构建时间减少了约40毫秒。优化后全量发布，通过性能监控平台确认启动超时（>3秒）的用户比例下降了5个百分点。

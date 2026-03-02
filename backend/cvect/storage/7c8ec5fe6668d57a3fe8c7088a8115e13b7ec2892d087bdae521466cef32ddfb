@@ -1,0 +1,53 @@
+工作经历
+- 上海星云科技有限公司 | Android开发工程师 | 2022-07 至今
+  - 负责公司主力产品「悦读」App的日常需求迭代、Bug修复与性能优化，累计处理并关闭Jira任务超过200个，版本发布节奏稳定在每3周一次。
+  - 建立并维护关键页面（如启动页、主页）的自动化UI测试用例，通过Espresso编写测试脚本，使核心场景回归测试时间从手动2人天减少到自动化30分钟，版本发布后相关模块的P0/P1级Bug数量下降约60%。
+  - 参与线上事故复盘，针对一次因第三方SDK内存泄漏导致的OOM崩溃率飙升事故，通过分析Crashlytics日志和内存快照，定位问题并推动供应商更新SDK，同时加入应用内内存监控告警，使后续类似问题的平均发现和响应时间（MTTD）从数小时缩短到15分钟内。
+- 北京创新工场（实习） | 移动端开发实习生 | 2021-03 至 2021-08
+  - 参与一个O2O电商项目的辅助开发，主要负责商品搜索、筛选及简单购物车模块的Android端实现，使用Kotlin和MVVM架构，代码经过Code Review后合并至主分支。
+  - 学习并实践了A/B测试流程，为商品详情页的两种布局方案配置了灰度发布，通过数据分析协助团队确定了最终方案，该方案使页面平均停留时长提升了18%。
+  - 在导师指导下，优化了网络请求的重复调用问题，通过引入请求防抖和缓存策略，在弱网环境下列表页的加载失败率降低了25%。
+
+教育背景
+- 华中科技大学 | 工学学士 软件工程 | 2018 至 2022
+
+技术栈
+- Kotlin
+- Java
+- Android SDK
+- Jetpack Compose
+- React Native
+- TypeScript
+- Redux Toolkit
+- RESTful APIs
+- Retrofit
+- OkHttp
+- Glide
+- Git
+- Gradle
+- JUnit
+- Espresso
+- Firebase Crashlytics
+- Charles
+
+证书/荣誉
+- Google Associate Android Developer (AAD)
+
+个人信息
+姓名：陈明轩
+目标岗位：初级移动端工程师
+邮箱：chen.mingxuan@example.com
+电话：+86 138 1234 5678
+经验年限：2 年
+方向：移动端 + 前端
+简介：拥有2年移动端开发经验，专注于Android原生应用开发，同时具备React Native跨平台开发能力。熟悉移动端性能优化、网络请求处理及UI/UX实现。在项目中注重代码质量、应用稳定性及团队协作，有实际的上线项目维护和迭代经验。
+
+项目经历
+- 「悦读」资讯聚合App (Android原生)
+  技术栈：Kotlin, Android SDK, Jetpack Compose, Retrofit, Room, Coroutines, Hilt, Paging 3, Coil
+  职责：独立负责App核心资讯流模块的开发与维护，包括文章列表的无限滚动、内容详情页、离线缓存及收藏功能。参与App整体架构设计，引入MVVM模式并统一网络层和状态管理。负责应用性能监控和关键指标埋点。
+  成果：通过实现Paging 3库和预加载机制，将资讯流滑动FPS从平均45提升至稳定58+，列表滑动卡顿率下降70%。优化图片加载，引入Coil并配置内存缓存策略，使详情页图片加载成功率从92%提升至99.5%，平均加载时间缩短40%。主导完成了从XML布局到Jetpack Compose的渐进式迁移，首个Compose模块开发效率提升约30%，APK大小减少约5%。
+- 内部CRM工具移动端 (React Native跨平台)
+  技术栈：React Native, TypeScript, Redux Toolkit, React Navigation, Axios, NativeBase, React Native Reanimated
+  职责：作为移动端主要开发者，与后端及产品团队协作，基于设计稿实现客户管理、订单跟踪、数据报表等核心业务模块的UI与交互逻辑。负责项目初始化、技术选型、状态管理方案搭建及与原生模块的桥接。
+  成果：项目在3个月内完成从0到1的开发并成功上线，支持iOS与Android双平台，代码复用率达到85%以上。通过优化Redux状态更新逻辑和列表渲染，将复杂报表页面的首次渲染时间从4.2秒降低至1.8秒。实施自动化Bundle分析，成功将主Bundle大小控制在1.5MB以内，并通过引入Code Push实现了热更新能力，紧急Bug修复的交付周期从AppStore审核的2-3天缩短至2小时内。

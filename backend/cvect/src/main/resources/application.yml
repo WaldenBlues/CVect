@@ -72,7 +72,8 @@ app:
 
   upload:
     storage-dir: ${CVECT_UPLOAD_STORAGE_DIR:storage}
-    max-inflight-items: ${CVECT_UPLOAD_MAX_INFLIGHT_ITEMS:200}
+    max-inflight-items: ${CVECT_UPLOAD_MAX_INFLIGHT_ITEMS:2000}
+    max-files-per-zip: ${CVECT_UPLOAD_MAX_FILES_PER_ZIP:2000}
     worker:
       enabled: true
       initial-delay-ms: 3000

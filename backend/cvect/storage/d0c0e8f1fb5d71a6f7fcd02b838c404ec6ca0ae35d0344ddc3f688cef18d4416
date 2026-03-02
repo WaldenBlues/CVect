@@ -1,0 +1,51 @@
+工作经历
+- 星云科技 | DevOps工程师 | 2021-04 至今
+  - 主导了从Jenkins单点到GitLab CI + Argo CD GitOps模式的迁移，实现应用配置的版本化与自动化回滚，发布频率提升300%，发布失败率降低70%。
+  - 负责数据平台团队的SRE工作，建立关键数据管道（日均处理TB级数据）的oncall轮值与故障应急手册，主导完成3次P1级事故复盘，将平均故障恢复时间（MTTR）从4小时压至1小时内。
+  - 设计并落地了全局日志收集与链路追踪方案，整合Loki、Tempo与业务指标，使问题定位时间平均减少50%。
+- 领航云计算 | 后端开发工程师/基础设施方向 | 2019-07 至 2021-03
+  - 参与内部开发者平台建设，使用Terraform封装AWS基础资源模块，使项目初始基础设施搭建时间从1周缩短到1天，并被20+产品团队采用。
+  - 维护核心微服务（日请求量过亿）的K8s部署与Helm Chart，通过优化健康检查、就绪探针与Pod Disruption Budget配置，在季度集群维护期间实现零停机滚动升级。
+  - 引入并配置HPA与Cluster Autoscaler，应对业务高峰期的自动扩容，成功支撑了两次大型营销活动，期间服务响应延迟保持稳定。
+
+教育背景
+- 华东理工大学 | 学士 软件工程 | 2015 至 2019
+
+技术栈
+- Kubernetes
+- Helm
+- Terraform
+- AWS (EC2, EKS, S3, RDS)
+- Prometheus/Grafana/Loki
+- Argo CD
+- Jenkins/GitLab CI
+- Python/Go
+- Spark on K8s
+- Flink
+- Kafka
+- Istio
+- Docker
+- Linux/Shell
+
+证书/荣誉
+- CKA: Certified Kubernetes Administrator
+- AWS Certified Solutions Architect – Associate
+
+个人信息
+姓名：陈明哲
+目标岗位：软件工程师
+邮箱：mingzhe.chen@example.com
+电话：+86 138 0013 8000
+经验年限：5 年
+方向：DevOps + 数据平台
+简介：5年DevOps与云原生平台开发经验，专注于构建高可用、可观测的自动化基础设施。擅长通过IaC、CI/CD流水线及监控告警体系提升研发效率与系统韧性。近两年深度参与数据平台运维，负责流批一体计算任务的资源调度优化与成本治理。
+
+项目经历
+- 多云K8s集群统一运维平台
+  技术栈：Kubernetes, Terraform, Argo CD, Prometheus, Grafana, AWS EKS, 阿里云ACK
+  职责：设计并实现跨AWS与阿里云的K8s集群生命周期管理模块，包括集群自动部署、版本升级、节点组弹性伸缩策略。构建基于Prometheus的集中监控与多租户告警路由体系，并开发运维操作审计模块。
+  成果：将新集群交付时间从2人天缩短至2小时，年节省运维人力约180人时。通过优化节点伸缩策略与使用Spot实例，将非生产环境计算成本降低40%。平台管理了15+集群，支撑200+微服务，核心组件告警平均响应时间（MTTA）降至5分钟内。
+- 实时数据平台资源调度与成本优化
+  技术栈：Kubernetes, Spark Operator, Flink on K8s, Prometheus, Grafana, Python, Kafka
+  职责：负责平台在K8s上运行的Spark/Flink作业的资源配额管理、自动伸缩与故障自愈机制。建立作业级别的资源使用率与成本监控看板，推动业务方优化资源配置。设计并实施基于优先级的资源抢占与队列调度策略。
+  成果：通过引入弹性伸缩与资源超卖，将集群平均资源利用率从35%提升至65%。优化后，平台月度计算成本下降约25%。关键流处理作业的SLA从99%提升至99.9%，因资源不足导致的作业失败率下降90%。建立了成本分摊模型，向10+业务部门提供月度账单。

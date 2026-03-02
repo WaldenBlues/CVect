@@ -1,0 +1,48 @@
+工作经历
+- 星云科技（智能驾驶领域） | 高级DevOps工程师 | 2022-03 至今
+  - 负责AI数据闭环与模型迭代平台的DevOps体系建设，将数据标注、模型训练、仿真测试流水线容器化，通过Argo Workflows编排，实现任务自动化调度与资源弹性供给，研发环境准备时间从天级缩短至小时级。
+  - 建立基于Prometheus和自定义Exporter的GPU集群监控与成本分摊体系，通过分析任务画像与资源使用模式，推动算法团队优化资源配置，季度GPU资源浪费率降低22%。主导了两次因底层存储故障导致训练中断的应急恢复与复盘，完善了跨可用区数据备份策略。
+- 凌云云计算有限公司 | DevOps工程师 | 2019-07 至 2022-02
+  - 使用Terraform将核心IaaS资源（VPC, EC2, RDS）代码化，管理超200个模块，支撑多区域、多环境（dev/staging/prod）的一键部署与销毁，基础设施交付周期从2人天缩短至2小时。
+  - 设计和维护多套Kubernetes生产集群（超500节点），通过NetworkPolicy、Pod安全策略加固集群安全。实施蓝绿部署与渐进式交付（Istio）流程，成功将核心支付服务的发布频率提升至每周2次，且未引发P1/P2级别线上事故。负责每周的On-call轮值，处理线上告警与故障。
+
+教育背景
+- 华中科技大学 | 工学学士 软件工程 | 2015 至 2019
+
+技术栈
+- Kubernetes (EKS/GKE)
+- Terraform/Crossplane
+- Argo CD/Workflows
+- Prometheus/Thanos/Grafana
+- AWS (EC2, S3, IAM, Lambda)
+- Python/Go
+- Docker/Containerd
+- Helm/Kustomize
+- Jenkins/GitLab CI
+- MLflow/Kubeflow
+- Istio/Linkerd
+- Elastic Stack
+- 成本优化与FinOps
+
+证书/荣誉
+- AWS Certified Solutions Architect – Associate
+- CKA: Certified Kubernetes Administrator
+
+个人信息
+姓名：张明远
+目标岗位：DevOps工程师
+邮箱：mingyuan.zhang@example.com
+电话：+86 138 1234 5678
+经验年限：5 年
+方向：DevOps + AI Infra
+简介：拥有5年云原生与DevOps实践经验，专注于构建高可用、可观测的自动化平台。近两年深度参与AI基础设施的工程化落地，负责大规模机器学习工作流的调度、监控与成本优化。擅长通过IaC、CI/CD、SRE实践提升研发效率与系统韧性。
+
+项目经历
+- 面向AIGC训练与推理的混合云弹性平台
+  技术栈：Kubernetes, Argo Workflows, AWS Batch, Prometheus, Grafana, Python, Terraform
+  职责：作为核心开发者，设计并实现支持大规模GPU任务（训练/微调/推理）的混合调度与弹性伸缩平台。负责工作流引擎集成、多集群GPU资源统一纳管、任务优先级调度策略，并构建覆盖任务全生命周期的可观测性体系。
+  成果：平台支撑日均超500个GPU任务，跨AWS与私有云调度，GPU利用率从35%提升至62%，月度计算成本降低约18%。通过细粒度监控与自动化故障处理，将任务因基础设施问题导致的失败率从8%降至1.5%以下，P99任务排队时间缩短40%。
+- 微服务可观测性与告警治理体系重构
+  技术栈：Prometheus/Thanos, Grafana, Alertmanager, OpenTelemetry, Loki, Kafka, Python
+  职责：主导从单体监控系统向云原生可观测性栈的迁移。设计指标、日志、链路追踪的统一采集、存储与查询方案，重构告警规则与路由策略，建立基于SLI/SLO的告警分级与On-call响应流程。
+  成果：系统监控覆盖率从70%提升至95%以上，核心服务均定义SLO。告警数量减少65%，平均告警响应时间（MTTA）从25分钟缩短至8分钟。通过日志采样与长期存储优化，年度可观测性数据存储成本降低约30%。建立了标准的事故复盘（Post-mortem）模板与流程。

@@ -1,0 +1,50 @@
+工作经历
+- 星云科技 (Nebula Tech) | 资深DevOps工程师 | 2020-06 至今
+  - 领导5人SRE团队，负责公司所有面向客户的生产系统（日均PV超1亿）的稳定性与性能，建立并推行On-call轮值、故障分级与复盘（Post-mortem）机制，将P1级事故数量同比减少了40%。
+  - 设计并落地了基于工作负载画像的集群自动伸缩与成本优化方案，通过使用Spot实例和调整资源请求/限制，在业务峰值增长50%的情况下，将月度云基础设施成本降低了22%。
+- 领航云 (PilotCloud) | 云平台开发工程师 | 2017-03 至 2020-05
+  - 参与公司内部云管理平台的开发，主要负责资源供给（通过Terraform对接AWS/OpenStack）、监控告警模块以及权限管理系统的设计与实现，平台管理了超过5000台虚拟机。
+  - 主导了从传统虚拟机部署向容器化（Docker + 自研编排）迁移的首个试点项目，为10个核心业务服务实现了容器化部署，使资源利用率平均提升35%，应用启动时间从分钟级缩短到秒级。
+
+教育背景
+- 华东科技大学 | 学士 计算机科学与技术 | 2013 至 2017
+
+技术栈
+- Kubernetes (EKS/AKS)
+- Terraform/Crossplane
+- AWS/GCP
+- Prometheus/Thanos/Grafana
+- ArgoCD/Flux
+- Jenkins/GitLab CI
+- Python/Go
+- Istio/Linkerd
+- Falco/Trivy/OPA
+- ELK/OpenSearch
+- Ansible/Puppet
+- Linux/容器安全
+- 混沌工程 (Chaos Mesh)
+- 成本优化与FinOps
+
+证书/荣誉
+- AWS Certified Solutions Architect – Professional
+- Certified Kubernetes Administrator (CKA)
+- HashiCorp Certified: Terraform Associate
+
+个人信息
+姓名：陈明哲 @@@
+目标岗位：DevOps资深工程师
+邮箱：mingzhe.chen@example.com
+电话：+86 138 0013 8000
+经验年限：8 年
+方向：DevOps + 安全
+简介：拥有8年云原生与基础设施领域经验，专注于构建高可用、可观测、安全的CI/CD与云平台。主导过多个从零到一的大型平台建设项目，擅长通过IaC、自动化与混沌工程提升系统韧性。近年深度参与云原生安全架构设计与实施，具备将安全左移并融入开发运维全流程的实践经验。
+
+项目经历
+- 多云K8s平台与安全合规基线建设
+  技术栈：Kubernetes, Terraform, AWS EKS, GCP GKE, OPA/Gatekeeper, Falco, Trivy, ArgoCD, Prometheus
+  职责：作为核心架构师，负责设计并落地一套横跨AWS与GCP的多云Kubernetes平台，并主导建立统一的安全与合规基线。工作包括平台核心组件选型与部署、网络与权限模型设计、安全策略（Pod安全标准、网络策略、运行时安全）的制定与自动化实施，以及面向开发者的自服务门户开发。
+  成果：成功交付平台，支撑超过200个微服务、500+个Pod的稳定运行。通过OPA策略引擎自动化拦截了95%以上的不安全部署；集成Trivy实现镜像扫描，将高危漏洞在构建阶段发现率提升至85%；通过Falco实现运行时异常检测，平均威胁响应时间从小时级缩短至5分钟内。平台整体可用性达到99.95%，并满足SOC2合规性要求。
+- 全球电商站点CI/CD与可观测性体系重构
+  技术栈：Jenkins, Spinnaker, Istio, Prometheus/Thanos, Grafana, Kafka, AWS, Datadog (迁移中), Chaos Mesh
+  职责：主导亚太区核心电商应用的CI/CD流水线现代化改造与全链路可观测性体系建设。负责设计并实施基于Jenkins和Spinnaker的混合发布策略（蓝绿/金丝雀），构建从应用日志、指标到分布式追踪的统一观测平台，并引入混沌工程实践。
+  成果：将核心应用的部署频率从每月2-3次提升至每周10+次，部署失败率从15%降低至3%以下。通过实施细粒度的金丝雀发布，将新版本故障的影响范围缩小了90%。构建的指标与日志平台每日处理超过2TB数据，平均查询延迟低于3秒。通过定期的混沌实验，主动发现并修复了3个关键的单点故障，将MTTR（平均恢复时间）从45分钟降低至12分钟。

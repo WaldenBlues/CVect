@@ -1,0 +1,48 @@
+工作经历
+- 上海星云科技有限公司 | DevOps工程师 | 2022-07 至今
+  - 独立维护公司主要产品的GitLab CI/CD流水线，每月处理约1200次构建任务。通过优化Docker镜像分层与缓存策略，将流水线平均执行时间减少了40%。
+  - 建立7x24小时oncall轮值制度与事故响应流程（SOP）。主导了2次因云服务商网络抖动导致的服务不可用事故复盘，推动增加了跨可用区部署与健康检查超时配置，使类似场景下的服务恢复时间（MTTR）从30分钟以上降低到5分钟内。
+- 北京智捷互联（实习） | 后端开发工程师（实习） | 2021-09 至 2022-06
+  - 参与开发一个用户增长平台的后端服务，使用Python Django框架。负责用户活动事件收集API的设计与实现，该接口日均处理请求量峰值达50万QPS。
+  - 协助运维团队将负责的服务容器化（Docker）并编写Kubernetes部署清单。通过引入结构化日志与关键业务指标打点，为后续监控仪表盘的建立提供了数据基础。
+
+教育背景
+- 华中科技大学 | 工学学士 软件工程 | 2018 至 2022
+
+技术栈
+- Docker
+- Kubernetes (EKS)
+- Terraform
+- AWS (EC2, S3, IAM, CloudWatch)
+- GitLab CI/CD
+- Fastlane
+- Gradle
+- Python
+- Bash
+- Prometheus
+- Grafana
+- ArgoCD
+- Helm
+- Nginx
+
+证书/荣誉
+- AWS Certified Solutions Architect – Associate
+
+个人信息
+姓名：陈明哲
+目标岗位：初级DevOps工程师
+邮箱：chenmingzhe@example.com
+电话：+86 13800138000
+经验年限：2 年
+方向：DevOps + 移动端
+简介：拥有2年DevOps领域实践经验，专注于云原生技术栈与CI/CD流程建设。熟悉移动端应用的持续集成与交付挑战，曾负责构建支持多平台（iOS/Android）的自动化发布流水线。对容器化、监控告警和基础设施即代码有实际项目经验，注重通过自动化提升研发效率与系统稳定性。
+
+项目经历
+- 移动电商App自动化发布与监控平台
+  技术栈：GitLab CI, Fastlane, Docker, AWS ECR/EKS, Prometheus, Grafana, Python
+  职责：负责设计并实现移动端（iOS/Android）CI/CD流水线，集成代码扫描、单元测试、构建打包与制品管理。搭建基于EKS的测试环境自动部署，并建立应用性能与业务关键指标监控看板。
+  成果：将移动端App从提交到测试环境可用的平均时间从45分钟缩短至12分钟，构建成功率从88%提升至99.5%。通过监控告警提前发现并处理了3次因第三方SDK更新导致的潜在崩溃风险，线上崩溃率降低0.15%。
+- 微服务API网关与金丝雀发布体系
+  技术栈：Kubernetes, Nginx Ingress Controller, ArgoCD, Helm, Prometheus, AWS ALB
+  职责：参与基于Nginx Ingress Controller的API网关配置与维护，实现基于请求头（如`x-canary: v2`）的金丝雀发布功能。编写Helm Chart统一管理多环境配置，并通过ArgoCD实现GitOps式部署。
+  成果：支持了5个核心微服务的平滑灰度发布，将新版本线上事故的影响范围平均缩小了85%。通过自动化配置管理，将网关规则变更的部署出错率降低了70%，并建立了发布后关键指标（如P99延迟、错误率）的15分钟观察机制。

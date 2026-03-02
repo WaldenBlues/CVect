@@ -1,0 +1,51 @@
+工作经历
+- 星云科技 | 高级前端工程师 / 前端技术专家 | 2020-06 至今
+  - 主导公司核心低代码平台前端技术架构演进，引入微前端解决多团队并行开发与独立部署的难题，制定并推广团队代码规范与Review流程，前端团队产出效率提升约25%。
+  - 负责前端SRE工作，建立前端性能与稳定性监控体系（Core Web Vitals + 业务自定义指标），通过自动化脚本分析Chrome User Experience Report数据，推动业务方完成12个关键页面的性能优化，累计将平台整体LCP优化了40%。担任Oncall轮值，处理线上事故并主导3次重大故障的复盘，沉淀出《前端高可用 checklist》。
+- 领航互联 | 前端开发工程师 / 全栈开发工程师 | 2017-03 至 2020-05
+  - 从零参与构建公司SaaS产品中后台管理系统，负责前端架构搭建与核心业务模块开发。后期逐步深入后端，使用Node.js重构部分老旧Java服务，新服务接口平均响应时间提升65%，服务器成本降低30%。
+  - 设计并实现了一套基于WebSocket的实时消息推送与协作编辑系统，支持5000+并发连接，消息端到端延迟小于100ms。负责该系统的容量规划、压测与弹性伸缩方案，保障了大促期间系统的稳定运行。
+
+教育背景
+- 华东理工大学 | 学士 软件工程 | 2013 至 2017
+
+技术栈
+- TypeScript
+- React 18
+- Next.js 14
+- Vue 3
+- Node.js (Express/NestJS)
+- GraphQL
+- Webpack/Vite
+- 微前端 (qiankun/Module Federation)
+- Jest/Vitest
+- Cypress
+- Docker
+- AWS (ECS, S3, CloudFront)
+- CI/CD (GitHub Actions)
+- MySQL
+- Redis
+- 性能优化 (Core Web Vitals)
+- 前端监控 (Sentry, RUM)
+
+证书/荣誉
+- AWS Certified Developer – Associate
+
+个人信息
+姓名：陈明轩
+目标岗位：前端资深工程师
+邮箱：chen.mingxuan@example.com
+电话：+86 138 1234 5678
+经验年限：8 年
+方向：前端 + 后端
+简介：拥有8年Web全栈开发经验，专注于构建高可用、高性能的大型前端应用与中后台系统。擅长React/Vue技术栈，具备Node.js服务端开发与架构设计能力，对前端工程化、性能优化、微前端架构及跨端方案有深入实践。主导过多个从零到一的核心项目，对技术方案选型、团队协作流程及线上稳定性保障有丰富经验。
+
+项目经历
+- 企业级低代码平台 (LCAP) 前端架构升级与性能优化
+  技术栈：React 18, TypeScript, qiankun, Webpack 5 Module Federation, GraphQL (Apollo Client), Jest, Cypress, Sentry, Docker
+  职责：作为前端技术负责人，主导平台从单体SPA向微前端架构的迁移，设计并实现核心渲染引擎与组件沙箱。负责构建流水线优化、Bundle分析、以及关键路径的性能监控与告警体系建设。与后端团队协作定义GraphQL Schema，并推动全链路TypeScript化。
+  成果：成功将平台拆分为1个主应用与6个业务子应用，首次加载时间（FCP）从4.2s降至1.8s，LCP从7.1s优化至3.5s。通过代码分割与懒加载，主包体积减少62%。建立性能基线监控，核心页面错误率（JS Error）从0.15%降至0.03%。主导制定了灰度发布与一键回滚流程，在3次重大迭代中实现零事故上线，平均故障恢复时长（MTTR）控制在15分钟以内。
+- 全球化电商商家后台管理系统 (OMS) 重构
+  技术栈：Vue 3 (Composition API), Vite, Pinia, Element Plus, Node.js (NestJS), MySQL, Redis, Elasticsearch, Jest, GitHub Actions, AWS ECS
+  职责：负责前端技术选型与核心模块开发，包括订单工作流可视化编排器、实时数据大盘与复杂表单引擎。主导后端BFF层（Node.js）的设计，实现GraphQL接口聚合与缓存策略。推动团队采用Monorepo管理前后端代码，并建立基于GitHub Actions的自动化测试与部署流水线。
+  成果：系统重构后，订单列表页渲染性能提升300%，查询接口平均响应时间从220ms降至80ms。通过Redis缓存热点数据，数据库QPS峰值降低40%。引入全链路错误追踪与业务埋点，线上问题定位效率提升70%。项目按时交付，并通过渐进式灰度发布策略，在3周内将流量从10%平滑切换至100%，期间无用户投诉。系统日均处理订单量超过50万笔。

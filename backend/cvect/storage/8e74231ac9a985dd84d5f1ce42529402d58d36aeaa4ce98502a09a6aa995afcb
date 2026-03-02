@@ -1,0 +1,49 @@
+工作经历
+- 星云科技有限公司 | 高级DevOps工程师 | 2021-04 至今
+  - 负责管理支撑日均10亿请求的Kubernetes生产集群，通过优化调度策略与HPA参数，将CPU资源超卖比稳定在1:1.5，年度基础设施成本节约超200万人民币。
+  - 主导建立了基于Prometheus和自定义Exporter的立体监控告警体系，实现从基础设施到业务逻辑层的全覆盖，误告率降低70%，并编写了标准化的On-call手册与应急预案。
+  - 推动混沌工程实践，定期对核心支付链路进行故障注入演练，累计发现并修复了8处潜在的单点故障与级联风险，系统整体可用性从99.9%提升至99.95%。
+- 迅达互联 | DevOps工程师 | 2019-07 至 2021-03
+  - 从零搭建了基于Jenkins和Ansible的自动化部署平台，支持Java/Python/Go等多技术栈应用，将新服务上线时间从平均3人天缩短至2小时内。
+  - 负责MySQL和Redis等中间件集群的日常维护与容量规划，通过慢查询分析与架构优化，解决了大促期间数据库连接数飙升的问题，峰值QPS承载能力提升50%。
+  - 建立了完整的日志收集与分析流程（Filebeat + ELK），实现了业务日志的集中查询与审计，支撑了多次线上数据不一致问题的快速定位与复盘。
+
+教育背景
+- 华东理工大学 | 学士 计算机科学与技术 | 2015 至 2019
+
+技术栈
+- Kubernetes
+- Docker
+- Terraform
+- AWS (EC2, EKS, RDS, S3)
+- Jenkins/GitLab CI
+- Prometheus/Grafana
+- ELK Stack
+- Ansible
+- Python/Shell Scripting
+- Linux/Network Troubleshooting
+- 微服务治理
+- 混沌工程实践
+
+证书/荣誉
+- AWS Certified Solutions Architect – Associate
+- CKA: Certified Kubernetes Administrator
+
+个人信息
+姓名：陈明轩
+目标岗位：DevOps工程师
+邮箱：chenmingxuan@example.com
+电话：+86 13800138000
+经验年限：5 年
+方向：DevOps + none
+简介：拥有5年DevOps实践经验，专注于构建高可用、可扩展的云原生基础设施与自动化交付体系。擅长通过IaC、CI/CD优化及可观测性建设提升研发效率与系统稳定性，对容量规划、成本控制及应急响应有实际落地经验。
+
+项目经历
+- 电商核心交易系统云原生迁移与SLO治理
+  技术栈：Kubernetes, AWS EKS, Terraform, Prometheus/Thanos, Istio, Argo CD
+  职责：主导从传统虚拟机到Kubernetes的迁移架构设计，负责集群稳定性保障、多区域部署方案及全链路可观测性体系建设。建立并维护核心服务的SLO/SLI指标。
+  成果：完成超过200个微服务的容器化迁移，生产环境P99延迟降低40%，月度计算成本节省约15%。通过实施自动化熔断与弹性伸缩，将非核心时段资源利用率提升至65%。建立SLO仪表盘后，MTTR从平均45分钟缩短至18分钟，年度严重事故（Sev1）数量减少60%。
+- 多环境CI/CD流水线统一与安全加固
+  技术栈：GitLab CI, Harbor, SonarQube, Trivy, Vault, Python
+  职责：设计并实施覆盖开发、测试、预发、生产的统一CI/CD流水线，集成安全扫描与合规检查。负责流水线性能优化与权限管控模型设计。
+  成果：将代码提交到预发环境的平均交付周期从2小时缩短至25分钟。通过镜像漏洞扫描与密钥管理集成，将高危安全漏洞在构建阶段拦截率提升至95%。流水线并发构建能力提升3倍，支持日均超500次构建任务，资源闲置成本降低20%。

@@ -1,0 +1,45 @@
+工作经历
+- 星云智能科技有限公司 | AI平台开发工程师 | 2022-07 至今
+  - 作为oncall轮值成员，处理了3起线上推理服务性能抖动事故，通过分析Prometheus指标快速定位到资源竞争问题，并推动增加了请求队列监控，将类似问题的平均恢复时间(MTTR)从45分钟缩短至15分钟。
+  - 主导了模型服务AB测试框架的落地，设计了基于流量比例和用户特征的灰度发布方案，支持了2个核心模型的平滑升级，升级期间服务错误率保持在0.1%以下，并编写了详细的事后复盘报告。
+- 凌云数据（实习） | 全栈开发实习生 | 2021-09 至 2022-06
+  - 参与开发内部数据标注平台的前后端功能，独立负责了图像分割标注工具的性能优化，通过Canvas渲染优化和懒加载策略，使万级像素图片的标注界面加载速度提升60%。
+  - 协助搭建了基于Flask的简易模型验证服务，用于快速测试标注数据训练的模型效果，该服务被团队用于日常迭代，平均每周运行验证任务超过50次。
+
+教育背景
+- 华东科技大学 | 工学学士 软件工程 | 2018 至 2022
+
+技术栈
+- Python
+- FastAPI
+- Docker
+- Kubernetes
+- TensorFlow Serving
+- Triton Inference Server
+- Prometheus/Grafana
+- Vue.js/TypeScript
+- CI/CD (GitLab CI)
+- AWS (EC2, S3, EKS)
+- 性能调优与监控
+
+证书/荣誉
+- AWS Certified Cloud Practitioner
+
+个人信息
+姓名：陈明轩
+目标岗位：AI Infra工程师
+邮箱：chen.mingxuan@example.com
+电话：+86 13800138000
+经验年限：2 年
+方向：AI Infra + 前端
+简介：具备2年AI基础设施与前端开发经验，专注于构建高可用、易用的机器学习平台与工具链。熟悉从模型服务化、推理优化到前端可视化监控的全链路流程，致力于通过工程化手段提升AI研发效率与系统稳定性。
+
+项目经历
+- 公司内部AI模型服务平台（Arena）前端与部署优化
+  技术栈：Vue 3, TypeScript, Element Plus, Python, FastAPI, Docker, Kubernetes, Triton Inference Server, Prometheus
+  职责：负责平台前端功能模块（模型管理、服务监控看板）开发，并参与后端模型服务部署流水线及监控告警体系的搭建与优化。
+  成果：主导开发了统一的模型服务监控前端看板，整合了QPS、延迟(P95/P99)、GPU利用率等10+个关键指标，使运维排查效率提升40%。优化了基于Triton的模型部署CI/CD流程，通过引入分层镜像构建与缓存策略，将镜像构建时间从平均8分钟缩短至3分钟，部署失败率从5%降至1%以下。
+- 多模态大模型推理服务性能优化与成本控制
+  技术栈：Python, FastAPI, TensorFlow, ONNX Runtime, Docker, Kubernetes HPA, Prometheus, AWS Spot Instance
+  职责：负责优化文本-图像生成模型的在线推理服务，目标是在保证SLA（P99延迟<2s）的前提下降低GPU资源成本。
+  成果：通过将模型部分计算图转换为ONNX格式并使用Runtime优化，在CPU上进行预处理，使单次推理的GPU显存占用降低15%，整体服务P99延迟从2.3s优化至1.8s。设计并实现了基于QPS和GPU利用率的混合HPA策略，结合AWS Spot实例，在流量波谷时段自动缩容，使月度GPU计算成本降低约22%。

@@ -1,0 +1,49 @@
+工作经历
+- 星云科技（国内头部互联网公司） | 高级DevOps工程师 | 2020-05 至今
+  - 负责公司核心交易系统向Kubernetes的迁移，设计多可用区高可用架构与精细化资源配额管理，迁移后系统P99延迟降低20%，资源利用率提升35%。
+  - 建立并推行灰度发布与渐进式交付规范，通过Istio实现基于流量比例和用户属性的金丝雀发布，重大变更导致的事故数量下降60%。
+  - 主导月度成本复盘，引入标签化资源管理与闲置资源清理机制，推动团队形成成本意识，年度云计算支出节省超过200万人民币。
+- 青云科技（云计算服务商） | DevOps工程师 | 2017-03 至 2020-04
+  - 从零搭建基于Jenkins和Ansible的CI/CD流水线，服务于公司内部SaaS产品线，将代码提交到集成环境部署的平均时间从2小时缩短至15分钟。
+  - 负责生产环境7x24小时Oncall，建立事故响应SOP与复盘文化，主导处理了3起P1级故障，并产出改进措施将同类故障发生概率降低90%。
+  - 设计与实施日志集中收集与分析方案（EFK Stack），处理日增量超过10TB的日志数据，为业务排查问题提供了统一入口，平均问题定位时间减少50%。
+
+教育背景
+- 华中科技大学 | 学士 计算机科学与技术 | 2013 至 2017
+
+技术栈
+- Kubernetes (EKS/AKS)
+- Terraform & Terragrunt
+- AWS (EC2, RDS, S3, IAM, CloudFront)
+- Prometheus/Grafana/Thanos
+- ELK/OpenSearch
+- ArgoCD/Flux
+- Jenkins/GitLab CI
+- Python/Go
+- Docker & Containerd
+- Linux/Shell
+- Istio/Linkerd
+- 成本优化与FinOps
+
+证书/荣誉
+- AWS Certified Solutions Architect – Associate
+- Certified Kubernetes Administrator (CKA)
+
+个人信息
+姓名：陈明远
+目标岗位：DevOps资深工程师
+邮箱：chenmingyuan@example.com
+电话：+86 138-0013-8000
+经验年限：8 年
+方向：DevOps + none
+简介：拥有8年云原生与基础设施领域经验，专注于构建高可用、可观测、成本可控的研发运维体系。擅长通过IaC、CI/CD、SRE实践提升工程效率与系统韧性，主导过多个从零到一的大型平台建设与核心系统迁移项目。
+
+项目经历
+- 全球化电商平台多云K8s与可观测性体系建设
+  技术栈：Kubernetes (EKS, AKS), Terraform, Prometheus/Thanos, Grafana Loki/Tempo, ArgoCD, Istio, AWS/Azure
+  职责：作为核心DevOps工程师，负责设计并落地支撑亚太与欧洲业务的多云K8s集群架构，建立统一的可观测性平台与GitOps交付流水线。
+  成果：成功将核心应用从传统ECS迁移至K8s，Pod启动时间从90秒降至15秒；通过Thanos实现多集群指标长期存储与全局查询，监控数据保留成本降低40%；建立基于ArgoCD的应用发布流程，生产环境发布频率从每周1次提升至每日多次，发布回滚时长从平均30分钟缩短至5分钟内。
+- 微服务架构下SRE平台与故障自愈系统
+  技术栈：Python/Flask, Prometheus Alertmanager, AWS Lambda/Step Functions, PagerDuty, Slack API, Redis
+  职责：主导开发内部SRE平台，整合告警、Oncall与自动化故障处理流程，设计并实现针对常见故障场景的自动化修复剧本（Runbook）。
+  成果：平台接入超过200个微服务，聚合告警噪音降低70%；实现针对数据库连接池耗尽、缓存穿透等5类高频故障的自动化诊断与恢复，将MTTR（平均恢复时间）从25分钟缩短至4分钟；通过自动化容量伸缩与资源调度优化，在业务流量增长150%的情况下，年度基础设施成本仅增长18%。

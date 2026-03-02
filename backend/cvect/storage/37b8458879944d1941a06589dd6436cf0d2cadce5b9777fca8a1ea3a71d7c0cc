@@ -1,0 +1,49 @@
+工作经历
+- 星云科技（国内AI独角兽） | 高级DevOps工程师 / AI Infra负责人 | 2021-04 至今
+  - 从0到1搭建了支持百卡规模GPU集群的AI训练平台，设计了基于优先级的队列调度与抢占机制，解决了资源争抢问题，使高优先级任务平均等待时间缩短60%。
+  - 主导了推理服务从单体架构向微服务化、容器化的迁移，通过引入服务网格实现了细粒度流量管理，支撑了日均10亿次的模型调用，同时保障了核心服务的SLA不低于99.99%。
+  - 建立了云资源成本分摊与优化机制，通过使用Spot实例、自动缩放和资源推荐，将AI研发部门的月度云账单降低了25%。
+- 青云科技（云计算服务商） | DevOps工程师 | 2018-07 至 2021-03
+  - 负责公司内部SaaS产品的CI/CD流水线改造，将部署频率从每周一次提升至每日多次，部署失败率从8%降至1%以下，并实现了关键环境的一键回滚。
+  - 设计和维护了多租户Kubernetes集群，通过命名空间资源配额、网络策略与审计日志，保障了超过200个开发团队的环境隔离与安全合规。
+  - 构建了基于Prometheus和自定义Exporters的中间件监控体系，覆盖了MySQL、Redis、Kafka等核心组件，提前发现了多次潜在容量瓶颈，避免了线上服务中断。
+
+教育背景
+- 华中科技大学 | 工学学士 计算机科学与技术 | 2014 至 2018
+
+技术栈
+- Kubernetes (EKS/GKE)
+- Terraform/Crossplane
+- Argo CD/GitOps
+- Prometheus/Thanos/Grafana
+- Istio/Linkerd
+- Python/Go
+- AWS (EC2, S3, RDS, Lambda)
+- CI/CD (Jenkins, GitLab CI, GitHub Actions)
+- MLOps (Kubeflow, MLflow)
+- GPU集群管理 (NVIDIA DGX, k8s-device-plugin)
+- 监控告警体系 (PagerDuty, OpsGenie)
+- 成本优化工具 (FinOps, Kubecost)
+
+证书/荣誉
+- Certified Kubernetes Administrator (CKA)
+- AWS Certified Solutions Architect – Associate
+
+个人信息
+姓名：陈明远
+目标岗位：DevOps资深工程师
+邮箱：chenmingyuan@example.com
+电话：+86 138 1234 5678
+经验年限：8 年
+方向：DevOps + AI Infra
+简介：拥有8年云原生与基础设施领域经验，专注于构建高可用、可观测的自动化平台。近3年深入AI基础设施领域，主导了多个从零到一的大规模机器学习平台与推理服务体系建设，在保障服务SLA的同时，通过架构优化与成本治理，显著提升了资源利用率与团队研发效率。
+
+项目经历
+- 公司级AI训练与推理平台建设
+  技术栈：Kubernetes, Kubeflow Pipelines, NVIDIA GPU Operator, Istio, Seldon Core, Prometheus, Grafana, AWS EC2 Spot Instances
+  职责：作为平台核心负责人，设计并落地了支持多团队、多项目的AI模型训练与在线推理服务体系。负责GPU资源池化调度策略、推理服务自动扩缩容与金丝雀发布、全链路可观测性（包括GPU利用率、模型延迟与准确率漂移）以及跨区域容灾方案的设计与实施。
+  成果：平台支撑了超过50个模型同时训练，GPU平均利用率从35%提升至68%，年节省计算成本约300万人民币。推理服务P99延迟稳定在200ms以内，通过自动化的蓝绿部署与流量镜像，生产环境发布导致的线上事故减少90%。建立了模型性能与资源消耗的关联监控，成功预警3次因数据分布变化导致的模型性能衰退。
+- 微服务可观测性与故障自愈体系升级
+  技术栈：OpenTelemetry, Jaeger, Loki, Prometheus Alertmanager, Argo Rollouts, Python Operators, Slack/PagerDuty
+  职责：主导重构了基于OpenTelemetry的全链路追踪与日志聚合体系，并设计实现了基于多维指标（延迟、错误率、流量）的自动化故障诊断与初步自愈流程。负责制定告警降噪策略、建立On-call轮值制度与事故复盘（Post-mortem）模板。
+  成果：将分布式追踪的采样开销降低40%，日志查询延迟从平均10秒降至2秒内。通过智能告警聚合与关联分析，告警风暴减少70%，平均告警响应时间（MTTA）从15分钟缩短至5分钟。实现了针对API流量突增和依赖服务故障的自动水平扩缩容与熔断，将平均故障恢复时间（MTTR）从30分钟降低到8分钟，系统整体可用性达到99.95%。

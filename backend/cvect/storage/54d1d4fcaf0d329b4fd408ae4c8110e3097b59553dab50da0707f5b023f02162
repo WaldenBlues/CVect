@@ -1,0 +1,50 @@
+工作经历
+- 星云科技（金融科技） | 资深DevOps工程师 | 2020-06 至今
+  - 负责核心交易与支付系统的SRE工作，通过容量规划与混沌工程演练，将系统可用性从99.9%提升至99.99%，年度内实现零重大生产事故。主导了数据库读写分离与缓存架构优化，使核心接口P99延迟从800ms降至200ms。
+  - 建立并运营了跨研发、测试、运维的On-call轮值制度与事故复盘（Post-mortem）文化。主导了多次全链路压测，精准识别系统瓶颈，并通过弹性扩容预案，成功支撑了‘双十一’期间5倍于日常的流量峰值，无服务降级。
+- 极速电商有限公司 | DevOps工程师 | 2017-03 至 2020-05
+  - 从零搭建基于Docker与Jenkins的CI/CD流水线，将代码提交到生产环境部署的平均时长从数天缩短至40分钟，部署成功率提升至98%。引入SonarQube等工具链，将代码安全与质量门禁左移。
+  - 负责迁移单体应用到微服务架构的运维支撑，设计并实施了基于Consul的服务发现与健康检查机制。通过日志聚合与分析，协助开发团队将线上错误排查效率提升了50%。参与制定了资源申请与回收流程，将闲置资源率从25%降低到10%以下。
+
+教育背景
+- 华东理工大学 | 学士 计算机科学与技术 | 2013 至 2017
+
+技术栈
+- Kubernetes (EKS/AKS)
+- Terraform/Crossplane
+- ArgoCD/Flux
+- Prometheus/Thanos/Grafana
+- Istio/Linkerd
+- AWS/GCP
+- Python/Go
+- Ansible/Puppet
+- Jenkins/GitLab CI
+- ELK/OpenSearch
+- Chaos Mesh/Gremlin
+- Harbor/ECR
+- Linux/Shell
+- 成本优化与容量管理
+
+证书/荣誉
+- AWS Certified DevOps Engineer – Professional
+- Certified Kubernetes Administrator (CKA)
+- HashiCorp Certified: Terraform Associate
+
+个人信息
+姓名：陈明哲
+目标岗位：DevOps资深工程师
+邮箱：mingzhe.chen@example.com
+电话：+86 138 0013 8000
+经验年限：8 年
+方向：DevOps + none
+简介：拥有8年云原生与DevOps领域实践经验，专注于构建高可用、可观测、自动化的基础设施平台。擅长通过IaC、CI/CD流水线、混沌工程与容量规划，在保障服务SLA的同时提升研发效率与资源利用率。具备大型电商与金融科技系统运维经验，对生产环境稳定性、成本控制与应急响应有深刻理解。
+
+项目经历
+- 多云Kubernetes平台与GitOps标准化项目
+  技术栈：Kubernetes, Terraform, ArgoCD, AWS EKS, GCP GKE, Prometheus, Istio, Vault
+  职责：作为平台核心成员，负责设计并落地跨AWS与GCP的统一K8s平台架构。主导使用Terraform实现基础设施即代码，通过ArgoCD建立应用级的GitOps交付流水线。构建平台可观测性体系，并制定多集群网络与安全策略。
+  成果：平台支撑了超过200个微服务，部署频率提升300%，达到日均80+次。通过集群自动伸缩与Spot实例优化，年度云资源成本降低35%。实现99.95%的平台可用性，并通过标准化将新服务接入时间从2周缩短至2小时。建立了基于蓝绿与金丝雀的自动化发布与回滚机制，发布失败率从8%降至1%以下。
+- 全链路可观测性与智能告警平台重构
+  技术栈：Prometheus/Thanos, Grafana/Loki, OpenTelemetry, Jaeger, Alertmanager, Python/Go, Kafka, PagerDuty
+  职责：主导从传统监控系统向云原生可观测性栈的迁移。设计并实现指标、日志、链路追踪的统一采集、存储与查询架构。构建基于ML的告警降噪与根因分析模块，并推动与On-call流程的深度集成。
+  成果：指标采集粒度从1分钟提升至15秒，存储成本降低40%。告警风暴减少70%，平均告警响应时间（MTTA）从15分钟缩短至5分钟。通过分布式追踪定位线上问题的平均时长从小时级降至分钟级。平台成功预警了3次潜在的大范围容量瓶颈，避免了服务中断。建立了基于SLO的告警预算与错误预算燃烧率看板，驱动团队关注稳定性目标。

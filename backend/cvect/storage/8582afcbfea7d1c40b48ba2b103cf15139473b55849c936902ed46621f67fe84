@@ -1,0 +1,53 @@
+工作经历
+- 星云科技有限公司 | 高级DevOps工程师 | 2021-03 至今
+  - 负责公司核心电商App后端微服务与中间件的Kubernetes集群稳定性保障，通过优化HPA策略与资源配额管理，在2023年双十一大促期间，集群整体资源利用率提升20%，且未发生任何因容量不足导致的服务降级。
+  - 主导从Jenkins到GitLab CI的流水线迁移项目，为超过50个移动端与后端服务团队提供标准化模板，将代码提交到集成环境部署的平均时长从1.5小时缩短至25分钟，并建立了基于主干开发的自动化质量门禁。
+- 瞬联互动 | DevOps工程师 | 2019-07 至 2021-02
+  - 为多个手游项目搭建并维护基于Jenkins的CI/CD流水线，实现Unity项目从构建、分包到渠道包签名的全自动化，将版本构建打包的人工操作耗时从每人天减少至无人值守的2小时流程。
+  - 引入基础设施即代码（IaC）实践，使用Terraform管理AWS测试环境，使得新游戏项目的测试环境搭建时间从3天缩短至半天，并实现了环境的快速销毁与重建，月度云资源浪费减少约30%。
+
+教育背景
+- 华中科技大学 | 学士 软件工程 | 2015 至 2019
+
+技术栈
+- Kubernetes
+- Docker
+- Helm
+- ArgoCD
+- GitLab CI
+- Jenkins
+- Prometheus
+- Grafana
+- Loki
+- ELK
+- AWS (EKS, S3, RDS)
+- Terraform
+- Ansible
+- Golang
+- Python
+- Fastlane
+- React Native 构建优化
+- iOS/Android 持续集成
+
+证书/荣誉
+- AWS Certified Solutions Architect – Associate
+- CKA: Certified Kubernetes Administrator
+
+个人信息
+姓名：陈明轩
+目标岗位：软件工程师
+邮箱：mingxuan.chen@example.com
+电话：+86 138 0013 8000
+经验年限：5 年
+方向：DevOps + 移动端
+简介：拥有5年云原生与移动端基础设施经验，专注于构建高可用、可观测的CI/CD流水线与移动端发布体系。擅长通过自动化与平台化手段提升研发效率，保障线上服务SLA。
+
+项目经历
+- 移动端混合应用云原生构建与发布平台
+  技术栈：Kubernetes, GitLab CI, Fastlane, React Native, AWS EKS, 对象存储
+  职责：主导设计并实现面向React Native混合应用的云原生构建集群与自动化发布流水线，负责构建环境容器化、依赖缓存优化、多环境产物管理及与移动应用商店的集成。
+  成果：将React Native应用的完整构建时间从平均25分钟降低至8分钟，构建集群资源成本下降40%。实现发布流程全自动化，支持一键灰度发布到10%的用户，发布回滚时间从小时级缩短至5分钟内，年度发布故障率降低70%。
+- 微服务可观测性平台与Oncall响应体系升级
+  技术栈：Prometheus, Thanos, Grafana, Loki, Alertmanager, PagerDuty, Slack
+  职责：负责重构公司微服务监控与日志收集架构，设计并实施统一的指标采集、存储、可视化与告警规则，建立基于SLO的告警分级与Oncall响应流程。
+  成果：核心服务监控覆盖率从65%提升至98%，平均告警准确率提升至92%，无效告警减少75%。通过建立清晰的告警升级路径与复盘机制，将P2级以上事故的平均响应时间（MTTA）从45分钟缩短至15分钟，平均解决时间（MTTR）降低50%。

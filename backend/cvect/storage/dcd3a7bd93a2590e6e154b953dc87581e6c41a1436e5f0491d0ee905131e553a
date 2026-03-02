@@ -1,0 +1,48 @@
+工作经历
+- 上海星云科技有限公司 | 高级Android开发工程师 | 2021-04 至今
+  - 主导「LinkUp」项目Android端架构演进，引入MVI模式与Clean Architecture，改善代码可维护性，模块间编译依赖减少30%。
+  - 设计并落地团队移动端CI/CD标准流程，统一管理Gradle依赖与构建变体，使新项目接入流水线成本降低80%。建立oncall轮值制度与故障应急手册，主导处理3起P2级线上事故，平均恢复时间（MTTR）小于30分钟。
+- 北京智行互动网络有限公司 | Android开发工程师 | 2019-07 至 2021-03
+  - 独立负责公司旗舰新闻资讯App的视频播放器模块开发与优化，通过预加载与缓存策略将视频起播时间缩短50%，并适配复杂网络条件下的流畅播放。
+  - 参与App启动速度专项优化，通过异步初始化、懒加载等手段将冷启动时间从2.5秒优化至1.2秒。协助后端团队定位并解决多个API性能瓶颈，将列表页接口响应时间P95降低200ms。
+
+教育背景
+- 华中科技大学 | 学士 软件工程 | 2015 至 2019
+
+技术栈
+- Kotlin
+- Java
+- Flutter/Dart
+- Android Jetpack
+- Coroutines/Flow
+- gRPC
+- Gradle/KTS
+- GitLab CI/CD
+- Docker
+- Kubernetes (基础)
+- Prometheus/Grafana
+- ELK Stack
+- Jira/Confluence
+
+证书/荣誉
+- Google Associate Android Developer (已过期)
+- AWS Certified Cloud Practitioner
+
+个人信息
+姓名：张明远
+目标岗位：软件工程师
+邮箱：mingyuan.zhang@example.com
+电话：+86 138-0013-8000
+经验年限：5 年
+方向：移动端 + DevOps
+简介：拥有5年移动端开发经验，专注于Android平台，对Flutter跨端开发有深入实践。近两年在项目中主动引入并落地DevOps实践，主导构建了团队级的CI/CD流水线，显著提升了交付效率与质量。擅长性能优化、架构设计，并对线上稳定性保障有系统性经验，包括容量规划、监控告警、灰度发布与事故应急处理。
+
+项目经历
+- 企业级即时通讯App「LinkUp」性能与交付体系重构
+  技术栈：Kotlin, Coroutines/Flow, Room, gRPC, GitLab CI, Docker, Fastlane
+  职责：作为核心Android开发者，负责消息模块重构与性能优化，并主导搭建团队Android CI/CD流水线，集成静态代码分析、自动化测试与产物分发。
+  成果：重构后消息列表滑动帧率从45fps提升至稳定58fps，消息发送端到端延迟P99降低40%。搭建的CI/CD流水线将平均打包部署时间从25分钟缩短至8分钟，自动化测试覆盖率从35%提升至70%，版本发布前代码缺陷拦截率提高25%。通过引入分阶段灰度发布机制，重大故障回滚时长控制在5分钟以内。
+- 新零售商家端App DevOps实践与稳定性建设
+  技术栈：Flutter, Dart, Provider, GitLab CI/CD, Python (脚本), Firebase Crashlytics, Sentry
+  职责：负责Flutter跨端商城主模块开发，并推动DevOps文化落地，设计并实施基于GitLab的移动端CI/CD流程，建立关键业务监控与告警体系。
+  成果：主导的CI/CD流程实现Flutter双端（iOS/Android）自动化构建、测试与分发，发布频率从双周提升至每周。建立的业务监控看板覆盖核心页面加载成功率、API请求错误率等，将线上问题平均发现时间（MTTD）从小时级缩短至分钟级。通过容量压测与代码优化，在“双十一”大促期间，核心订单页承载QPS提升3倍，Crash率保持在0.1%以下。定期组织事故复盘，产出改进项并推动落地，重复性事故减少60%。

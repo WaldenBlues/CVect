@@ -1,0 +1,51 @@
+工作经历
+- 上海星云科技有限公司 | 高级DevOps工程师 | 2021-04 至今
+  - 主导了公司所有后端服务从混合云到AWS的全面迁移，使用Terraform编写了超过300个模块统一管理基础设施，实现了资源创建的标准化与审计自动化。
+  - 建立了基于Prometheus和业务日志(SLS)的 unified monitoring dashboard，定义了20+个核心业务与基础设施SLO，并推动建立了每周SLO复盘会议制度，使季度内重大事故数量减少60%。
+  - 设计并推行了“发布火车”模型，将固定发布窗口与特性开关结合，使产品团队能够更灵活地控制功能上线节奏，发布回滚操作平均耗时从10分钟降至90秒内。
+- 北京智捷互联有限公司 | DevOps工程师/后端开发工程师 | 2019-07 至 2021-03
+  - 从零搭建了基于Jenkins和Ansible的CI/CD流水线，支持公司首个SaaS产品的自动化测试与部署，将版本交付频率从每月一次提升至每周两次。
+  - 负责核心广告投放系统的后端API开发与性能调优，通过引入Redis缓存热点数据和SQL查询优化，将关键报表生成接口的响应时间从8秒降低至1.5秒，支撑了日请求量从百万到千万级的增长。
+  - 参与7x24小时 oncall 轮值，主导处理了数次因第三方依赖服务异常导致的线上事故，并编写了详细的Post-mortem报告，推动了服务降级和熔断机制的落地。
+
+教育背景
+- 华中科技大学 | 学士 软件工程 | 2015 至 2019
+
+技术栈
+- Kubernetes (EKS/AKS)
+- Docker & Containerd
+- Terraform & Pulumi
+- AWS (EC2, S3, RDS, IAM, CloudWatch)
+- GitLab CI/CD & ArgoCD
+- Prometheus & Grafana & Loki
+- Helm & Kustomize
+- Python (FastAPI/Flask)
+- Golang (Gin)
+- Linux/Shell
+- Nginx/Ingress
+- MySQL/Redis
+- ELK Stack
+- Istio (基础)
+
+证书/荣誉
+- AWS Certified Solutions Architect – Associate
+- CKA: Certified Kubernetes Administrator
+
+个人信息
+姓名：陈明轩
+目标岗位：DevOps工程师
+邮箱：chen.mingxuan@example.com
+电话：+86 138 0013 8000
+经验年限：5 年
+方向：DevOps + 后端
+简介：拥有5年云原生与DevOps领域实践经验，专注于构建高可用、可观测的微服务基础设施与自动化交付体系。擅长通过IaC管理复杂云环境，主导过多个从零到一的CI/CD流水线设计与落地，具备处理大规模容器集群性能瓶颈与线上故障的实战经验。对成本优化与SLA保障有深入理解。
+
+项目经历
+- 电商核心交易平台云原生迁移与SLO治理
+  技术栈：Kubernetes, AWS EKS, Terraform, ArgoCD, Prometheus, Istio, Python
+  职责：作为基础设施负责人，主导将单体Java应用拆分为12个微服务并容器化迁移至EKS集群。设计并实施基于GitOps的发布流程，构建服务网格可观测性体系，并建立核心交易链路的SLO定义与告警机制。
+  成果：成功完成零停机迁移，系统资源利用率提升40%，月度云成本降低约15%。通过精细化SLO监控与自动化熔断，将P99 API延迟从2.1秒稳定至800毫秒以内，核心服务可用性从99.5%提升至99.95%。建立oncall轮值制度后，平均故障恢复时间(MTTR)从45分钟缩短至12分钟。
+- 全球多区域游戏服务部署与流量调度平台
+  技术栈：Kubernetes, AWS Multi-Region, GitLab CI, Helm, Grafana, Loki, Golang
+  职责：负责构建支持北美、欧洲、亚太三地部署的游戏后端服务自动化平台。实现CI流水线根据代码仓库分支自动构建并部署至对应区域的Dev/Staging环境。开发内部工具用于管理跨区域配置同步与金丝雀发布。
+  成果：将新游戏服全球上线时间从平均3人天缩短至4小时。通过智能流量调度与区域健康检查，在单个区域AZ故障时，玩家无感切换，服务中断时间从分钟级降至秒级。平台管理超过500个游戏服实例，每日处理超过200次构建部署，发布失败率低于0.5%。

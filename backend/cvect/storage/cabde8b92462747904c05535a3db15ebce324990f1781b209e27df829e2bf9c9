@@ -1,0 +1,49 @@
+工作经历
+- 上海星云科技有限公司 | 高级DevOps工程师 | 2021-04 至今
+  - 领导3人小组，完成了公司核心SaaS产品从单体架构向Kubernetes微服务架构的迁移，设计了多租户隔离方案与蓝绿发布流程，迁移期间实现零数据丢失与用户无感知切换。
+  - 建立并运维SRE oncall制度，牵头处理了5起P1/P2级别生产事故，主导编写事故复盘报告并推动落地了包括数据库连接池优化、缓存雪崩防护在内的6项改进措施，将后续类似事故发生率降为0。
+  - 推动基础设施成本治理，通过引入HPA、优化资源请求/限制、清理闲置资源，在业务量增长50%的情况下，保持云基础设施费用季度零增长。
+- 北京迅达信息技术有限公司 | DevOps工程师 | 2019-07 至 2021-03
+  - 负责维护和优化基于Jenkins的CI/CD流水线，引入并行构建与缓存机制，将平均构建时间从25分钟缩短至8分钟，并集成SonarQube进行代码质量门禁。
+  - 搭建了集中式的日志聚合平台(EFK)，统一收集来自20+个微服务的日志，提供了高效的日志查询与审计能力，协助开发团队将线上故障排查时间平均减少了40%。
+  - 参与设计并实施了面向开发人员的自助式服务目录，提供数据库、缓存、消息队列等中间件的按需申请与自动化部署，将资源交付周期从2天缩短至2小时内。
+
+教育背景
+- 电子科技大学 | 工学学士 计算机科学与技术 | 2015 至 2019
+
+技术栈
+- Kubernetes (EKS/AKS)
+- Docker & Containerd
+- Terraform & Ansible
+- AWS (EC2, RDS, S3, IAM, CloudFront)
+- Prometheus & Grafana & AlertManager
+- ELK Stack (Elasticsearch, Logstash, Kibana)
+- Jenkins & GitLab CI
+- Python & Bash Scripting
+- Helm Charts
+- Argo CD
+- Linux/Unix系统管理
+- 网络与安全基础 (VPC, Security Groups, WAF)
+
+证书/荣誉
+- AWS Certified Solutions Architect – Associate
+- CKA: Certified Kubernetes Administrator
+
+个人信息
+姓名：陈明远
+目标岗位：DevOps工程师
+邮箱：chenmingyuan@example.com
+电话：+86 138-0013-8000
+经验年限：5 年
+方向：DevOps + none
+简介：拥有5年云原生与DevOps领域实践经验，专注于构建高可用、可观测的微服务基础设施与自动化交付体系。擅长通过IaC、CI/CD流水线优化及SRE实践，提升系统稳定性与团队交付效率。具备从0到1搭建平台及大规模生产环境治理经验。
+
+项目经历
+- 电商平台微服务CI/CD与可观测性体系建设
+  技术栈：Kubernetes (EKS), Argo CD, Jenkins, Prometheus, Grafana, AWS, Terraform
+  职责：主导设计并落地基于GitOps的持续交付流水线，负责全链路监控与告警体系搭建，包括应用指标、日志、链路追踪的收集与可视化。通过IaC管理AWS与K8s资源。
+  成果：将生产环境部署频率从每周1次提升至每日多次，部署失败率从15%降至2%以下。通过细粒度监控与自动化告警，将平均故障检测时间(MTTD)从30分钟缩短至5分钟，关键业务服务SLA达到99.95%。通过资源优化与Spot实例应用，月度云成本降低约18%。
+- 全球内容分发网络(CDN)边缘节点自动化运维平台
+  技术栈：Ansible, Python, AWS Lambda, CloudFormation, Datadog, PagerDuty
+  职责：负责构建用于管理数千个全球CDN边缘服务器的配置管理与自动化运维平台。实现节点的一键部署、配置漂移检测与修复、安全补丁自动分发及健康检查。建立oncall轮值与事故响应流程。
+  成果：将新边缘节点的上线时间从平均4小时缩短至30分钟。通过自动化配置合规检查与修复，将因配置错误导致的边缘服务中断次数季度环比减少70%。构建了基于严重等级的事故分级响应SOP，确保P1级事故能在15分钟内响应并启动处理流程，年度复盘解决3类共性架构风险。

@@ -11,6 +11,9 @@ import com.walden.cvect.repository.UploadItemJpaRepository;
 import com.walden.cvect.service.UploadQueueJobKeyGenerator;
 import com.walden.cvect.web.sse.BatchStreamEvent;
 import com.walden.cvect.web.sse.BatchStreamService;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -37,10 +40,10 @@ import java.util.zip.ZipInputStream;
 @RestController
 @RequestMapping("/api/uploads")
 public class UploadController {
+    private static final Logger log = LoggerFactory.getLogger(UploadController.class);
 
     private static final long MAX_ENTRY_BYTES = 20 * 1024 * 1024;
     private static final long MAX_TOTAL_BYTES = 200 * 1024 * 1024;
-    private static final int MAX_FILES = 200;
     private static final List<String> ALLOWED_EXT = Arrays.asList(".pdf", ".doc", ".docx", ".md", ".txt");
 
     private final JobDescriptionJpaRepository jobDescriptionRepository;
@@ -49,19 +52,31 @@ public class UploadController {
     private final BatchStreamService batchStreamService;
     private final Path storageDir;
     private final int maxInflightItems;
+    private final int maxFilesPerZip;
 
     public UploadController(JobDescriptionJpaRepository jobDescriptionRepository,
             UploadBatchJpaRepository batchRepository,
             UploadItemJpaRepository itemRepository,
             BatchStreamService batchStreamService,
             @Value("${app.upload.storage-dir:storage}") String storageDir,
-            @Value("${app.upload.max-inflight-items:200}") int maxInflightItems) {
+            @Value("${app.upload.max-inflight-items:2000}") int maxInflightItems,
+            @Value("${app.upload.max-files-per-zip:2000}") int maxFilesPerZip) {
         this.jobDescriptionRepository = jobDescriptionRepository;
         this.batchRepository = batchRepository;
         this.itemRepository = itemRepository;
         this.batchStreamService = batchStreamService;
         this.storageDir = resolveStorageDir(storageDir);
         this.maxInflightItems = Math.max(1, maxInflightItems);
+        this.maxFilesPerZip = Math.max(1, maxFilesPerZip);
+    }
+
+    @PostConstruct
+    void logLimits() {
+        log.info("Upload limits: maxInflightItems={}, maxFilesPerZip={}, maxEntryBytesMB={}, maxTotalBytesMB={}",
+                maxInflightItems,
+                maxFilesPerZip,
+                MAX_ENTRY_BYTES / (1024 * 1024),
+                MAX_TOTAL_BYTES / (1024 * 1024));
     }
 
     @PostMapping("/resumes")
@@ -116,7 +131,7 @@ public class UploadController {
                 if (entry.isDirectory()) {
                     continue;
                 }
-                if (totalFiles >= MAX_FILES) {
+                if (totalFiles >= maxFilesPerZip) {
                     truncated = true;
                     break;
                 }
