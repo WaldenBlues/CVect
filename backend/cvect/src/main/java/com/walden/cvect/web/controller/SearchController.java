@@ -58,9 +58,7 @@ public class SearchController {
         // 按候选人聚合并排序
         List<CandidateMatch> sortedCandidates = aggregateAndSort(results, weightConfig);
         if (request.onlyVectorReadyCandidates()) {
-            sortedCandidates = sortedCandidates.stream()
-                    .filter(this::isVectorReadyCandidate)
-                    .toList();
+            sortedCandidates = filterVectorReadyCandidates(sortedCandidates);
         }
         if (sortedCandidates.size() > request.topK()) {
             sortedCandidates = sortedCandidates.subList(0, request.topK());
@@ -242,18 +240,32 @@ public class SearchController {
         return value;
     }
 
-    private boolean isVectorReadyCandidate(CandidateMatch candidate) {
-        UUID candidateId = candidate.candidateId();
-        if (candidateId == null) {
-            return false;
+    private List<CandidateMatch> filterVectorReadyCandidates(List<CandidateMatch> candidates) {
+        if (candidates == null || candidates.isEmpty()) {
+            return List.of();
         }
-        boolean hasPendingOrProcessing = vectorIngestTaskRepository.existsByCandidateIdAndStatusIn(
-                candidateId,
-                List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING));
-        if (hasPendingOrProcessing) {
-            return false;
+        List<UUID> candidateIds = candidates.stream()
+                .map(CandidateMatch::candidateId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (candidateIds.isEmpty()) {
+            return List.of();
         }
-        return vectorIngestTaskRepository.existsByCandidateIdAndStatus(candidateId, VectorIngestTaskStatus.DONE);
+
+        Set<UUID> inflightIds = new HashSet<>(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
+                candidateIds,
+                List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING)));
+        Set<UUID> doneIds = new HashSet<>(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
+                candidateIds,
+                List.of(VectorIngestTaskStatus.DONE)));
+
+        return candidates.stream()
+                .filter(candidate -> {
+                    UUID id = candidate.candidateId();
+                    return id != null && doneIds.contains(id) && !inflightIds.contains(id);
+                })
+                .toList();
     }
 
     private record WeightConfig(float experienceWeight, float skillWeight) {

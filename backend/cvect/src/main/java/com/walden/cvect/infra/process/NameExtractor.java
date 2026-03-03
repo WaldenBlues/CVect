@@ -3,6 +3,7 @@ package com.walden.cvect.infra.process;
 import com.walden.cvect.model.fact.Regex;
 import org.springframework.stereotype.Component;
 
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -27,6 +28,7 @@ public class NameExtractor {
     private static final String[] EMAIL_KEYWORDS = new String[]{
             "邮箱", "电子邮件", "email", "e-mail"
     };
+    private static final String[] NAME_BLOCK_KEYWORDS_LOWER = toLowerKeywords(NAME_BLOCK_KEYWORDS);
 
     public String extract(String normalizedText) {
         if (normalizedText == null || normalizedText.isBlank()) {
@@ -221,7 +223,7 @@ public class NameExtractor {
         if (line == null) {
             return false;
         }
-        String lower = line.toLowerCase();
+        String lower = line.toLowerCase(Locale.ROOT);
         for (String keyword : EMAIL_KEYWORDS) {
             if (lower.contains(keyword)) {
                 return true;
@@ -252,12 +254,20 @@ public class NameExtractor {
         if (line == null) {
             return false;
         }
-        String lower = line.toLowerCase();
-        for (String keyword : NAME_BLOCK_KEYWORDS) {
-            if (lower.contains(keyword.toLowerCase())) {
+        String lower = line.toLowerCase(Locale.ROOT);
+        for (String keyword : NAME_BLOCK_KEYWORDS_LOWER) {
+            if (lower.contains(keyword)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static String[] toLowerKeywords(String[] keywords) {
+        String[] lowered = new String[keywords.length];
+        for (int i = 0; i < keywords.length; i++) {
+            lowered[i] = keywords[i].toLowerCase(Locale.ROOT);
+        }
+        return lowered;
     }
 }

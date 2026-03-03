@@ -29,8 +29,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -45,6 +48,8 @@ public class UploadController {
     private static final long MAX_ENTRY_BYTES = 20 * 1024 * 1024;
     private static final long MAX_TOTAL_BYTES = 200 * 1024 * 1024;
     private static final List<String> ALLOWED_EXT = Arrays.asList(".pdf", ".doc", ".docx", ".md", ".txt");
+    private static final List<UploadItemStatus> INFLIGHT_STATUSES =
+            List.of(UploadItemStatus.QUEUED, UploadItemStatus.PROCESSING);
 
     private final JobDescriptionJpaRepository jobDescriptionRepository;
     private final UploadBatchJpaRepository batchRepository;
@@ -53,6 +58,8 @@ public class UploadController {
     private final Path storageDir;
     private final int maxInflightItems;
     private final int maxFilesPerZip;
+    private final ReentrantLock queueAdmissionLock = new ReentrantLock(true);
+    private final AtomicLong inflightReservations = new AtomicLong(0L);
 
     public UploadController(JobDescriptionJpaRepository jobDescriptionRepository,
             UploadBatchJpaRepository batchRepository,
@@ -90,19 +97,23 @@ public class UploadController {
         if (files == null || files.length == 0) {
             return ResponseEntity.badRequest().build();
         }
-        if (isQueueOverloaded(files.length)) {
+        int requestedSlots = Math.max(1, files.length);
+        if (!tryReserveInflightSlots(requestedSlots)) {
             return ResponseEntity.status(429).build();
         }
+        try {
+            UploadBatch batch = batchRepository.save(new UploadBatch(jd, files.length));
+            List<FileUploadResult> results = new ArrayList<>();
 
-        UploadBatch batch = batchRepository.save(new UploadBatch(jd, files.length));
-        List<FileUploadResult> results = new ArrayList<>();
+            for (MultipartFile file : files) {
+                results.add(processUploadedFile(batch, file));
+            }
 
-        for (MultipartFile file : files) {
-            results.add(processUploadedFile(batch, file));
+            refreshBatchProgress(batch.getId());
+            return ResponseEntity.ok(new BatchUploadResponse(batch.getId(), results));
+        } finally {
+            releaseInflightReservations(requestedSlots);
         }
-
-        refreshBatchProgress(batch.getId());
-        return ResponseEntity.ok(new BatchUploadResponse(batch.getId(), results));
     }
 
     @PostMapping("/zip")
@@ -110,7 +121,7 @@ public class UploadController {
             @RequestParam("jdId") String jdId,
             @RequestParam("zipFile") MultipartFile zipFile) throws IOException {
         JobDescription jd = resolveJobDescription(jdId);
-        if (jd == null || zipFile == null) {
+        if (jd == null || zipFile == null || zipFile.isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
         if (isQueueOverloaded(1)) {
@@ -123,7 +134,6 @@ public class UploadController {
         int totalFiles = 0;
         long totalBytes = 0;
         boolean truncated = false;
-        long availableSlots = Math.max(0L, (long) maxInflightItems - inflightItemCount());
 
         try (ZipInputStream zis = new ZipInputStream(zipFile.getInputStream())) {
             ZipEntry entry;
@@ -142,29 +152,32 @@ public class UploadController {
                     failRejected(batch, fileName, "Unsupported file type");
                     continue;
                 }
-                if (availableSlots <= 0) {
+                if (!tryReserveInflightSlots(1)) {
                     failRejected(batch, fileName, "Upload queue is busy, please retry later");
                     continue;
                 }
 
-                Path storedPath = newStoragePath(fileName);
-                long entrySize;
                 try {
-                    entrySize = writeEntryToFile(zis, storedPath);
-                } catch (IOException ex) {
-                    Files.deleteIfExists(storedPath);
-                    failRejected(batch, fileName, ex.getMessage());
-                    continue;
-                }
-                totalBytes += entrySize;
-                if (entrySize > MAX_ENTRY_BYTES || totalBytes > MAX_TOTAL_BYTES) {
-                    Files.deleteIfExists(storedPath);
-                    failRejected(batch, fileName, "File size limit exceeded");
-                    continue;
-                }
+                    Path storedPath = newStoragePath(fileName);
+                    long entrySize;
+                    try {
+                        entrySize = writeEntryToFile(zis, storedPath);
+                    } catch (IOException ex) {
+                        Files.deleteIfExists(storedPath);
+                        failRejected(batch, fileName, ex.getMessage());
+                        continue;
+                    }
+                    totalBytes += entrySize;
+                    if (entrySize > MAX_ENTRY_BYTES || totalBytes > MAX_TOTAL_BYTES) {
+                        Files.deleteIfExists(storedPath);
+                        failRejected(batch, fileName, "File size limit exceeded");
+                        continue;
+                    }
 
-                processStoredFile(batch, fileName, storedPath);
-                availableSlots--;
+                    processStoredFile(batch, fileName, storedPath);
+                } finally {
+                    releaseInflightReservations(1);
+                }
             }
         }
 
@@ -175,6 +188,9 @@ public class UploadController {
     }
 
     private FileUploadResult processUploadedFile(UploadBatch batch, MultipartFile file) throws IOException {
+        if (file == null || file.isEmpty()) {
+            return failRejected(batch, null, "Empty file is not allowed");
+        }
         String fileName = file.getOriginalFilename();
         if (!isAllowedExtension(fileName)) {
             return failRejected(batch, fileName, "Unsupported file type");
@@ -271,7 +287,7 @@ public class UploadController {
         if (fileName != null) {
             int dot = fileName.lastIndexOf('.');
             if (dot >= 0) {
-                ext = fileName.substring(dot).toLowerCase();
+                ext = fileName.substring(dot).toLowerCase(Locale.ROOT);
             }
         }
         return storageDir.resolve(UUID.randomUUID() + ext);
@@ -281,7 +297,7 @@ public class UploadController {
         if (fileName == null) {
             return false;
         }
-        String lower = fileName.toLowerCase();
+        String lower = fileName.toLowerCase(Locale.ROOT);
         for (String ext : ALLOWED_EXT) {
             if (lower.endsWith(ext)) {
                 return true;
@@ -291,11 +307,30 @@ public class UploadController {
     }
 
     private boolean isQueueOverloaded(int incomingItems) {
-        return inflightItemCount() + Math.max(1, incomingItems) > maxInflightItems;
+        return inflightItemCount() + inflightReservations.get() + Math.max(1, incomingItems) > maxInflightItems;
     }
 
     private long inflightItemCount() {
-        return itemRepository.countByStatusIn(List.of(UploadItemStatus.QUEUED, UploadItemStatus.PROCESSING));
+        return itemRepository.countByStatusIn(INFLIGHT_STATUSES);
+    }
+
+    private boolean tryReserveInflightSlots(int slots) {
+        int normalized = Math.max(1, slots);
+        queueAdmissionLock.lock();
+        try {
+            if (isQueueOverloaded(normalized)) {
+                return false;
+            }
+            inflightReservations.addAndGet(normalized);
+            return true;
+        } finally {
+            queueAdmissionLock.unlock();
+        }
+    }
+
+    private void releaseInflightReservations(int slots) {
+        int normalized = Math.max(1, slots);
+        inflightReservations.updateAndGet(current -> Math.max(0L, current - normalized));
     }
 
     private long writeEntryToFile(ZipInputStream zis, Path target) throws IOException {

@@ -164,20 +164,14 @@ class SearchControllerTest {
                 new VectorStoreService.SearchResult(UUID.randomUUID(), notReadyCandidate, ChunkType.EXPERIENCE, "not-ready", 0.7f)
         ));
 
-        when(vectorIngestTaskRepository.existsByCandidateIdAndStatusIn(
-                eq(pendingCandidate),
-                eq(List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING)))).thenReturn(true);
-        when(vectorIngestTaskRepository.existsByCandidateIdAndStatusIn(
-                eq(readyCandidate),
-                eq(List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING)))).thenReturn(false);
-        when(vectorIngestTaskRepository.existsByCandidateIdAndStatusIn(
-                eq(notReadyCandidate),
-                eq(List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING)))).thenReturn(false);
-
-        when(vectorIngestTaskRepository.existsByCandidateIdAndStatus(eq(readyCandidate), eq(VectorIngestTaskStatus.DONE)))
-                .thenReturn(true);
-        when(vectorIngestTaskRepository.existsByCandidateIdAndStatus(eq(notReadyCandidate), eq(VectorIngestTaskStatus.DONE)))
-                .thenReturn(false);
+        when(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
+                any(),
+                eq(List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING))))
+                .thenReturn(List.of(pendingCandidate));
+        when(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
+                any(),
+                eq(List.of(VectorIngestTaskStatus.DONE))))
+                .thenReturn(List.of(readyCandidate));
 
         SearchController.SearchRequest request = new SearchController.SearchRequest(
                 "ready only",
@@ -222,7 +216,6 @@ class SearchControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(1, response.getBody().totalResults());
-        verify(vectorIngestTaskRepository, never()).existsByCandidateIdAndStatusIn(any(), any());
-        verify(vectorIngestTaskRepository, never()).existsByCandidateIdAndStatus(any(), any());
+        verify(vectorIngestTaskRepository, never()).findCandidateIdsByStatusIn(any(), any());
     }
 }

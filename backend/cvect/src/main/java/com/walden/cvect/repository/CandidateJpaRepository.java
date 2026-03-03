@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import java.util.UUID;
 import java.util.Optional;
 import java.util.List;
+import java.util.Collection;
 
 /**
  * 候选人基础信息数据访问
@@ -27,7 +28,22 @@ public interface CandidateJpaRepository extends JpaRepository<Candidate, UUID> {
     @Query("select c.id from Candidate c where c.jobDescription.id = :jobDescriptionId")
     List<UUID> findIdsByJobDescriptionId(@Param("jobDescriptionId") UUID jobDescriptionId);
 
+    @Query("""
+            select c.jobDescription.id as jdId, count(c) as count
+            from Candidate c
+            where c.jobDescription.id in :jobDescriptionIds
+            group by c.jobDescription.id
+            """)
+    List<JobDescriptionCandidateCount> countGroupedByJobDescriptionIds(
+            @Param("jobDescriptionIds") Collection<UUID> jobDescriptionIds);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from Candidate c where c.jobDescription.id = :jobDescriptionId")
     int deleteByJobDescriptionId(@Param("jobDescriptionId") UUID jobDescriptionId);
+
+    interface JobDescriptionCandidateCount {
+        UUID getJdId();
+
+        long getCount();
+    }
 }

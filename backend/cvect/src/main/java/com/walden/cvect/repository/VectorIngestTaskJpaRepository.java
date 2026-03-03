@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -20,9 +21,21 @@ public interface VectorIngestTaskJpaRepository extends JpaRepository<VectorInges
 
     boolean existsByCandidateIdAndStatusIn(UUID candidateId, Collection<VectorIngestTaskStatus> statuses);
 
+    @Query("""
+            select distinct t.candidateId
+            from VectorIngestTask t
+            where t.candidateId in :candidateIds
+              and t.status in :statuses
+            """)
+    List<UUID> findCandidateIdsByStatusIn(
+            @Param("candidateIds") Collection<UUID> candidateIds,
+            @Param("statuses") Collection<VectorIngestTaskStatus> statuses);
+
     List<VectorIngestTask> findTop50ByStatusAndUpdatedAtBeforeOrderByUpdatedAtAsc(
             VectorIngestTaskStatus status,
             LocalDateTime updatedAt);
+
+    List<VectorIngestTask> findByStatusOrderByUpdatedAtAsc(VectorIngestTaskStatus status, Pageable pageable);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
@@ -43,6 +56,20 @@ public interface VectorIngestTaskJpaRepository extends JpaRepository<VectorInges
             RETURNING t.id
             """, nativeQuery = true)
     List<UUID> claimNextPendingBatch(@Param("batchSize") int batchSize);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update VectorIngestTask t
+            set t.status = :processingStatus,
+                t.startedAt = current_timestamp,
+                t.updatedAt = current_timestamp
+            where t.id = :taskId
+              and t.status = :pendingStatus
+            """)
+    int claimPendingTaskById(
+            @Param("taskId") UUID taskId,
+            @Param("processingStatus") VectorIngestTaskStatus processingStatus,
+            @Param("pendingStatus") VectorIngestTaskStatus pendingStatus);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

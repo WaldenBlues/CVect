@@ -35,10 +35,10 @@ public interface UploadItemJpaRepository extends JpaRepository<UploadItem, UUID>
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
-            DELETE FROM upload_items i
-            USING upload_batches b
-            WHERE i.batch_id = b.id
-              AND b.jd_id = :jobDescriptionId
+            DELETE FROM upload_items
+            WHERE batch_id IN (
+              SELECT id FROM upload_batches WHERE jd_id = :jobDescriptionId
+            )
             """, nativeQuery = true)
     int deleteByJobDescriptionId(@Param("jobDescriptionId") UUID jobDescriptionId);
 
@@ -105,6 +105,22 @@ public interface UploadItemJpaRepository extends JpaRepository<UploadItem, UUID>
             RETURNING i.id
             """, nativeQuery = true)
     List<UUID> claimNextQueuedBatch(@Param("batchSize") int batchSize);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update UploadItem i
+            set i.status = :processingStatus,
+                i.startedAt = current_timestamp,
+                i.updatedAt = current_timestamp
+            where i.id = :itemId
+              and i.status = :queuedStatus
+              and i.storagePath is not null
+              and i.queueJobKey is not null
+            """)
+    int claimQueuedItemById(
+            @Param("itemId") UUID itemId,
+            @Param("processingStatus") UploadItemStatus processingStatus,
+            @Param("queuedStatus") UploadItemStatus queuedStatus);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

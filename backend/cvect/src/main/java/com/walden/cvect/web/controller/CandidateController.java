@@ -8,6 +8,8 @@ import com.walden.cvect.service.CandidateSnapshotService;
 import com.walden.cvect.web.stream.CandidateStreamEvent;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,6 +27,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/candidates")
 public class CandidateController {
+    private static final Logger log = LoggerFactory.getLogger(CandidateController.class);
 
     private final CandidateJpaRepository candidateRepository;
     private final CandidateSnapshotService snapshotService;
@@ -50,7 +53,9 @@ public class CandidateController {
         Set<UUID> candidateIds = candidates.stream()
                 .map(Candidate::getId)
                 .collect(java.util.stream.Collectors.toSet());
-        Set<UUID> vectorizedCandidateIds = new HashSet<>(resumeChunkVectorRepository.findDistinctCandidateIdsIn(candidateIds));
+        Set<UUID> vectorizedCandidateIds = candidateIds.isEmpty()
+                ? Set.of()
+                : new HashSet<>(resumeChunkVectorRepository.findDistinctCandidateIdsIn(candidateIds));
 
         List<CandidateListItem> events = new ArrayList<>();
         for (Candidate candidate : candidates) {
@@ -95,11 +100,43 @@ public class CandidateController {
 
         candidate.setRecruitmentStatus(request.recruitmentStatus());
         Candidate saved = candidateRepository.save(candidate);
-        CandidateStreamEvent event = snapshotService.build(saved.getId(), "UPDATED");
+        CandidateStreamEvent event;
+        try {
+            event = snapshotService.build(saved.getId(), "UPDATED");
+        } catch (RuntimeException ex) {
+            log.warn("Failed building candidate snapshot after recruitment status update, fallback response: candidateId={}",
+                    saved.getId(), ex);
+            event = null;
+        }
         if (event == null) {
-            return ResponseEntity.status(500).build();
+            event = fallbackUpdatedEvent(saved);
         }
         return ResponseEntity.ok(event);
+    }
+
+    private CandidateStreamEvent fallbackUpdatedEvent(Candidate candidate) {
+        if (candidate == null) {
+            return null;
+        }
+        return new CandidateStreamEvent(
+                candidate.getId(),
+                candidate.getJobDescription() == null ? null : candidate.getJobDescription().getId(),
+                "UPDATED",
+                candidate.getRecruitmentStatus() == null
+                        ? CandidateRecruitmentStatus.TO_CONTACT.name()
+                        : candidate.getRecruitmentStatus().name(),
+                candidate.getName(),
+                candidate.getSourceFileName(),
+                candidate.getContentType(),
+                candidate.getFileSizeBytes(),
+                candidate.getParsedCharCount(),
+                candidate.getTruncated(),
+                candidate.getCreatedAt(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
     }
 
     public record UpdateRecruitmentStatusRequest(

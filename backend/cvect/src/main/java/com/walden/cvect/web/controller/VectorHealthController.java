@@ -18,6 +18,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/vector")
 public class VectorHealthController {
+    private static final String DEFAULT_EMBEDDING_HEALTH_URL = "http://localhost:8001/health";
 
     private final VectorIngestTaskJpaRepository taskRepository;
     private final EmbeddingConfig embeddingConfig;
@@ -39,10 +40,39 @@ public class VectorHealthController {
 
     @GetMapping("/health")
     public ResponseEntity<VectorHealthResponse> health() {
-        long pending = taskRepository.countByStatusIn(List.of(VectorIngestTaskStatus.PENDING));
-        long processing = taskRepository.countByStatusIn(List.of(VectorIngestTaskStatus.PROCESSING));
-        long done = taskRepository.countByStatusIn(List.of(VectorIngestTaskStatus.DONE));
-        long failed = taskRepository.countByStatusIn(List.of(VectorIngestTaskStatus.FAILED));
+        long pending = countByStatus(VectorIngestTaskStatus.PENDING);
+        long processing = countByStatus(VectorIngestTaskStatus.PROCESSING);
+        long done = countByStatus(VectorIngestTaskStatus.DONE);
+        long failed = countByStatus(VectorIngestTaskStatus.FAILED);
+
+        if (!vectorEnabled) {
+            return ResponseEntity.ok(new VectorHealthResponse(
+                    "DISABLED",
+                    false,
+                    workerEnabled,
+                    false,
+                    null,
+                    "Vector store disabled by configuration",
+                    pending,
+                    processing,
+                    done,
+                    failed,
+                    LocalDateTime.now()));
+        }
+        if (!workerEnabled) {
+            return ResponseEntity.ok(new VectorHealthResponse(
+                    "DEGRADED",
+                    true,
+                    false,
+                    false,
+                    null,
+                    "Vector ingest worker disabled by configuration",
+                    pending,
+                    processing,
+                    done,
+                    failed,
+                    LocalDateTime.now()));
+        }
 
         EmbeddingHealth embeddingHealth = checkEmbeddingHealth(embeddingConfig.getServiceUrl());
         String status = embeddingHealth.reachable ? "UP" : "DEGRADED";
@@ -97,8 +127,12 @@ public class VectorHealthController {
                     null);
             return healthUri.toString();
         } catch (Exception ex) {
-            return "http://localhost:8001/health";
+            return DEFAULT_EMBEDDING_HEALTH_URL;
         }
+    }
+
+    private long countByStatus(VectorIngestTaskStatus status) {
+        return taskRepository.countByStatusIn(List.of(status));
     }
 
     private record EmbeddingHealth(

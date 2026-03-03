@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.EnumMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,6 +26,9 @@ import java.util.UUID;
 public class UploadBatchService {
 
     private static final Logger log = LoggerFactory.getLogger(UploadBatchService.class);
+    private static final String LEGACY_PENDING = "PENDING";
+    private static final String LEGACY_RETRYING = "RETRYING";
+    private static final String LEGACY_SUCCEEDED = "SUCCEEDED";
 
     private final UploadBatchJpaRepository batchRepository;
     private final UploadItemJpaRepository itemRepository;
@@ -131,8 +135,10 @@ public class UploadBatchService {
         if (raw == null) {
             return;
         }
-        String normalized = raw.trim().toUpperCase();
-        if (!normalized.equals("PENDING") && !normalized.equals("RETRYING") && !normalized.equals("SUCCEEDED")) {
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        if (!normalized.equals(LEGACY_PENDING)
+                && !normalized.equals(LEGACY_RETRYING)
+                && !normalized.equals(LEGACY_SUCCEEDED)) {
             return;
         }
         if (meterRegistry != null) {

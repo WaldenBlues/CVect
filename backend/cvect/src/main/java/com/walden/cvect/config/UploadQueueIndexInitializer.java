@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import javax.sql.DataSource;
+import java.util.Locale;
 
 /**
  * Ensures queue scan index exists for upload worker claim queries.
@@ -45,7 +46,7 @@ public class UploadQueueIndexInitializer {
     private boolean isPostgres() {
         try (var connection = dataSource.getConnection()) {
             String product = connection.getMetaData().getDatabaseProductName();
-            return product != null && product.toLowerCase().contains("postgres");
+            return product != null && product.toLowerCase(Locale.ROOT).contains("postgres");
         } catch (Exception ex) {
             log.debug("Unable to detect database product", ex);
             return false;

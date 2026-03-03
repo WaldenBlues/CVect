@@ -11,17 +11,20 @@ import org.springframework.beans.factory.annotation.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.InputStream;
+import java.sql.Connection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -29,6 +32,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.springframework.data.domain.PageRequest;
 
 /**
  * 消费 upload_items.QUEUED 的轻量 DB worker
@@ -49,6 +54,7 @@ public class UploadQueueWorkerService {
     private final Path storageDir;
     private final int claimBatchSize;
     private final long maintenanceIntervalMs;
+    private final AtomicBoolean useNativeClaimQuery;
     private final AtomicLong lastMaintenanceAtMs = new AtomicLong(0L);
 
     public UploadQueueWorkerService(
@@ -56,6 +62,7 @@ public class UploadQueueWorkerService {
             UploadBatchJpaRepository batchRepository,
             ResumeProcessService resumeProcessService,
             BatchStreamService batchStreamService,
+            JdbcTemplate jdbcTemplate,
             PlatformTransactionManager transactionManager,
             @Value("${app.upload.worker.stale-processing-ms:300000}") long staleProcessingMs,
             @Value("${app.upload.storage-dir:storage}") String storageDir,
@@ -70,12 +77,13 @@ public class UploadQueueWorkerService {
         this.storageDir = resolveStorageDir(storageDir);
         this.claimBatchSize = Math.max(1, Math.min(claimBatchSize, 500));
         this.maintenanceIntervalMs = Math.max(1000L, maintenanceIntervalMs);
+        this.useNativeClaimQuery = new AtomicBoolean(isPostgreSql(jdbcTemplate));
     }
 
     public int consumeQueuedItems() {
         runMaintenanceIfDue();
 
-        List<UUID> claimedItemIds = inTx(() -> itemRepository.claimNextQueuedBatch(claimBatchSize), List.of());
+        List<UUID> claimedItemIds = claimNextQueuedBatchWithFallback();
         if (claimedItemIds.isEmpty()) {
             return 0;
         }
@@ -86,7 +94,51 @@ public class UploadQueueWorkerService {
         return claimedItemIds.size();
     }
 
+    private List<UUID> claimNextQueuedBatchWithFallback() {
+        if (!useNativeClaimQuery.get()) {
+            return claimNextQueuedBatchPortable();
+        }
+        try {
+            return inTx(() -> itemRepository.claimNextQueuedBatch(claimBatchSize), List.of());
+        } catch (RuntimeException ex) {
+            // If native claim fails once (e.g. non-PostgreSQL syntax), switch permanently to portable strategy.
+            useNativeClaimQuery.set(false);
+            log.warn("Disable native queue claim query after failure; fallback to portable claim strategy", ex);
+            return claimNextQueuedBatchPortable();
+        }
+    }
+
+    private List<UUID> claimNextQueuedBatchPortable() {
+        return inTx(() -> {
+            List<UploadItem> queued = itemRepository.findByStatusAndStoragePathIsNotNullOrderByUpdatedAtAsc(
+                    UploadItemStatus.QUEUED,
+                    PageRequest.of(0, claimBatchSize));
+            if (queued.isEmpty()) {
+                return List.of();
+            }
+            List<UUID> claimedIds = new ArrayList<>();
+            for (UploadItem item : queued) {
+                if (normalizeJobKey(item.getQueueJobKey()) == null) {
+                    continue;
+                }
+                int updated = itemRepository.claimQueuedItemById(
+                        item.getId(),
+                        UploadItemStatus.PROCESSING,
+                        UploadItemStatus.QUEUED);
+                if (updated > 0) {
+                    claimedIds.add(item.getId());
+                }
+            }
+            return claimedIds;
+        }, List.of());
+    }
+
     private void runMaintenanceIfDue() {
+        if (staleProcessingTimeout.isZero()) {
+            recoverStaleProcessingItems();
+            repairQueuedItemsWithoutJobKey();
+            return;
+        }
         long now = System.currentTimeMillis();
         long last = lastMaintenanceAtMs.get();
         if (now - last < maintenanceIntervalMs) {
@@ -349,6 +401,15 @@ public class UploadQueueWorkerService {
             throw new IllegalArgumentException("app.upload.storage-dir must not be blank");
         }
         return Paths.get(normalized).toAbsolutePath().normalize();
+    }
+
+    private static boolean isPostgreSql(JdbcTemplate jdbcTemplate) {
+        try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {
+            String productName = connection.getMetaData().getDatabaseProductName();
+            return productName != null && productName.toLowerCase(Locale.ROOT).contains("postgresql");
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     record BatchProgress(int totalFiles, int processedFiles) {

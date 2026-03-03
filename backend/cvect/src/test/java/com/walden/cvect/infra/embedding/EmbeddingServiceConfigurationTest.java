@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
     "app.embedding.device=cpu",
     "app.embedding.batch-size=32",
     "app.embedding.dimension=768",
+    "app.vector.dimension=768",
     "app.embedding.max-input-length=8192"
 })
 @Tag("integration")

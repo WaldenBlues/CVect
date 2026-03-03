@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class DefaultChunkerService implements ChunkerService {
@@ -139,7 +140,7 @@ public class DefaultChunkerService implements ChunkerService {
      * 段首语义信号推断
      */
     private ChunkType inferType(String text) {
-        String lower = text.toLowerCase();
+        String lower = lowerCase(text);
         boolean longWithoutColon = text.length() > LONG_TEXT_THRESHOLD && !containsColon(text);
 
         if (isContactSignal(text)) {
@@ -203,7 +204,7 @@ public class DefaultChunkerService implements ChunkerService {
     }
 
     private boolean isHeaderLike(String text) {
-        String lower = text.toLowerCase();
+        String lower = lowerCase(text);
 
         if (text.length() > MAX_HEADER_LENGTH) {
             return false;
@@ -222,7 +223,7 @@ public class DefaultChunkerService implements ChunkerService {
             return false;
         }
 
-        String lower = text.toLowerCase();
+        String lower = lowerCase(text);
 
         if (containsAny(lower, CONTACT_KEYWORDS)) {
             return true;
@@ -285,5 +286,9 @@ public class DefaultChunkerService implements ChunkerService {
             }
         }
         return false;
+    }
+
+    private static String lowerCase(String text) {
+        return text.toLowerCase(Locale.ROOT);
     }
 }

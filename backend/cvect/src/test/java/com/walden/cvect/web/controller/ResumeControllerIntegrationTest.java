@@ -145,4 +145,46 @@ class ResumeControllerIntegrationTest extends PostgresIntegrationTestBase {
                                 .andDo(print())
                                 .andExpect(MockMvcResultMatchers.status().isOk());
         }
+
+        @Test
+        @DisplayName("缺少 jdId 时应返回 400")
+        void missingJdIdShouldReturn400() throws Exception {
+                mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+
+                InputStream is = getClass().getResourceAsStream("/static/My.pdf");
+                assertNotNull(is, "My.pdf 文件不存在");
+                MockMultipartFile file = new MockMultipartFile(
+                                "file",
+                                "My.pdf",
+                                "application/pdf",
+                                is.readAllBytes());
+
+                mockMvc.perform(
+                                MockMvcRequestBuilders.multipart("/api/resumes/parse")
+                                                .file(file)
+                                                .accept(MediaType.APPLICATION_JSON))
+                                .andExpect(MockMvcResultMatchers.status().isBadRequest())
+                                .andExpect(MockMvcResultMatchers.jsonPath("$.error").value("jdId is required"));
+        }
+
+        @Test
+        @DisplayName("空文件上传时应返回 400")
+        void emptyFileShouldReturn400() throws Exception {
+                mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+                String jdId = createTestJdId();
+
+                MockMultipartFile emptyFile = new MockMultipartFile(
+                                "file",
+                                "empty.pdf",
+                                "application/pdf",
+                                new byte[0]);
+
+                mockMvc.perform(
+                                MockMvcRequestBuilders.multipart("/api/resumes/parse")
+                                                .file(emptyFile)
+                                                .param("jdId", jdId)
+                                                .accept(MediaType.APPLICATION_JSON))
+                                .andExpect(MockMvcResultMatchers.status().isBadRequest())
+                                .andExpect(MockMvcResultMatchers.jsonPath("$.error").value("file is required"));
+        }
 }

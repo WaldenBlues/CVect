@@ -22,8 +22,10 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -92,5 +94,26 @@ class JobDescriptionControllerIntegrationTest extends PostgresIntegrationTestBas
                 .andExpect(status().isConflict());
 
         assertTrue(jdRepository.findById(jd.getId()).isPresent());
+    }
+
+    @Test
+    @DisplayName("should return candidateCount for JD list")
+    void shouldReturnCandidateCountInList() throws Exception {
+        JobDescription jd1 = jdRepository.save(new JobDescription("JD-1", "with candidate"));
+        JobDescription jd2 = jdRepository.save(new JobDescription("JD-2", "without candidate"));
+        candidateRepository.save(new Candidate(
+                "resume-jd1.pdf",
+                UUID.randomUUID().toString().replace("-", ""),
+                "Bob",
+                jd1,
+                "application/pdf",
+                100L,
+                50,
+                false));
+
+        mockMvc.perform(get("/api/jds"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id=='" + jd1.getId() + "')].candidateCount", hasItem(1)))
+                .andExpect(jsonPath("$[?(@.id=='" + jd2.getId() + "')].candidateCount", hasItem(0)));
     }
 }

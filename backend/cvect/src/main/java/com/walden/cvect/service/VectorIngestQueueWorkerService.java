@@ -11,14 +11,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.sql.Connection;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
@@ -36,6 +42,7 @@ public class VectorIngestQueueWorkerService {
     private final int maxAttempts;
     private final Duration staleProcessingTimeout;
     private final long maintenanceIntervalMs;
+    private final AtomicBoolean useNativeClaimQuery;
     private final AtomicLong lastMaintenanceAtMs = new AtomicLong(0L);
 
     public VectorIngestQueueWorkerService(
@@ -43,6 +50,7 @@ public class VectorIngestQueueWorkerService {
             VectorStoreService vectorStoreService,
             CandidateSnapshotService snapshotService,
             CandidateStreamService streamService,
+            JdbcTemplate jdbcTemplate,
             PlatformTransactionManager transactionManager,
             @Value("${app.vector.ingest.worker.claim-batch-size:20}") int claimBatchSize,
             @Value("${app.vector.ingest.worker.max-attempts:3}") int maxAttempts,
@@ -57,12 +65,13 @@ public class VectorIngestQueueWorkerService {
         this.maxAttempts = Math.max(1, maxAttempts);
         this.staleProcessingTimeout = Duration.ofMillis(Math.max(0L, staleProcessingMs));
         this.maintenanceIntervalMs = Math.max(1000L, maintenanceIntervalMs);
+        this.useNativeClaimQuery = new AtomicBoolean(isPostgreSql(jdbcTemplate));
     }
 
     public int consumePendingTasks() {
         runMaintenanceIfDue();
 
-        List<UUID> claimedTaskIds = inTx(() -> taskRepository.claimNextPendingBatch(claimBatchSize), List.of());
+        List<UUID> claimedTaskIds = claimNextPendingBatchWithFallback();
         if (claimedTaskIds.isEmpty()) {
             return 0;
         }
@@ -70,6 +79,41 @@ public class VectorIngestQueueWorkerService {
             processClaimedTask(taskId);
         }
         return claimedTaskIds.size();
+    }
+
+    private List<UUID> claimNextPendingBatchWithFallback() {
+        if (!useNativeClaimQuery.get()) {
+            return claimNextPendingBatchPortable();
+        }
+        try {
+            return inTx(() -> taskRepository.claimNextPendingBatch(claimBatchSize), List.of());
+        } catch (RuntimeException ex) {
+            useNativeClaimQuery.set(false);
+            log.warn("Disable native vector claim query after failure; fallback to portable claim strategy", ex);
+            return claimNextPendingBatchPortable();
+        }
+    }
+
+    private List<UUID> claimNextPendingBatchPortable() {
+        return inTx(() -> {
+            List<VectorIngestTask> pendingTasks = taskRepository.findByStatusOrderByUpdatedAtAsc(
+                    VectorIngestTaskStatus.PENDING,
+                    PageRequest.of(0, claimBatchSize));
+            if (pendingTasks.isEmpty()) {
+                return List.of();
+            }
+            List<UUID> claimedIds = new ArrayList<>();
+            for (VectorIngestTask task : pendingTasks) {
+                int updated = taskRepository.claimPendingTaskById(
+                        task.getId(),
+                        VectorIngestTaskStatus.PROCESSING,
+                        VectorIngestTaskStatus.PENDING);
+                if (updated > 0) {
+                    claimedIds.add(task.getId());
+                }
+            }
+            return claimedIds;
+        }, List.of());
     }
 
     private void runMaintenanceIfDue() {
@@ -119,29 +163,43 @@ public class VectorIngestQueueWorkerService {
         try {
             // Keep vector write and final state transition in separate transactions.
             // If vectorStoreService.save throws, the write tx rolls back without poisoning the status update tx.
-            inTxNoResult(() -> vectorStoreService.save(task.getCandidateId(), task.getChunkType(), task.getContent()));
-            inTxNoResult(() -> taskRepository.completeSuccess(
+            boolean persisted = inTx(() -> vectorStoreService.save(
+                    task.getCandidateId(),
+                    task.getChunkType(),
+                    task.getContent()), false);
+            if (!persisted) {
+                throw new IllegalStateException("Vector chunk was not persisted");
+            }
+            int updated = inTx(() -> taskRepository.completeSuccess(
                     taskId,
                     VectorIngestTaskStatus.DONE,
-                    VectorIngestTaskStatus.PROCESSING));
+                    VectorIngestTaskStatus.PROCESSING), 0);
+            if (updated == 0) {
+                log.info("Skip stale vector success commit for taskId={}", taskId);
+                return;
+            }
             publishVectorDoneIfReady(task.getCandidateId());
         } catch (Exception ex) {
             boolean transientEmbeddingOutage = isTransientEmbeddingOutage(ex);
             int currentAttempt = task.getAttempt() == null ? 0 : task.getAttempt();
-            int nextAttempt = transientEmbeddingOutage ? currentAttempt : currentAttempt + 1;
+            int nextAttempt = currentAttempt + 1;
             VectorIngestTaskStatus nextStatus;
-            if (transientEmbeddingOutage) {
-                // Keep task retryable when embedding service is temporarily unavailable.
-                nextStatus = VectorIngestTaskStatus.PENDING;
+            if (nextAttempt >= maxAttempts) {
+                nextStatus = VectorIngestTaskStatus.FAILED;
             } else {
-                nextStatus = nextAttempt >= maxAttempts ? VectorIngestTaskStatus.FAILED : VectorIngestTaskStatus.PENDING;
+                // Keep task retryable for transient outages, but still cap attempts.
+                nextStatus = VectorIngestTaskStatus.PENDING;
             }
-            inTxNoResult(() -> taskRepository.completeFailure(
+            int updated = inTx(() -> taskRepository.completeFailure(
                     taskId,
                     nextAttempt,
                     ex.getMessage(),
                     nextStatus,
-                    VectorIngestTaskStatus.PROCESSING));
+                    VectorIngestTaskStatus.PROCESSING), 0);
+            if (updated == 0) {
+                log.info("Skip stale vector failure commit for taskId={}", taskId);
+                return;
+            }
             if (transientEmbeddingOutage) {
                 log.warn("Vector ingest task delayed due to embedding connectivity issue: taskId={}", taskId, ex);
             } else if (nextStatus == VectorIngestTaskStatus.FAILED) {
@@ -188,7 +246,7 @@ public class VectorIngestQueueWorkerService {
         while (cursor != null) {
             String message = cursor.getMessage();
             if (message != null) {
-                String normalized = message.toLowerCase();
+                String normalized = message.toLowerCase(Locale.ROOT);
                 if (normalized.contains("connection refused")
                         || normalized.contains("connectexception")
                         || normalized.contains("timed out")
@@ -218,5 +276,14 @@ public class VectorIngestQueueWorkerService {
     @FunctionalInterface
     interface TxRunnable {
         void run();
+    }
+
+    private static boolean isPostgreSql(JdbcTemplate jdbcTemplate) {
+        try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {
+            String productName = connection.getMetaData().getDatabaseProductName();
+            return productName != null && productName.toLowerCase(Locale.ROOT).contains("postgresql");
+        } catch (Exception ex) {
+            return false;
+        }
     }
 }

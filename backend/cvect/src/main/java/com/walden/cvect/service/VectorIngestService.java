@@ -18,17 +18,26 @@ public class VectorIngestService {
     private static final Logger log = LoggerFactory.getLogger(VectorIngestService.class);
 
     private final VectorIngestTaskJpaRepository taskRepository;
+    private final boolean vectorEnabled;
+    private final boolean workerEnabled;
     private final long maxPendingItems;
 
     public VectorIngestService(
             VectorIngestTaskJpaRepository taskRepository,
+            @Value("${app.vector.enabled:true}") boolean vectorEnabled,
+            @Value("${app.vector.ingest.worker.enabled:true}") boolean workerEnabled,
             @Value("${app.vector.ingest.max-pending-items:5000}") long maxPendingItems) {
         this.taskRepository = taskRepository;
+        this.vectorEnabled = vectorEnabled;
+        this.workerEnabled = workerEnabled;
         this.maxPendingItems = Math.max(1L, maxPendingItems);
     }
 
     public void ingest(UUID candidateId, ChunkType chunkType, String content) {
         if (candidateId == null || chunkType == null || content == null || content.isBlank()) {
+            return;
+        }
+        if (!vectorEnabled || !workerEnabled) {
             return;
         }
         long inflight = taskRepository.countByStatusIn(List.of(

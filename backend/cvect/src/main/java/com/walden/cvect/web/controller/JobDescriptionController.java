@@ -19,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * JD 组管理 API
@@ -66,8 +68,19 @@ public class JobDescriptionController {
 
     @GetMapping
     public ResponseEntity<List<JobDescriptionSummary>> list() {
-        List<JobDescriptionSummary> data = jdRepository.findAll().stream()
-                .map(this::toSummary)
+        List<JobDescription> jds = jdRepository.findAll();
+        if (jds.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+        Map<UUID, Long> countsByJdId = candidateRepository.countGroupedByJobDescriptionIds(
+                        jds.stream().map(JobDescription::getId).toList())
+                .stream()
+                .collect(Collectors.toMap(
+                        CandidateJpaRepository.JobDescriptionCandidateCount::getJdId,
+                        CandidateJpaRepository.JobDescriptionCandidateCount::getCount,
+                        (a, b) -> a));
+        List<JobDescriptionSummary> data = jds.stream()
+                .map(jd -> toSummary(jd, countsByJdId.getOrDefault(jd.getId(), 0L)))
                 .toList();
         return ResponseEntity.ok(data);
     }
@@ -106,6 +119,9 @@ public class JobDescriptionController {
         if (jd == null) {
             return ResponseEntity.notFound().build();
         }
+        if (candidateRepository.countByJobDescriptionId(id) > 0) {
+            return ResponseEntity.status(409).build();
+        }
         vectorStoreService.deleteByJobDescription(id);
         snapshotRepository.deleteByJdId(id);
         contactRepository.deleteByJobDescriptionId(id);
@@ -122,12 +138,16 @@ public class JobDescriptionController {
     }
 
     private JobDescriptionSummary toSummary(JobDescription jd) {
+        return toSummary(jd, candidateRepository.countByJobDescriptionId(jd.getId()));
+    }
+
+    private JobDescriptionSummary toSummary(JobDescription jd, long candidateCount) {
         return new JobDescriptionSummary(
                 jd.getId(),
                 jd.getTitle(),
                 jd.getContent(),
                 jd.getCreatedAt(),
-                candidateRepository.countByJobDescriptionId(jd.getId()));
+                candidateCount);
     }
 
     public record JobDescriptionRequest(

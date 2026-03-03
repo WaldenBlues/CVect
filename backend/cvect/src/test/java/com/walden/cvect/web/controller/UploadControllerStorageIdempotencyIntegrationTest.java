@@ -10,6 +10,7 @@ import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
 import com.walden.cvect.service.UploadQueueWorkerService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,8 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.UUID;
 import java.util.stream.Stream;
+import java.io.ByteArrayOutputStream;
+import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -63,6 +66,12 @@ class UploadControllerStorageIdempotencyIntegrationTest extends PostgresIntegrat
 
     @Autowired
     private UploadQueueWorkerService workerService;
+
+    @BeforeEach
+    void cleanQueueState() {
+        itemRepository.deleteAll();
+        batchRepository.deleteAll();
+    }
 
     @Test
     @DisplayName("same resume content uploaded twice should keep only one storage blob")
@@ -136,6 +145,79 @@ class UploadControllerStorageIdempotencyIntegrationTest extends PostgresIntegrat
                         .file(file)
                         .param("jdId", jd.getId().toString()))
                 .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    @DisplayName("empty file should be rejected without queueing")
+    void emptyFileShouldBeRejectedWithoutQueueing() throws Exception {
+        JobDescription jd = jobDescriptionRepository.save(new JobDescription("Empty File JD", "desc"));
+        MockMultipartFile empty = new MockMultipartFile(
+                "files",
+                "empty.txt",
+                "text/plain",
+                new byte[0]);
+
+        MvcResult result = mockMvc.perform(multipart("/api/uploads/resumes")
+                        .file(empty)
+                        .param("jdId", jd.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.files[0].status").value("FAILED"))
+                .andExpect(jsonPath("$.files[0].errorMessage").value("Empty file is not allowed"))
+                .andReturn();
+
+        UUID batchId = UUID.fromString(JsonPath.read(result.getResponse().getContentAsString(), "$.batchId"));
+        UploadItem item = itemRepository.findByBatch_Id(batchId, PageRequest.of(0, 1)).getContent().get(0);
+        assertEquals(UploadItemStatus.FAILED, item.getStatus());
+    }
+
+    @Test
+    @DisplayName("empty zip upload should return 400 and create no batch")
+    void emptyZipShouldReturn400AndCreateNoBatch() throws Exception {
+        JobDescription jd = jobDescriptionRepository.save(new JobDescription("Empty Zip JD", "desc"));
+        long before = batchRepository.count();
+
+        MockMultipartFile emptyZip = new MockMultipartFile(
+                "zipFile",
+                "empty.zip",
+                "application/zip",
+                new byte[0]);
+
+        mockMvc.perform(multipart("/api/uploads/zip")
+                        .file(emptyZip)
+                        .param("jdId", jd.getId().toString()))
+                .andExpect(status().isBadRequest());
+
+        assertEquals(before, batchRepository.count(), "empty zip should not create upload batch");
+    }
+
+    @Test
+    @DisplayName("zip with unsupported entry should mark item failed")
+    void zipWithUnsupportedEntryShouldFailItem() throws Exception {
+        JobDescription jd = jobDescriptionRepository.save(new JobDescription("Zip Unsupported Entry JD", "desc"));
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            zos.putNextEntry(new java.util.zip.ZipEntry("bad.exe"));
+            zos.write("dummy".getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+        }
+
+        MockMultipartFile zip = new MockMultipartFile(
+                "zipFile",
+                "files.zip",
+                "application/zip",
+                baos.toByteArray());
+
+        MvcResult result = mockMvc.perform(multipart("/api/uploads/zip")
+                        .file(zip)
+                        .param("jdId", jd.getId().toString()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        UUID batchId = UUID.fromString(JsonPath.read(result.getResponse().getContentAsString(), "$.batchId"));
+        UploadItem item = itemRepository.findByBatch_Id(batchId, PageRequest.of(0, 1)).getContent().get(0);
+        assertEquals(UploadItemStatus.FAILED, item.getStatus());
+        assertEquals("Unsupported file type", item.getErrorMessage());
     }
 
     private String sha256Hex(byte[] content) throws Exception {

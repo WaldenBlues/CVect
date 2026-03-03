@@ -13,6 +13,8 @@ import java.util.Map;
 @RequestMapping("/api/resumes")
 public class ResumeController {
 
+    private static final String DEFAULT_CONTENT_TYPE = "application/octet-stream";
+
     private final ResumeProcessService processService;
 
     public ResumeController(ResumeProcessService processService) {
@@ -27,12 +29,18 @@ public class ResumeController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "contentType", required = false) String contentType,
             @RequestParam(value = "jdId", required = false) String jdId) throws IOException {
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "file is required"));
+        }
         if (jdId == null || jdId.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "jdId is required"));
         }
 
         if (contentType == null || contentType.isBlank()) {
             contentType = file.getContentType();
+        }
+        if (contentType == null || contentType.isBlank()) {
+            contentType = DEFAULT_CONTENT_TYPE;
         }
 
         java.util.UUID jobId;

@@ -61,14 +61,14 @@ public class VectorStoreService {
      * 保存 chunk 并生成向量
      */
     @Transactional
-    public void save(UUID candidateId, ChunkType chunkType, String content) {
+    public boolean save(UUID candidateId, ChunkType chunkType, String content) {
         if (!config.isEnabled()) {
             log.info("Vector store disabled, skipping save for candidateId={}, chunkType={}", candidateId, chunkType);
-            return;
+            return false;
         }
         if (!vectorAvailable) {
             logVectorUnavailableOnce("save");
-            return;
+            return false;
         }
         boolean permitAcquired = false;
         try {
@@ -76,12 +76,12 @@ public class VectorStoreService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.warn("Interrupted while waiting vector write permit, skip save: candidateId={}", candidateId);
-            return;
+            return false;
         }
         if (!permitAcquired) {
             log.warn("Vector write is throttled (permit timeout), skip save: candidateId={}, chunkType={}",
                     candidateId, chunkType);
-            return;
+            return false;
         }
         try {
             ensureIndexCompatibility();
@@ -95,6 +95,7 @@ public class VectorStoreService {
 
             log.debug("Saved vector chunk: candidateId={}, chunkType={}, contentLength={}",
                     candidateId, chunkType, content.length());
+            return true;
         } finally {
             writeSemaphore.release();
         }
@@ -155,12 +156,18 @@ public class VectorStoreService {
 
         List<SearchResult> searchResults = new ArrayList<>();
         for (Map<String, Object> row : results) {
+            float distance = ((Number) row.get("distance")).floatValue();
+            ChunkType chunkType = parseChunkType(row.get("chunk_type"));
+            if (chunkType == null) {
+                log.warn("Skip invalid vector search row with unknown chunk_type: {}", row.get("chunk_type"));
+                continue;
+            }
             searchResults.add(new SearchResult(
                     (UUID) row.get("id"),
                     (UUID) row.get("candidate_id"),
-                    ChunkType.valueOf((String) row.get("chunk_type")),
+                    chunkType,
                     (String) row.get("content"),
-                    ((Number) row.get("distance")).floatValue()));
+                    distance));
         }
 
         log.debug("Vector search returned {} results", searchResults.size());
@@ -211,8 +218,9 @@ public class VectorStoreService {
      */
     @Transactional
     public void deleteByJobDescription(UUID jobDescriptionId) {
-        String sql = "DELETE FROM " + tableName + " v USING candidates c "
-                + "WHERE v.candidate_id = c.id AND c.jd_id = ?";
+        // Use subquery form for cross-database compatibility (PostgreSQL + H2 tests).
+        String sql = "DELETE FROM " + tableName
+                + " WHERE candidate_id IN (SELECT id FROM candidates WHERE jd_id = ?)";
         int deleted = jdbcTemplate.update(sql, jobDescriptionId);
         log.info("Deleted {} vector chunks for jd: {}", deleted, jobDescriptionId);
     }
@@ -324,6 +332,17 @@ public class VectorStoreService {
         };
     }
 
+    private static ChunkType parseChunkType(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return ChunkType.valueOf(String.valueOf(raw).toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
     private int positiveDimension() {
         if (config.getDimension() <= 0) {
             throw new IllegalArgumentException("app.vector.dimension must be > 0");
@@ -360,7 +379,10 @@ public class VectorStoreService {
             float distance) {
         // distance 越小表示越相似 (余弦距离)
         public float score() {
-            return 1.0f - distance;
+            if (!Float.isFinite(distance)) {
+                return 0.0f;
+            }
+            return Math.max(0.0f, Math.min(1.0f, 1.0f - distance));
         }
     }
 }

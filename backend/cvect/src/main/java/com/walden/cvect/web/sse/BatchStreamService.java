@@ -1,6 +1,7 @@
 package com.walden.cvect.web.sse;
 
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -38,6 +39,29 @@ public class BatchStreamService {
                         .data(event));
             } catch (IOException e) {
                 remove(batchId, emitter);
+            }
+        }
+    }
+
+    @Scheduled(fixedRate = 20000)
+    public void heartbeat() {
+        if (emitters.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<UUID, List<SseEmitter>> entry : emitters.entrySet()) {
+            UUID batchId = entry.getKey();
+            List<SseEmitter> list = entry.getValue();
+            if (list == null || list.isEmpty()) {
+                continue;
+            }
+            for (SseEmitter emitter : list) {
+                try {
+                    emitter.send(SseEmitter.event()
+                            .name("ping")
+                            .data("ok"));
+                } catch (IOException e) {
+                    remove(batchId, emitter);
+                }
             }
         }
     }
