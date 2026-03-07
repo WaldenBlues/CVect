@@ -17,6 +17,15 @@ FRONTEND_LOG="${LOG_DIR}/frontend.log"
 EMBED_LOG="${LOG_DIR}/embedding.log"
 UPLOAD_MAX_INFLIGHT="${CVECT_UPLOAD_MAX_INFLIGHT_ITEMS:-2000}"
 UPLOAD_MAX_FILES_PER_ZIP="${CVECT_UPLOAD_MAX_FILES_PER_ZIP:-2000}"
+POSTGRES_WAIT_TIMEOUT="${CVECT_POSTGRES_WAIT_TIMEOUT_SECONDS:-60}"
+EMBED_WAIT_TIMEOUT="${CVECT_EMBED_WAIT_TIMEOUT_SECONDS:-60}"
+BACKEND_WAIT_TIMEOUT="${CVECT_BACKEND_WAIT_TIMEOUT_SECONDS:-180}"
+FRONTEND_WAIT_TIMEOUT="${CVECT_FRONTEND_WAIT_TIMEOUT_SECONDS:-120}"
+POSTGRES_HOST="${CVECT_DB_HOST:-localhost}"
+POSTGRES_PORT="${CVECT_DB_PORT:-5432}"
+EMBED_HEALTH_URL="${CVECT_EMBED_HEALTH_URL:-http://localhost:8001/health}"
+BACKEND_HEALTH_URL="${CVECT_BACKEND_HEALTH_URL:-http://localhost:8080/api/resumes/health}"
+FRONTEND_URL="${CVECT_FRONTEND_URL:-http://localhost:5173}"
 BACKEND_PATTERN_1="${ROOT_DIR}/backend/cvect"
 BACKEND_PATTERN_2="com.walden.cvect.CvectApplication"
 FRONTEND_PATTERN="${ROOT_DIR}/frontend/node_modules/.bin/vite --host"
@@ -33,6 +42,109 @@ is_running() {
     fi
   fi
   return 1
+}
+
+print_log_excerpt() {
+  local log_file="$1"
+  if [[ -f "${log_file}" ]]; then
+    echo "---- recent log: ${log_file} ----"
+    tail -n 20 "${log_file}" || true
+    echo "---------------------------------"
+  fi
+}
+
+assert_process_alive() {
+  local name="$1"
+  local pid_file="$2"
+  local log_file="$3"
+  if is_running "${pid_file}"; then
+    return 0
+  fi
+  echo "[${name}] exited before becoming ready"
+  print_log_excerpt "${log_file}"
+  return 1
+}
+
+http_ready() {
+  local url="$1"
+  curl -fsS "${url}" >/dev/null 2>&1
+}
+
+wait_for_http() {
+  local name="$1"
+  local url="$2"
+  local timeout_seconds="$3"
+  local pid_file="${4:-}"
+  local log_file="${5:-}"
+  local waited=0
+
+  echo "[${name}] waiting for ${url} ..."
+  while (( waited < timeout_seconds )); do
+    if http_ready "${url}"; then
+      echo "[${name}] ready"
+      return 0
+    fi
+    if [[ -n "${pid_file}" ]] && [[ -n "${log_file}" ]]; then
+      assert_process_alive "${name}" "${pid_file}" "${log_file}" || return 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  echo "[${name}] timed out after ${timeout_seconds}s waiting for ${url}"
+  if [[ -n "${pid_file}" ]] && [[ -n "${log_file}" ]]; then
+    print_log_excerpt "${log_file}"
+  fi
+  return 1
+}
+
+wait_for_tcp() {
+  local name="$1"
+  local host="$2"
+  local port="$3"
+  local timeout_seconds="$4"
+  local waited=0
+
+  echo "[${name}] waiting for tcp://${host}:${port} ..."
+  while (( waited < timeout_seconds )); do
+    if (echo >"/dev/tcp/${host}/${port}") >/dev/null 2>&1; then
+      echo "[${name}] ready"
+      return 0
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  echo "[${name}] timed out after ${timeout_seconds}s waiting for tcp://${host}:${port}"
+  return 1
+}
+
+wait_for_postgres() {
+  local container_id
+  local waited=0
+
+  container_id="$(cd "${ROOT_DIR}" && docker compose ps -q postgres 2>/dev/null || true)"
+  if [[ -n "${container_id}" ]]; then
+    echo "[postgres] waiting for container health ..."
+    while (( waited < POSTGRES_WAIT_TIMEOUT )); do
+      local status
+      status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${container_id}" 2>/dev/null || true)"
+      if [[ "${status}" == "healthy" ]]; then
+        echo "[postgres] ready"
+        return 0
+      fi
+      if [[ "${status}" == "exited" || "${status}" == "dead" ]]; then
+        echo "[postgres] container is not running (status=${status})"
+        return 1
+      fi
+      sleep 1
+      waited=$((waited + 1))
+    done
+    echo "[postgres] health check timed out after ${POSTGRES_WAIT_TIMEOUT}s"
+    return 1
+  fi
+
+  wait_for_tcp "postgres" "${POSTGRES_HOST}" "${POSTGRES_PORT}" "${POSTGRES_WAIT_TIMEOUT}"
 }
 
 start_postgres() {
@@ -134,11 +246,15 @@ status_one() {
 
 start_all() {
   start_postgres
+  wait_for_postgres
   start_embedding
+  wait_for_http "embedding" "${EMBED_HEALTH_URL}" "${EMBED_WAIT_TIMEOUT}" "${EMBED_PID_FILE}" "${EMBED_LOG}"
   start_backend
   start_frontend
+  wait_for_http "backend" "${BACKEND_HEALTH_URL}" "${BACKEND_WAIT_TIMEOUT}" "${BACKEND_PID_FILE}" "${BACKEND_LOG}"
+  wait_for_http "frontend" "${FRONTEND_URL}" "${FRONTEND_WAIT_TIMEOUT}" "${FRONTEND_PID_FILE}" "${FRONTEND_LOG}"
   echo ""
-  echo "Services are starting. Logs:"
+  echo "All services are ready. Logs:"
   echo "  embedding: ${EMBED_LOG}"
   echo "  backend:   ${BACKEND_LOG}"
   echo "  frontend:  ${FRONTEND_LOG}"
@@ -148,9 +264,9 @@ start_all() {
   echo "  CVECT_UPLOAD_MAX_FILES_PER_ZIP=${UPLOAD_MAX_FILES_PER_ZIP}"
   echo ""
   echo "URLs:"
-  echo "  frontend:  http://localhost:5173"
-  echo "  backend:   http://localhost:8080"
-  echo "  embedding: http://localhost:8001/health"
+  echo "  frontend:  ${FRONTEND_URL}"
+  echo "  backend:   ${BACKEND_HEALTH_URL%/api/resumes/health}"
+  echo "  embedding: ${EMBED_HEALTH_URL}"
 }
 
 stop_all() {
