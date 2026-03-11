@@ -168,6 +168,33 @@ curl -s http://localhost:8080/api/vector/health
 curl -s http://localhost:8001/health
 ```
 
+## 搜索指标与缓存观测
+
+Spring Boot Actuator 已暴露搜索耗时和缓存指标，可直接通过 `/actuator/metrics/{name}` 查看。
+
+常用指标：
+
+- `cvect.search.request`：`/api/search` 端到端请求耗时（包含缓存命中）
+- `cvect.search.compute`：实际语义计算耗时（仅 cache miss 会进入）
+- `cvect.cache.hit.rate`：当前缓存命中率，按 `cache` tag 区分
+- `cache.gets` / `cache.puts`：Caffeine 标准缓存读写统计
+
+常用查询示例：
+
+```bash
+curl -s http://localhost:8080/actuator/metrics/cvect.search.request
+curl -s http://localhost:8080/actuator/metrics/cvect.search.compute
+curl -s http://localhost:8080/actuator/metrics/cvect.cache.hit.rate
+curl -s "http://localhost:8080/actuator/metrics/cvect.cache.hit.rate?tag=cache:searchQueryEmbeddings"
+curl -s "http://localhost:8080/actuator/metrics/cvect.cache.hit.rate?tag=cache:semanticSearchResponses"
+```
+
+判读建议：
+
+- `cvect.search.request` 明显低于 `cvect.search.compute` 的 p95/p99，通常表示缓存有效
+- `searchQueryEmbeddings` 命中率低，说明 JD 文本复用少或 key 归一化不足
+- `semanticSearchResponses` 命中率长期接近 `0`，说明搜索条件变化太频繁，结果缓存收益有限
+
 ## 核心接口
 
 ### JD

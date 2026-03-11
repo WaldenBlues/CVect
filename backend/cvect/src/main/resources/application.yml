@@ -89,6 +89,16 @@ app:
         queue-capacity: 100
         thread-name-prefix: upload-worker-
 
+  cache:
+    enabled: ${CVECT_CACHE_ENABLED:true}
+    search:
+      query-embedding:
+        ttl: ${CVECT_CACHE_SEARCH_QUERY_EMBEDDING_TTL:30m}
+        maximum-size: ${CVECT_CACHE_SEARCH_QUERY_EMBEDDING_MAX_SIZE:128}
+      response:
+        ttl: ${CVECT_CACHE_SEARCH_RESPONSE_TTL:10s}
+        maximum-size: ${CVECT_CACHE_SEARCH_RESPONSE_MAX_SIZE:256}
+
 management:
   endpoints:
     web:
