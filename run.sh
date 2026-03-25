@@ -5,6 +5,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUN_DIR="${ROOT_DIR}/.run"
 LOG_DIR="${RUN_DIR}/logs"
 PID_DIR="${RUN_DIR}/pids"
+ENV_FILE="${ROOT_DIR}/.env"
+COMPOSE_FILE="${ROOT_DIR}/docker-compose.yml"
+
+ENV_SOURCE=""
+if [[ -f "${ENV_FILE}" ]]; then
+  ENV_SOURCE="${ENV_FILE}"
+fi
 
 mkdir -p "${LOG_DIR}" "${PID_DIR}"
 
@@ -15,22 +22,85 @@ EMBED_PID_FILE="${PID_DIR}/embedding.pid"
 BACKEND_LOG="${LOG_DIR}/backend.log"
 FRONTEND_LOG="${LOG_DIR}/frontend.log"
 EMBED_LOG="${LOG_DIR}/embedding.log"
-UPLOAD_MAX_INFLIGHT="${CVECT_UPLOAD_MAX_INFLIGHT_ITEMS:-2000}"
-UPLOAD_MAX_FILES_PER_ZIP="${CVECT_UPLOAD_MAX_FILES_PER_ZIP:-2000}"
-POSTGRES_WAIT_TIMEOUT="${CVECT_POSTGRES_WAIT_TIMEOUT_SECONDS:-60}"
-EMBED_WAIT_TIMEOUT="${CVECT_EMBED_WAIT_TIMEOUT_SECONDS:-60}"
-BACKEND_WAIT_TIMEOUT="${CVECT_BACKEND_WAIT_TIMEOUT_SECONDS:-180}"
-FRONTEND_WAIT_TIMEOUT="${CVECT_FRONTEND_WAIT_TIMEOUT_SECONDS:-120}"
-POSTGRES_HOST="${CVECT_DB_HOST:-localhost}"
-POSTGRES_PORT="${CVECT_DB_PORT:-5432}"
-EMBED_HEALTH_URL="${CVECT_EMBED_HEALTH_URL:-http://localhost:8001/health}"
-BACKEND_HEALTH_URL="${CVECT_BACKEND_HEALTH_URL:-http://localhost:8080/api/resumes/health}"
-FRONTEND_URL="${CVECT_FRONTEND_URL:-http://localhost:5173}"
 BACKEND_PATTERN_1="${ROOT_DIR}/backend/cvect"
 BACKEND_PATTERN_2="com.walden.cvect.CvectApplication"
 FRONTEND_PATTERN="${ROOT_DIR}/frontend/node_modules/.bin/vite --host"
 EMBED_PATTERN="${ROOT_DIR}/Qwen/embedding_service.py"
 EMBED_PATTERN_2="python3 embedding_service.py"
+
+read_env_value() {
+  local key="$1"
+  local line
+  local value=""
+
+  [[ -n "${ENV_SOURCE}" && -f "${ENV_SOURCE}" ]] || return 0
+
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ "${line}" =~ ^[[:space:]]*# ]] && continue
+    [[ "${line}" =~ ^[[:space:]]*$ ]] && continue
+
+    case "${line}" in
+      "${key}"=*)
+        value="${line#*=}"
+        value="${value%$'\r'}"
+        if [[ "${value}" == \"*\" && "${value}" == *\" ]]; then
+          value="${value:1:-1}"
+        elif [[ "${value}" == \'*\' && "${value}" == *\' ]]; then
+          value="${value:1:-1}"
+        fi
+        printf '%s' "${value}"
+        return 0
+        ;;
+    esac
+  done < "${ENV_SOURCE}"
+}
+
+resolve_setting() {
+  local key="$1"
+  local default_value="$2"
+  local env_value="${!key:-}"
+  local file_value=""
+
+  if [[ -n "${env_value}" ]]; then
+    printf '%s' "${env_value}"
+    return 0
+  fi
+
+  file_value="$(read_env_value "${key}")"
+  if [[ -n "${file_value}" ]]; then
+    printf '%s' "${file_value}"
+    return 0
+  fi
+
+  printf '%s' "${default_value}"
+}
+
+UPLOAD_MAX_INFLIGHT="$(resolve_setting CVECT_UPLOAD_MAX_INFLIGHT_ITEMS 2000)"
+UPLOAD_MAX_FILES_PER_ZIP="$(resolve_setting CVECT_UPLOAD_MAX_FILES_PER_ZIP 2000)"
+POSTGRES_WAIT_TIMEOUT="$(resolve_setting CVECT_POSTGRES_WAIT_TIMEOUT_SECONDS 60)"
+EMBED_WAIT_TIMEOUT="$(resolve_setting CVECT_EMBED_WAIT_TIMEOUT_SECONDS 60)"
+BACKEND_WAIT_TIMEOUT="$(resolve_setting CVECT_BACKEND_WAIT_TIMEOUT_SECONDS 180)"
+FRONTEND_WAIT_TIMEOUT="$(resolve_setting CVECT_FRONTEND_WAIT_TIMEOUT_SECONDS 120)"
+POSTGRES_HOST="$(resolve_setting CVECT_DB_HOST localhost)"
+POSTGRES_PORT="$(resolve_setting CVECT_DB_PORT 5432)"
+POSTGRES_DB="$(resolve_setting CVECT_POSTGRES_DB cvect)"
+POSTGRES_USER="$(resolve_setting CVECT_POSTGRES_USER postgres)"
+POSTGRES_PASSWORD="$(resolve_setting CVECT_POSTGRES_PASSWORD postgres)"
+BACKEND_PORT="$(resolve_setting CVECT_SERVER_PORT 8080)"
+BACKEND_DB_URL="$(resolve_setting CVECT_DB_URL "jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}")"
+BACKEND_DB_USERNAME="$(resolve_setting CVECT_DB_USERNAME "${POSTGRES_USER}")"
+BACKEND_DB_PASSWORD="$(resolve_setting CVECT_DB_PASSWORD "${POSTGRES_PASSWORD}")"
+EMBED_HEALTH_URL="${CVECT_EMBED_HEALTH_URL:-http://localhost:8001/health}"
+BACKEND_HEALTH_URL="${CVECT_BACKEND_HEALTH_URL:-http://localhost:${BACKEND_PORT}/api/resumes/health}"
+FRONTEND_URL="${CVECT_FRONTEND_URL:-http://localhost:5173}"
+
+run_local_compose() {
+  if [[ -n "${ENV_SOURCE}" ]]; then
+    docker compose --env-file "${ENV_SOURCE}" -f "${COMPOSE_FILE}" "$@"
+  else
+    docker compose -f "${COMPOSE_FILE}" "$@"
+  fi
+}
 
 is_running() {
   local pid_file="$1"
@@ -123,7 +193,7 @@ wait_for_postgres() {
   local container_id
   local waited=0
 
-  container_id="$(cd "${ROOT_DIR}" && docker compose ps -q postgres 2>/dev/null || true)"
+  container_id="$(cd "${ROOT_DIR}" && run_local_compose ps -q postgres 2>/dev/null || true)"
   if [[ -n "${container_id}" ]]; then
     echo "[postgres] waiting for container health ..."
     while (( waited < POSTGRES_WAIT_TIMEOUT )); do
@@ -149,7 +219,7 @@ wait_for_postgres() {
 
 start_postgres() {
   echo "[postgres] starting..."
-  (cd "${ROOT_DIR}" && docker compose up -d postgres)
+  (cd "${ROOT_DIR}" && run_local_compose up -d postgres)
 }
 
 start_embedding() {
@@ -174,6 +244,10 @@ start_backend() {
   (
     cd "${ROOT_DIR}/backend/cvect"
     nohup env \
+      CVECT_DB_URL="${BACKEND_DB_URL}" \
+      CVECT_DB_USERNAME="${BACKEND_DB_USERNAME}" \
+      CVECT_DB_PASSWORD="${BACKEND_DB_PASSWORD}" \
+      CVECT_SERVER_PORT="${BACKEND_PORT}" \
       CVECT_UPLOAD_MAX_INFLIGHT_ITEMS="${UPLOAD_MAX_INFLIGHT}" \
       CVECT_UPLOAD_MAX_FILES_PER_ZIP="${UPLOAD_MAX_FILES_PER_ZIP}" \
       ./mvnw -Dmaven.test.skip=true spring-boot:run >"${BACKEND_LOG}" 2>&1 &

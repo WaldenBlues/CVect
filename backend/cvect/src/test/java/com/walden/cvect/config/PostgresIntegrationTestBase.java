@@ -4,13 +4,10 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
-
 public abstract class PostgresIntegrationTestBase {
 
     protected static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(
-            DockerImageName.parse("pgvector/pgvector:pg17")
-                    .asCompatibleSubstituteFor("postgres"))
+            TestContainerImages.postgresPgvector())
             .withDatabaseName("cvect_test")
             .withUsername("test")
             .withPassword("test");

@@ -126,6 +126,8 @@ npm install
 
 - `run.sh` 会在 `frontend/node_modules` 缺失时自动执行 `npm install`
 - `run.sh` 不会自动安装 Python 依赖，`Qwen` 环境需要先准备好
+- `run.sh` 会优先读取根目录 `.env`；没有 `.env` 时使用本地默认值
+- 本地 PostgreSQL 默认也走 `CVECT_POSTGRES_IMAGE`，未覆盖时使用 DaoCloud 的 `pgvector` 镜像
 - 脚本日志输出到 `.run/logs/`
 
 ### 手动分服务启动
@@ -250,6 +252,11 @@ scripts/cloud-deploy.sh up
 - `CVECT_ALPINE_APK_MIRROR`
 - `CVECT_HF_ENDPOINT`
 - `CVECT_HF_HUB_OFFLINE`
+- `CVECT_HF_LOCAL_FILES_ONLY`
+- `CVECT_HF_HUB_DISABLE_XET`
+- `CVECT_HTTP_PROXY`
+- `CVECT_HTTPS_PROXY`
+- `CVECT_NO_PROXY`
 
 1. 复制环境变量模板并按实际环境调整：
 
@@ -605,7 +612,74 @@ npm test
 注意：
 
 - 这套编排依赖 GPU
+- `scripts/vllm-*.sh` 会优先读取根目录 `.env`
+- `infra/vllm/docker-compose.yml` 默认使用 DaoCloud 的 `vllm/vllm-openai` 和 `nginx` 镜像，可通过 `.env` 中的 `CVECT_VLLM_IMAGE`、`CVECT_VLLM_GATEWAY_IMAGE` 覆盖
 - `vllm_emb` 也会占用 `8001`，不要和根目录 `run.sh` 启动的 `Qwen/embedding_service.py` 同时运行
+
+## Hugging Face 故障排查
+
+如果 `qwen` 日志里出现：
+
+- `Network is unreachable`
+- `TimeoutError`
+- `Can't load the configuration of 'Qwen/...`
+- health check 持续失败，`backend/frontend` 卡在 `Created`
+
+通常不是业务代码问题，而是 `qwen` 容器拉不到模型。
+
+先跑诊断脚本：
+
+```bash
+bash scripts/debug-hf-connectivity.sh
+```
+
+优先恢复路径有两条：
+
+1. 服务器可以通过代理或可达镜像访问外网
+
+在 `.env` 里配置：
+
+```bash
+CVECT_HF_ENDPOINT=https://huggingface.co
+CVECT_HTTP_PROXY=http://<proxy-host>:<port>
+CVECT_HTTPS_PROXY=http://<proxy-host>:<port>
+CVECT_NO_PROXY=127.0.0.1,localhost,postgres,qwen,backend,frontend
+```
+
+如果主站可达但 Xet 下载链路不通，再加：
+
+```bash
+CVECT_HF_HUB_DISABLE_XET=true
+```
+
+然后只重建 `qwen`：
+
+```bash
+docker compose --env-file .env -f docker-compose.prod.yml up -d --force-recreate qwen
+```
+
+2. 服务器完全不能访问 Hugging Face
+
+先在一台可联网机器上预热模型缓存，再把 Hugging Face 缓存目录拷到服务器对应数据卷，随后在 `.env` 里配置：
+
+```bash
+CVECT_HF_HUB_OFFLINE=true
+CVECT_HF_LOCAL_FILES_ONLY=true
+```
+
+然后重建 `qwen`：
+
+```bash
+docker compose --env-file .env -f docker-compose.prod.yml up -d --force-recreate qwen
+```
+
+`backend/frontend` 本身不需要因为这个问题单独重建；`qwen` healthy 之后，再执行一次：
+
+```bash
+scripts/cloud-deploy.sh up
+```
+
+把剩余服务补起来即可。
 
 ## 已知边界
 

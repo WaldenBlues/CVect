@@ -29,6 +29,14 @@ services:
       GENERATION_MODEL_ID: ${CVECT_GENERATION_MODEL:?set in .env}
       HF_ENDPOINT: ${CVECT_HF_ENDPOINT:?set in .env}
       HF_HUB_OFFLINE: ${CVECT_HF_HUB_OFFLINE:?set in .env}
+      HF_LOCAL_FILES_ONLY: ${CVECT_HF_LOCAL_FILES_ONLY:?set in .env}
+      HF_HUB_DISABLE_XET: ${CVECT_HF_HUB_DISABLE_XET:?set in .env}
+      HTTP_PROXY: ${CVECT_HTTP_PROXY-}
+      HTTPS_PROXY: ${CVECT_HTTPS_PROXY-}
+      NO_PROXY: ${CVECT_NO_PROXY-}
+      http_proxy: ${CVECT_HTTP_PROXY-}
+      https_proxy: ${CVECT_HTTPS_PROXY-}
+      no_proxy: ${CVECT_NO_PROXY-}
       DEVICE: ${CVECT_EMBEDDING_DEVICE:?set in .env}
       TORCH_DTYPE: ${CVECT_TORCH_DTYPE:?set in .env}
       MAX_BATCH_SIZE: ${CVECT_EMBEDDING_BATCH_SIZE:?set in .env}

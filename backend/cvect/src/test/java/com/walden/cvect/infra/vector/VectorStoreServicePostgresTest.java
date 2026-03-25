@@ -1,5 +1,6 @@
 package com.walden.cvect.infra.vector;
 
+import com.walden.cvect.config.TestContainerImages;
 import com.walden.cvect.infra.embedding.EmbeddingService;
 import com.walden.cvect.model.ChunkType;
 import com.walden.cvect.model.ParseResult;
@@ -18,7 +19,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -48,8 +48,7 @@ class VectorStoreServicePostgresTest {
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
-            DockerImageName.parse("pgvector/pgvector:pg17")
-                    .asCompatibleSubstituteFor("postgres"))
+            TestContainerImages.postgresPgvector())
             .withDatabaseName("cvect_test")
             .withUsername("test")
             .withPassword("test");

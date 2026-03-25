@@ -1,8 +1,6 @@
-version: "3.9"
-
 services:
   vllm_llm:
-    image: vllm/vllm-openai:latest
+    image: ${CVECT_VLLM_IMAGE:-m.daocloud.io/docker.io/vllm/vllm-openai:latest}
     container_name: cvect-vllm-llm
     ports:
       - "8000:8000"
@@ -21,7 +19,7 @@ services:
       - "8000"
 
   vllm_emb:
-    image: vllm/vllm-openai:latest
+    image: ${CVECT_VLLM_IMAGE:-m.daocloud.io/docker.io/vllm/vllm-openai:latest}
     container_name: cvect-vllm-emb
     ports:
       - "8001:8000"
@@ -42,7 +40,7 @@ services:
       - "8000"
 
   vllm_gateway:
-    image: nginx:alpine
+    image: ${CVECT_VLLM_GATEWAY_IMAGE:-m.daocloud.io/docker.io/library/nginx:1.27-alpine}
     container_name: cvect-vllm-gateway
     ports:
       - "8002:80"

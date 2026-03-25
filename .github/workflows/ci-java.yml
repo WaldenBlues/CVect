@@ -32,6 +32,7 @@ jobs:
     env:
       MAVEN_OPTS: -Xmx2g
       MAVEN_REPO_LOCAL: ${{ github.workspace }}/.m2-ci
+      CVECT_TESTCONTAINERS_POSTGRES_IMAGE: m.daocloud.io/docker.io/pgvector/pgvector:pg17
 
     steps:
       - name: Checkout
