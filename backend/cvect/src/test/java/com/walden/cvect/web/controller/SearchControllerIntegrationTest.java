@@ -1,6 +1,8 @@
 package com.walden.cvect.web.controller;
 
+import com.walden.cvect.config.TestEmbeddings;
 import com.walden.cvect.infra.vector.VectorStoreService;
+import com.walden.cvect.infra.vector.VectorStoreConfig;
 import com.walden.cvect.infra.embedding.EmbeddingService;
 import com.walden.cvect.model.ParseResult;
 import com.walden.cvect.model.ResumeChunk;
@@ -10,24 +12,28 @@ import com.walden.cvect.infra.process.ResumeTextNormalizer;
 import com.walden.cvect.model.entity.Candidate;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.service.ChunkerService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import com.walden.cvect.config.PostgresIntegrationTestBase;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
  * SearchController API 集成测试
@@ -40,21 +46,21 @@ import static org.junit.jupiter.api.Assertions.*;
  * 如果 Docker 不可用，测试会自动跳过
  */
 @SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
                 "app.upload.worker.enabled=false",
                 "app.vector.ingest.worker.enabled=false"
         })
+@AutoConfigureMockMvc
 @Tag("integration")
 @Tag("api")
 @DisplayName("SearchController API 测试（流水线测试）")
 class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
 
-    @LocalServerPort
-    private int port;
+    @Autowired
+    private MockMvc mockMvc;
 
     @Autowired
-    private TestRestTemplate restTemplate;
+    private ObjectMapper objectMapper;
 
     @Autowired(required = false)
     private SearchController searchController;
@@ -71,26 +77,34 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
     @Autowired(required = false)
     private VectorStoreService vectorStore;
 
-    @Autowired(required = false)
+    @Autowired
+    private VectorStoreConfig vectorStoreConfig;
+
+    @MockBean
     private EmbeddingService embeddingService;
 
     @Autowired
     private CandidateJpaRepository candidateRepository;
 
-    private String baseUrl;
+    private ApiResponse postSearch(String requestBody) throws Exception {
+        MvcResult result = mockMvc.perform(
+                        post("/api/search")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestBody))
+                .andReturn();
 
-    private ResponseEntity<Map> postSearch(String requestBody) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        return restTemplate.postForEntity(
-                baseUrl + "/api/search",
-                new HttpEntity<>(requestBody, headers),
-                Map.class);
+        String responseBody = result.getResponse().getContentAsString();
+        Map<String, Object> body = responseBody.isBlank()
+                ? null
+                : objectMapper.readValue(responseBody, Map.class);
+        return new ApiResponse(HttpStatus.valueOf(result.getResponse().getStatus()), body);
     }
 
     @BeforeEach
     void setUp() {
-        baseUrl = "http://localhost:" + port;
+        when(embeddingService.embed(anyString()))
+                .thenAnswer(invocation ->
+                        TestEmbeddings.forText(invocation.getArgument(0, String.class)));
     }
 
     /**
@@ -112,6 +126,10 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
                 .toList();
     }
 
+    private boolean isVectorSearchReady() {
+        return vectorStore != null && vectorStoreConfig.isEnabled();
+    }
+
     @Test
     @DisplayName("服务应正确初始化")
     void should_initialize_correctly() {
@@ -126,8 +144,8 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
     @DisplayName("搜索 API 应返回有效响应结构（Docker 模式）")
     @Tag("pipeline")
     void should_return_valid_search_response_structure() {
-        Assumptions.assumeTrue(vectorStore != null && embeddingService != null,
-            "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务");
+        Assumptions.assumeTrue(isVectorSearchReady(),
+            "跳过：需要 PostgreSQL + pgvector");
 
         // Given
         String requestBody = """
@@ -140,15 +158,15 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
             """;
 
         // When
-        ResponseEntity<Map> response = postSearch(requestBody);
-        Assumptions.assumeTrue(response.getStatusCode() == HttpStatus.OK,
-                "跳过：搜索依赖未就绪，状态码=" + response.getStatusCode());
+        ApiResponse response = assertDoesNotThrow(() -> postSearch(requestBody));
+        Assumptions.assumeTrue(response.status() == HttpStatus.OK,
+                "跳过：搜索依赖未就绪，状态码=" + response.status());
 
         // Then
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
+        assertEquals(HttpStatus.OK, response.status());
+        assertNotNull(response.body());
 
-        Map body = response.getBody();
+        Map<String, Object> body = response.body();
         assertTrue(body.containsKey("totalResults"));
         assertTrue(body.containsKey("requested"));
         assertTrue(body.containsKey("candidates"));
@@ -158,8 +176,8 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
     @DisplayName("搜索请求应支持自定义 topK 参数（Docker 模式）")
     @Tag("pipeline")
     void should_support_custom_topK() {
-        Assumptions.assumeTrue(vectorStore != null && embeddingService != null,
-            "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务");
+        Assumptions.assumeTrue(isVectorSearchReady(),
+            "跳过：需要 PostgreSQL + pgvector");
 
         // Given
         String requestBody = """
@@ -172,22 +190,22 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
             """;
 
         // When
-        ResponseEntity<Map> response = postSearch(requestBody);
-        Assumptions.assumeTrue(response.getStatusCode() == HttpStatus.OK,
-                "跳过：搜索依赖未就绪，状态码=" + response.getStatusCode());
+        ApiResponse response = assertDoesNotThrow(() -> postSearch(requestBody));
+        Assumptions.assumeTrue(response.status() == HttpStatus.OK,
+                "跳过：搜索依赖未就绪，状态码=" + response.status());
 
         // Then
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(5, response.getBody().get("requested"));
+        assertEquals(HttpStatus.OK, response.status());
+        assertNotNull(response.body());
+        assertEquals(5, response.body().get("requested"));
     }
 
     @Test
     @DisplayName("搜索请求应支持类型过滤（Docker 模式）")
     @Tag("pipeline")
     void should_support_type_filtering() {
-        Assumptions.assumeTrue(vectorStore != null && embeddingService != null,
-            "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务");
+        Assumptions.assumeTrue(isVectorSearchReady(),
+            "跳过：需要 PostgreSQL + pgvector");
 
         // Given: 只搜索 EXPERIENCE
         String requestBody = """
@@ -200,20 +218,20 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
             """;
 
         // When
-        ResponseEntity<Map> response = postSearch(requestBody);
-        Assumptions.assumeTrue(response.getStatusCode() == HttpStatus.OK,
-                "跳过：搜索依赖未就绪，状态码=" + response.getStatusCode());
+        ApiResponse response = assertDoesNotThrow(() -> postSearch(requestBody));
+        Assumptions.assumeTrue(response.status() == HttpStatus.OK,
+                "跳过：搜索依赖未就绪，状态码=" + response.status());
 
         // Then
-        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(HttpStatus.OK, response.status());
     }
 
     @Test
     @DisplayName("空 jobDescription 应返回空结果（Docker 模式）")
     @Tag("pipeline")
     void should_handle_empty_job_description() {
-        Assumptions.assumeTrue(vectorStore != null && embeddingService != null,
-            "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务");
+        Assumptions.assumeTrue(isVectorSearchReady(),
+            "跳过：需要 PostgreSQL + pgvector");
 
         // Given
         String requestBody = """
@@ -226,43 +244,43 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
             """;
 
         // When
-        ResponseEntity<Map> response = postSearch(requestBody);
+        ApiResponse response = assertDoesNotThrow(() -> postSearch(requestBody));
 
         // Then
         assertTrue(
-                response.getStatusCode() == HttpStatus.OK ||
-                response.getStatusCode() == HttpStatus.BAD_REQUEST
+                response.status() == HttpStatus.OK ||
+                response.status() == HttpStatus.BAD_REQUEST
         );
     }
 
     @Test
     @DisplayName("创建索引 API 应正常工作（Docker 模式）")
     @Tag("admin")
-    void should_create_index_via_api() {
-        Assumptions.assumeTrue(vectorStore != null,
+    void should_create_index_via_api() throws Exception {
+        Assumptions.assumeTrue(isVectorSearchReady(),
             "跳过：需要 PostgreSQL + pgvector");
 
         // When
-        ResponseEntity<String> response = restTemplate.postForEntity(
-                baseUrl + "/api/search/admin/create-index",
-                null,
-                String.class
-        );
+        MvcResult response = assertDoesNotThrow(() -> mockMvc.perform(
+                        post("/api/search/admin/create-index"))
+                .andReturn());
+        HttpStatus status = HttpStatus.valueOf(response.getResponse().getStatus());
+        String body = response.getResponse().getContentAsString(StandardCharsets.UTF_8);
 
         // Then
-        Assumptions.assumeTrue(response.getStatusCode() == HttpStatus.OK,
-                "跳过：当前数据库不支持 HNSW 索引，状态码=" + response.getStatusCode());
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertTrue(response.getBody().contains("HNSW"));
+        Assumptions.assumeTrue(status == HttpStatus.OK,
+                "跳过：当前数据库不支持 HNSW 索引，状态码=" + status);
+        assertEquals(HttpStatus.OK, status);
+        assertNotNull(body);
+        assertTrue(body.contains("HNSW"));
     }
 
     @Test
     @DisplayName("全链路测试：从 PDF 解析到搜索 API（Docker 模式）")
     @Tag("pipeline")
     void should_support_full_pipeline_to_search() throws Exception {
-        Assumptions.assumeTrue(vectorStore != null && embeddingService != null,
-            "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务");
+        Assumptions.assumeTrue(isVectorSearchReady(),
+            "跳过：需要 PostgreSQL + pgvector");
 
         // Given: 从 My.pdf 解析获取 EXPERIENCE chunk
         List<ResumeChunk> experienceChunks = getChunksFromPdf("/static/My.pdf", ChunkType.EXPERIENCE);
@@ -276,19 +294,11 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
 
         // 存储向量数据
         if (!experienceChunks.isEmpty()) {
-            try {
-                vectorStore.save(candidateId, ChunkType.EXPERIENCE, experienceChunks.get(0).getContent());
-            } catch (Exception e) {
-                // Python 服务未启动时跳过
-            }
+            vectorStore.save(candidateId, ChunkType.EXPERIENCE, experienceChunks.get(0).getContent());
         }
 
         if (!skillChunks.isEmpty()) {
-            try {
-                vectorStore.save(candidateId, ChunkType.SKILL, skillChunks.get(0).getContent());
-            } catch (Exception e) {
-                // Python 服务未启动时跳过
-            }
+            vectorStore.save(candidateId, ChunkType.SKILL, skillChunks.get(0).getContent());
         }
 
         // When: 搜索与存储内容相关的职位
@@ -301,22 +311,22 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
             }
             """;
 
-        ResponseEntity<Map> response = postSearch(searchRequest);
-        Assumptions.assumeTrue(response.getStatusCode() == HttpStatus.OK,
-                "跳过：搜索依赖未就绪，状态码=" + response.getStatusCode());
+        ApiResponse response = assertDoesNotThrow(() -> postSearch(searchRequest));
+        Assumptions.assumeTrue(response.status() == HttpStatus.OK,
+                "跳过：搜索依赖未就绪，状态码=" + response.status());
 
         // Then: 验证 API 响应
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertTrue(response.getBody().containsKey("candidates"));
+        assertEquals(HttpStatus.OK, response.status());
+        assertNotNull(response.body());
+        assertTrue(response.body().containsKey("candidates"));
     }
 
     @Test
     @DisplayName("搜索结果应包含候选人匹配信息（Docker 模式）")
     @Tag("pipeline")
     void should_include_candidate_info_in_results() {
-        Assumptions.assumeTrue(vectorStore != null && embeddingService != null,
-            "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务");
+        Assumptions.assumeTrue(isVectorSearchReady(),
+            "跳过：需要 PostgreSQL + pgvector");
 
         // Given
         String requestBody = """
@@ -329,11 +339,11 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
             """;
 
         // When
-        ResponseEntity<Map> response = postSearch(requestBody);
+        ApiResponse response = assertDoesNotThrow(() -> postSearch(requestBody));
 
         // Then
-        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-            Map body = response.getBody();
+        if (response.status() == HttpStatus.OK && response.body() != null) {
+            Map<String, Object> body = response.body();
             List<?> candidates = (List<?>) body.get("candidates");
 
             if (candidates != null && !candidates.isEmpty()) {
@@ -358,5 +368,8 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
                 32,
                 false);
         return candidateRepository.save(candidate).getId();
+    }
+
+    private record ApiResponse(HttpStatus status, Map<String, Object> body) {
     }
 }

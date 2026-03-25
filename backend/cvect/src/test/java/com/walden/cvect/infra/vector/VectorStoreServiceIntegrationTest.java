@@ -1,5 +1,6 @@
 package com.walden.cvect.infra.vector;
 
+import com.walden.cvect.config.TestEmbeddings;
 import com.walden.cvect.infra.embedding.EmbeddingService;
 import com.walden.cvect.model.ChunkType;
 import com.walden.cvect.model.ParseResult;
@@ -12,6 +13,7 @@ import com.walden.cvect.service.ChunkerService;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import com.walden.cvect.config.PostgresIntegrationTestBase;
 
 import java.io.InputStream;
@@ -20,6 +22,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 /**
  * VectorStoreService 集成测试
@@ -28,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * PDF -> parser -> normalizer -> chunker -> fact extraction -> vector storage
  *
  * 前置条件：Testcontainers 提供 PostgreSQL + pgvector
+ * embedding 依赖由 mock 提供，避免依赖外部 HTTP 服务
  *
  * 如果 Docker 不可用，测试会自动跳过
  */
@@ -52,7 +57,7 @@ class VectorStoreServiceIntegrationTest extends PostgresIntegrationTestBase {
     @Autowired
     private ChunkerService chunker;
 
-    @Autowired(required = false)
+    @MockBean
     private EmbeddingService embeddingService;
 
     @Autowired
@@ -82,6 +87,9 @@ class VectorStoreServiceIntegrationTest extends PostgresIntegrationTestBase {
     @BeforeEach
     void setUp() {
         testCandidateId = createCandidateId("vector-integration");
+        when(embeddingService.embed(anyString()))
+                .thenAnswer(invocation ->
+                        TestEmbeddings.forText(invocation.getArgument(0, String.class)));
     }
 
     @AfterEach
@@ -160,8 +168,8 @@ class VectorStoreServiceIntegrationTest extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("全链路测试：从 PDF 到向量存储")
     void should_store_vectors_from_pdf_pipeline() throws Exception {
-        Assumptions.assumeTrue(vectorStore != null && embeddingService != null,
-            "跳过：需要 PostgreSQL + pgvector 和 Python embedding 服务");
+        Assumptions.assumeTrue(vectorStore != null,
+            "跳过：需要 PostgreSQL + pgvector");
 
         // Given: 从 Resume.pdf 解析获取所有 chunks（遵循完整流水线）
         InputStream is = getClass().getResourceAsStream("/static/Resume.pdf");
@@ -181,14 +189,7 @@ class VectorStoreServiceIntegrationTest extends PostgresIntegrationTestBase {
         // When: 存储所有向量
         List<VectorStoreService.SearchResult> savedResults = new ArrayList<>();
         for (ResumeChunk chunk : vectorChunks) {
-            try {
-                vectorStore.save(testCandidateId, chunk.getType(), chunk.getContent());
-            } catch (Exception e) {
-                // 如果 Python 服务未启动，跳过 embedding 失败的情况
-                if (!e.getMessage().contains("Embedding")) {
-                    throw e;
-                }
-            }
+            vectorStore.save(testCandidateId, chunk.getType(), chunk.getContent());
         }
 
         // Then: 验证至少尝试保存了数据

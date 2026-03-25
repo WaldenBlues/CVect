@@ -1,5 +1,6 @@
 package com.walden.cvect.infra.vector;
 
+import com.walden.cvect.config.TestEmbeddings;
 import com.walden.cvect.config.TestContainerImages;
 import com.walden.cvect.infra.embedding.EmbeddingService;
 import com.walden.cvect.model.ChunkType;
@@ -100,14 +101,10 @@ class VectorStoreServicePostgresTest {
     @BeforeEach
     void setUp() {
         testCandidateId = createCandidateId("vector-postgres-main");
-        
-        // Mock embedding service to return dummy embeddings
-        float[] dummyEmbedding = new float[1024];
-        // Initialize with some values for similarity testing
-        for (int i = 0; i < dummyEmbedding.length; i++) {
-            dummyEmbedding[i] = (float) Math.random() * 0.1f;
-        }
-        when(embeddingService.embed(anyString())).thenReturn(dummyEmbedding);
+
+        when(embeddingService.embed(anyString()))
+                .thenAnswer(invocation ->
+                        TestEmbeddings.forText(invocation.getArgument(0, String.class)));
     }
 
     @AfterEach
@@ -153,10 +150,7 @@ class VectorStoreServicePostgresTest {
         vectorStore.save(testCandidateId, ChunkType.SKILL, "Spring Boot, Docker, Kubernetes");
         
         // Create query embedding (similar to saved content)
-        float[] queryEmbedding = new float[1024];
-        for (int i = 0; i < queryEmbedding.length; i++) {
-            queryEmbedding[i] = (float) Math.random() * 0.1f;
-        }
+        float[] queryEmbedding = TestEmbeddings.forText("Java development with microservices");
         
         // When: Search for similar vectors
         var results = vectorStore.search(queryEmbedding, 10, ChunkType.EXPERIENCE, ChunkType.SKILL);
