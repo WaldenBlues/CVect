@@ -1,0 +1,7 @@
+.datagen_logs
+.datagen_work
+.hf_cache
+.service_logs
+.venv
+__pycache__
+generated_resumes_1000

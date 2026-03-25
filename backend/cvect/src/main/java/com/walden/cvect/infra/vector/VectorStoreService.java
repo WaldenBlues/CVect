@@ -284,6 +284,20 @@ public class VectorStoreService {
         }
     }
 
+    public boolean isOperational() {
+        return config.isEnabled() && vectorAvailable;
+    }
+
+    public String getAvailabilityMessage() {
+        if (!config.isEnabled()) {
+            return "Vector store disabled by configuration";
+        }
+        if (vectorAvailable) {
+            return null;
+        }
+        return "pgvector extension is unavailable";
+    }
+
     private void ensureIndexCompatibility() {
         if (!config.isEnabled() || !vectorAvailable) {
             return;

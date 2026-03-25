@@ -1,6 +1,7 @@
 package com.walden.cvect.web.controller;
 
 import com.walden.cvect.infra.embedding.EmbeddingConfig;
+import com.walden.cvect.infra.vector.VectorStoreService;
 import com.walden.cvect.model.entity.vector.VectorIngestTaskStatus;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +24,8 @@ class VectorHealthControllerTest {
 
     @Mock
     private VectorIngestTaskJpaRepository taskRepository;
+    @Mock
+    private VectorStoreService vectorStoreService;
 
     @Test
     @DisplayName("health should return DISABLED without probing embedding when vector is disabled")
@@ -30,7 +33,7 @@ class VectorHealthControllerTest {
         EmbeddingConfig config = new EmbeddingConfig();
         config.setServiceUrl("http://127.0.0.1:65535/embed");
         when(taskRepository.countByStatusIn(anyCollection())).thenReturn(0L);
-        VectorHealthController controller = new VectorHealthController(taskRepository, config, false, true);
+        VectorHealthController controller = new VectorHealthController(taskRepository, config, vectorStoreService, false, true);
 
         ResponseEntity<VectorHealthController.VectorHealthResponse> response = controller.health();
 
@@ -53,11 +56,13 @@ class VectorHealthControllerTest {
             }
             return 0L;
         });
-        VectorHealthController controller = new VectorHealthController(taskRepository, config, true, false);
+        when(vectorStoreService.isOperational()).thenReturn(true);
+        when(vectorStoreService.getAvailabilityMessage()).thenReturn(null);
+        VectorHealthController controller = new VectorHealthController(taskRepository, config, vectorStoreService, true, false);
 
         ResponseEntity<VectorHealthController.VectorHealthResponse> response = controller.health();
 
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(503, response.getStatusCode().value());
         assertNotNull(response.getBody());
         assertEquals("DEGRADED", response.getBody().status());
         assertEquals(false, response.getBody().embeddingReachable());

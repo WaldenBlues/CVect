@@ -6,7 +6,7 @@ Features:
 - POST /embed: text embeddings
 - POST /generate: text generation
 - POST /models/preload: preload/download models
-- GET /health, GET /info
+- GET /health, GET /ready, GET /info
 
 Env vars:
 - EMBEDDING_MODEL_ID: default "Qwen/Qwen3-Embedding-0.6B"
@@ -19,6 +19,7 @@ Env vars:
 - HOST: default 0.0.0.0
 - PORT: default 8001
 - PRELOAD_MODELS: true/false (default false)
+- READINESS_REQUIRE_GENERATION: true/false (default false)
 """
 
 from __future__ import annotations
@@ -73,6 +74,9 @@ MAX_BATCH_SIZE = int(os.getenv("MAX_BATCH_SIZE", "64"))
 MAX_INPUT_LENGTH = int(os.getenv("MAX_INPUT_LENGTH", "8192"))
 MAX_NEW_TOKENS_DEFAULT = int(os.getenv("MAX_NEW_TOKENS_DEFAULT", "256"))
 LOCAL_FILES_ONLY = os.getenv("HF_LOCAL_FILES_ONLY", "false").strip().lower() == "true"
+READINESS_REQUIRE_GENERATION = (
+    os.getenv("READINESS_REQUIRE_GENERATION", "false").strip().lower() == "true"
+)
 
 
 class EmbeddingRequest(BaseModel):
@@ -274,6 +278,31 @@ def health() -> Dict[str, object]:
         "dtype": str(TORCH_DTYPE).replace("torch.", ""),
         "embedding_loaded": registry.embedding_model is not None,
         "generation_loaded": registry.generation_model is not None,
+    }
+
+
+@app.get("/ready")
+def ready() -> Dict[str, object]:
+    start = time.time()
+    try:
+        registry.load_embedding()
+        generation_ready = registry.generation_model is not None
+        if READINESS_REQUIRE_GENERATION:
+            registry.load_generation()
+            generation_ready = True
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Readiness probe failed")
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    elapsed = (time.time() - start) * 1000
+    return {
+        "status": "ready",
+        "device": DEVICE,
+        "dtype": str(TORCH_DTYPE).replace("torch.", ""),
+        "embedding_loaded": registry.embedding_model is not None,
+        "generation_loaded": generation_ready,
+        "generation_required": READINESS_REQUIRE_GENERATION,
+        "processing_time_ms": round(elapsed, 2),
     }
 
 

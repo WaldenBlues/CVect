@@ -1,9 +1,11 @@
 package com.walden.cvect.web.controller;
 
 import com.walden.cvect.infra.embedding.EmbeddingConfig;
+import com.walden.cvect.infra.vector.VectorStoreService;
 import com.walden.cvect.model.entity.vector.VectorIngestTaskStatus;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,10 +20,11 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/vector")
 public class VectorHealthController {
-    private static final String DEFAULT_EMBEDDING_HEALTH_URL = "http://localhost:8001/health";
+    private static final String DEFAULT_EMBEDDING_READY_URL = "http://localhost:8001/ready";
 
     private final VectorIngestTaskJpaRepository taskRepository;
     private final EmbeddingConfig embeddingConfig;
+    private final VectorStoreService vectorStoreService;
     private final WebClient webClient;
     private final boolean vectorEnabled;
     private final boolean workerEnabled;
@@ -29,10 +32,12 @@ public class VectorHealthController {
     public VectorHealthController(
             VectorIngestTaskJpaRepository taskRepository,
             EmbeddingConfig embeddingConfig,
+            VectorStoreService vectorStoreService,
             @Value("${app.vector.enabled:true}") boolean vectorEnabled,
             @Value("${app.vector.ingest.worker.enabled:true}") boolean workerEnabled) {
         this.taskRepository = taskRepository;
         this.embeddingConfig = embeddingConfig;
+        this.vectorStoreService = vectorStoreService;
         this.webClient = WebClient.builder().build();
         this.vectorEnabled = vectorEnabled;
         this.workerEnabled = workerEnabled;
@@ -53,20 +58,26 @@ public class VectorHealthController {
                     false,
                     null,
                     "Vector store disabled by configuration",
+                    false,
+                    "Vector store disabled by configuration",
                     pending,
                     processing,
                     done,
                     failed,
                     LocalDateTime.now()));
         }
+        boolean vectorStoreOperational = vectorStoreService.isOperational();
+        String vectorStoreError = vectorStoreService.getAvailabilityMessage();
         if (!workerEnabled) {
-            return ResponseEntity.ok(new VectorHealthResponse(
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new VectorHealthResponse(
                     "DEGRADED",
                     true,
                     false,
                     false,
                     null,
                     "Vector ingest worker disabled by configuration",
+                    vectorStoreOperational,
+                    vectorStoreError,
                     pending,
                     processing,
                     done,
@@ -75,15 +86,18 @@ public class VectorHealthController {
         }
 
         EmbeddingHealth embeddingHealth = checkEmbeddingHealth(embeddingConfig.getServiceUrl());
-        String status = embeddingHealth.reachable ? "UP" : "DEGRADED";
+        boolean healthy = vectorStoreOperational && embeddingHealth.reachable;
+        String status = healthy ? "UP" : "DEGRADED";
 
-        return ResponseEntity.ok(new VectorHealthResponse(
+        return ResponseEntity.status(healthy ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE).body(new VectorHealthResponse(
                 status,
                 vectorEnabled,
                 workerEnabled,
                 embeddingHealth.reachable,
                 embeddingHealth.healthUrl,
                 embeddingHealth.error,
+                vectorStoreOperational,
+                vectorStoreError,
                 pending,
                 processing,
                 done,
@@ -111,11 +125,11 @@ public class VectorHealthController {
             URI uri = URI.create(embeddingServiceUrl);
             String path = uri.getPath();
             if (path == null || path.isBlank() || "/".equals(path)) {
-                path = "/health";
+                path = "/ready";
             } else if (path.endsWith("/embed")) {
-                path = path.substring(0, path.length() - "/embed".length()) + "/health";
+                path = path.substring(0, path.length() - "/embed".length()) + "/ready";
             } else {
-                path = path.replaceAll("/+$", "") + "/health";
+                path = path.replaceAll("/+$", "") + "/ready";
             }
             URI healthUri = new URI(
                     uri.getScheme(),
@@ -127,7 +141,7 @@ public class VectorHealthController {
                     null);
             return healthUri.toString();
         } catch (Exception ex) {
-            return DEFAULT_EMBEDDING_HEALTH_URL;
+            return DEFAULT_EMBEDDING_READY_URL;
         }
     }
 
@@ -149,6 +163,8 @@ public class VectorHealthController {
             boolean embeddingReachable,
             String embeddingHealthUrl,
             String embeddingError,
+            boolean vectorStoreOperational,
+            String vectorStoreError,
             long pendingCount,
             long processingCount,
             long doneCount,
