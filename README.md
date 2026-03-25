@@ -205,6 +205,7 @@ npm run dev -- --host
 
 ```bash
 cp .env.example .env
+scripts/qwen-offline-cache.sh prefetch
 scripts/cloud-deploy.sh up
 ```
 
@@ -225,7 +226,7 @@ scripts/cloud-deploy.sh up
 - compose 会等到 `qwen` readiness 和 `/api/vector/health` 都通过再放前端起来
 - `pgvector` 和常见基础镜像默认走 DaoCloud 前缀
 - Maven / npm / pip / apt 默认走国内镜像源
-- `qwen` 支持通过 `CVECT_HF_ENDPOINT` 切到可达的 Hugging Face 代理，或在缓存预热后用 `CVECT_HF_HUB_OFFLINE=true` 离线启动
+- `qwen` 默认走离线 Hugging Face cache，不再要求服务器在线下载模型
 
 如果你部署在远程机器，只需要把 `127.0.0.1:8088` 换成服务器 IP 和实际端口，并在 `.env` 里改掉 Basic Auth 密码。
 
@@ -272,14 +273,36 @@ cp .env.example .env
 - `CVECT_HTTP_PORT`
 - `JAVA_OPTS`
 - `CVECT_EMBEDDING_DEVICE`，默认 `cpu`；如果你后面切到 GPU/vLLM，再单独调整
+- `CVECT_HF_CACHE_DIR`，默认 `./.runtime/huggingface`
 
-2. 构建并启动：
+2. 在一台能访问 Hugging Face 的机器上预下载 Qwen 模型：
+
+```bash
+scripts/qwen-offline-cache.sh prefetch
+scripts/qwen-offline-cache.sh verify
+```
+
+如果是远程服务器部署，再打包并传过去：
+
+```bash
+scripts/qwen-offline-cache.sh pack
+scp .artifacts/qwen-hf-cache.tgz <server>:/tmp/
+```
+
+服务器上解包：
+
+```bash
+scripts/qwen-offline-cache.sh unpack /tmp/qwen-hf-cache.tgz
+scripts/qwen-offline-cache.sh verify
+```
+
+3. 构建并启动：
 
 ```bash
 scripts/cloud-deploy.sh up
 ```
 
-3. 查看状态：
+4. 查看状态：
 
 ```bash
 scripts/cloud-deploy.sh status
@@ -287,7 +310,7 @@ scripts/cloud-deploy.sh logs backend
 scripts/cloud-deploy.sh logs qwen
 ```
 
-4. 访问入口：
+5. 访问入口：
 
 - 前端：`http://<your-host>:<CVECT_HTTP_PORT>`
 - API 通过前端 nginx 代理到后端，不需要再单独配置浏览器跨域
@@ -371,6 +394,7 @@ cp .env.example .env
 5. 启动整套服务：
 
 ```bash
+scripts/qwen-offline-cache.sh unpack /tmp/qwen-hf-cache.tgz
 scripts/cloud-deploy.sh up
 ```
 
@@ -660,18 +684,23 @@ docker compose --env-file .env -f docker-compose.prod.yml up -d --force-recreate
 
 2. 服务器完全不能访问 Hugging Face
 
-先在一台可联网机器上预热模型缓存，再把 Hugging Face 缓存目录拷到服务器对应数据卷，随后在 `.env` 里配置：
+先在一台可联网机器上预下载并打包模型缓存：
 
 ```bash
-CVECT_HF_HUB_OFFLINE=true
-CVECT_HF_LOCAL_FILES_ONLY=true
+scripts/qwen-offline-cache.sh prefetch
+scripts/qwen-offline-cache.sh verify
+scripts/qwen-offline-cache.sh pack
 ```
 
-然后重建 `qwen`：
+把 `.artifacts/qwen-hf-cache.tgz` 传到服务器，解包到 `CVECT_HF_CACHE_DIR`：
 
 ```bash
+scripts/qwen-offline-cache.sh unpack /path/to/qwen-hf-cache.tgz
+scripts/qwen-offline-cache.sh verify
 docker compose --env-file .env -f docker-compose.prod.yml up -d --force-recreate qwen
 ```
+
+默认 `.env.example` 已经把 `CVECT_HF_HUB_OFFLINE=true`、`CVECT_HF_LOCAL_FILES_ONLY=true` 打开，服务器不会再尝试在线下载模型。
 
 `backend/frontend` 本身不需要因为这个问题单独重建；`qwen` healthy 之后，再执行一次：
 

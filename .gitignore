@@ -24,6 +24,8 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 .env
+.env.*
+!.env.example
 .venv/
 venv/
 .envrc
@@ -50,6 +52,8 @@ frontend/.env
 
 # ---------- Local run artifacts ----------
 .run/
+.runtime/
+.artifacts/
 
 # ---------- Qwen local/generated artifacts ----------
 Qwen/.venv/

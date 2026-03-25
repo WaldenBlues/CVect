@@ -40,6 +40,7 @@ fi
 HF_ENDPOINT="${CVECT_HF_ENDPOINT:-$(read_env_value CVECT_HF_ENDPOINT)}"
 EMBEDDING_MODEL="${CVECT_EMBEDDING_MODEL:-$(read_env_value CVECT_EMBEDDING_MODEL)}"
 GENERATION_MODEL="${CVECT_GENERATION_MODEL:-$(read_env_value CVECT_GENERATION_MODEL)}"
+HF_CACHE_DIR="${CVECT_HF_CACHE_DIR:-$(read_env_value CVECT_HF_CACHE_DIR)}"
 HTTP_PROXY_VALUE="${CVECT_HTTP_PROXY:-$(read_env_value CVECT_HTTP_PROXY)}"
 HTTPS_PROXY_VALUE="${CVECT_HTTPS_PROXY:-$(read_env_value CVECT_HTTPS_PROXY)}"
 NO_PROXY_VALUE="${CVECT_NO_PROXY:-$(read_env_value CVECT_NO_PROXY)}"
@@ -65,6 +66,7 @@ GENERATION_PROBE_URL="$(resolve_url "${GENERATION_MODEL}")"
 echo "HF endpoint:            ${HF_ENDPOINT}"
 echo "Embedding model probe:  ${HOST_PROBE_URL}"
 echo "Generation model probe: ${GENERATION_PROBE_URL}"
+echo "HF cache dir:           ${HF_CACHE_DIR:-<empty>}"
 echo "HF_HUB_OFFLINE:         ${HF_HUB_OFFLINE:-}"
 echo "HF_LOCAL_FILES_ONLY:    ${HF_LOCAL_FILES_ONLY:-}"
 echo "HF_HUB_DISABLE_XET:     ${HF_HUB_DISABLE_XET:-}"
@@ -95,6 +97,20 @@ echo
 echo "[3/4] Docker compose qwen status"
 docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" ps qwen || true
 echo
+
+if [[ -n "${HF_CACHE_DIR:-}" ]]; then
+  CACHE_PATH="${HF_CACHE_DIR}"
+  if [[ "${CACHE_PATH}" != /* ]]; then
+    CACHE_PATH="${ROOT_DIR}/${CACHE_PATH#./}"
+  fi
+  echo "Local cache contents"
+  if [[ -d "${CACHE_PATH}/hub" ]]; then
+    find "${CACHE_PATH}/hub" -mindepth 1 -maxdepth 1 -type d -name 'models--*' | sort || true
+  else
+    echo "(cache directory missing or empty)"
+  fi
+  echo
+fi
 
 QWEN_CID="$(docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" ps -q qwen 2>/dev/null || true)"
 if [[ -n "${QWEN_CID}" ]]; then

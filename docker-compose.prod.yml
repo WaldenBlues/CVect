@@ -27,6 +27,7 @@ services:
     environment:
       EMBEDDING_MODEL_ID: ${CVECT_EMBEDDING_MODEL:?set in .env}
       GENERATION_MODEL_ID: ${CVECT_GENERATION_MODEL:?set in .env}
+      HF_HOME: /root/.cache/huggingface
       HF_ENDPOINT: ${CVECT_HF_ENDPOINT:?set in .env}
       HF_HUB_OFFLINE: ${CVECT_HF_HUB_OFFLINE:?set in .env}
       HF_LOCAL_FILES_ONLY: ${CVECT_HF_LOCAL_FILES_ONLY:?set in .env}
@@ -47,7 +48,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8001
     volumes:
-      - huggingface_cache:/root/.cache/huggingface
+      - ${CVECT_HF_CACHE_DIR:?set in .env}:/root/.cache/huggingface
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/ready', timeout=5)"]
       interval: 15s
@@ -110,4 +111,3 @@ services:
 volumes:
   postgres_data:
   backend_storage:
-  huggingface_cache:
