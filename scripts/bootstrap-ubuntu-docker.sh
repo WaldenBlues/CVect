@@ -2,9 +2,59 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONFIG_FILE="${ROOT_DIR}/.env"
+
+if [[ ! -f "${CONFIG_FILE}" ]]; then
+  CONFIG_FILE="${ROOT_DIR}/.env.example"
+fi
+
+read_config_value() {
+  local key="$1"
+  local line
+  local value=""
+
+  [[ -f "${CONFIG_FILE}" ]] || return 0
+
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ "${line}" =~ ^[[:space:]]*# ]] && continue
+    [[ "${line}" =~ ^[[:space:]]*$ ]] && continue
+
+    case "${line}" in
+      "${key}"=*)
+        value="${line#*=}"
+        value="${value%$'\r'}"
+        if [[ "${value}" == \"*\" && "${value}" == *\" ]]; then
+          value="${value:1:-1}"
+        elif [[ "${value}" == \'*\' && "${value}" == *\' ]]; then
+          value="${value:1:-1}"
+        fi
+        printf '%s' "${value}"
+        return 0
+        ;;
+    esac
+  done < "${CONFIG_FILE}"
+}
+
 UBUNTU_APT_MIRROR="${CVECT_BOOTSTRAP_UBUNTU_APT_MIRROR:-}"
-DOCKER_APT_REPO="${CVECT_BOOTSTRAP_DOCKER_APT_REPO:-https://download.docker.com/linux/ubuntu}"
-DOCKER_GPG_URL="${CVECT_BOOTSTRAP_DOCKER_GPG_URL:-https://download.docker.com/linux/ubuntu/gpg}"
+if [[ -z "${UBUNTU_APT_MIRROR}" ]]; then
+  UBUNTU_APT_MIRROR="$(read_config_value CVECT_BOOTSTRAP_UBUNTU_APT_MIRROR)"
+fi
+
+DOCKER_APT_REPO="${CVECT_BOOTSTRAP_DOCKER_APT_REPO:-}"
+if [[ -z "${DOCKER_APT_REPO}" ]]; then
+  DOCKER_APT_REPO="$(read_config_value CVECT_BOOTSTRAP_DOCKER_APT_REPO)"
+fi
+if [[ -z "${DOCKER_APT_REPO}" ]]; then
+  DOCKER_APT_REPO="https://download.docker.com/linux/ubuntu"
+fi
+
+DOCKER_GPG_URL="${CVECT_BOOTSTRAP_DOCKER_GPG_URL:-}"
+if [[ -z "${DOCKER_GPG_URL}" ]]; then
+  DOCKER_GPG_URL="$(read_config_value CVECT_BOOTSTRAP_DOCKER_GPG_URL)"
+fi
+if [[ -z "${DOCKER_GPG_URL}" ]]; then
+  DOCKER_GPG_URL="https://download.docker.com/linux/ubuntu/gpg"
+fi
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "Run this script as root: sudo bash scripts/bootstrap-ubuntu-docker.sh"
@@ -87,4 +137,4 @@ if [[ -n "${TARGET_USER}" ]]; then
 fi
 echo
 echo "Project root: ${ROOT_DIR}"
-echo "Tip: set CVECT_BOOTSTRAP_UBUNTU_APT_MIRROR / CVECT_BOOTSTRAP_DOCKER_APT_REPO / CVECT_BOOTSTRAP_DOCKER_GPG_URL to use domestic mirrors."
+echo "Tip: bootstrap mirrors come from ${CONFIG_FILE}; exported CVECT_BOOTSTRAP_* variables still override them."

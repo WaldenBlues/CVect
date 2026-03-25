@@ -21,8 +21,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  unit-tests:
-    name: Compile + Unit Tests (Java 17)
+  tests:
+    name: Compile + Test Suites (Java 17)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -32,7 +32,6 @@ jobs:
     env:
       MAVEN_OPTS: -Xmx2g
       MAVEN_REPO_LOCAL: ${{ github.workspace }}/.m2-ci
-      CI_TESTS: com.walden.cvect.CvectApplicationTests,com.walden.cvect.config.VectorDimensionConsistencyValidatorTest,com.walden.cvect.model.fact.extract.LinkExtractorTest,com.walden.cvect.model.entity.vector.ResumeChunkVectorTest,com.walden.cvect.infra.vector.VectorStoreConfigTest,com.walden.cvect.infra.parser.TikaResumeParserErrorHandlingTest,com.walden.cvect.web.controller.SearchControllerTest,com.walden.cvect.repository.JpaSmokeTest
 
     steps:
       - name: Checkout
@@ -56,12 +55,21 @@ jobs:
             -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
             -DskipTests compile
 
-      - name: Test (CI stable suite)
+      - name: Test (default suite)
         run: |
           ./mvnw --batch-mode --no-transfer-progress \
             -Dmaven.repo.local="$MAVEN_REPO_LOCAL" \
             -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
-            -Dtest="$CI_TESTS" \
+            test
+
+      - name: Test (PostgreSQL smoke)
+        run: |
+          ./mvnw --batch-mode --no-transfer-progress \
+            -Dmaven.repo.local="$MAVEN_REPO_LOCAL" \
+            -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            -DexcludedGroups= \
+            -Dgroups=postgres \
+            -Dtest=com.walden.cvect.infra.vector.VectorStoreServicePostgresTest \
             test
 
       - name: Upload test reports on failure

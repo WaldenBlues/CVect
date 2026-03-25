@@ -46,6 +46,7 @@ class VectorStoreConfigTest {
         VectorStoreConfig newConfig = new VectorStoreConfig();
 
         // Then: 验证默认值设置
+        assertTrue(newConfig.isEnabled());
         assertEquals("resume_chunks", newConfig.getTableName());
         assertEquals("hnsw", newConfig.getIndexType());
         assertEquals("cosine", newConfig.getMetric());

@@ -11,11 +11,12 @@ WORKDIR /app
 RUN if [ -n "${ALPINE_APK_MIRROR}" ]; then \
       sed -i "s|https\?://dl-cdn.alpinelinux.org/alpine|${ALPINE_APK_MIRROR}|g" /etc/apk/repositories; \
     fi \
+    && npm config set replace-registry-host always \
     && if [ -n "${NPM_REGISTRY}" ]; then \
       npm config set registry "${NPM_REGISTRY}"; \
     fi
 
-COPY package.json package-lock.json ./
+COPY .npmrc package.json package-lock.json ./
 RUN npm ci
 
 COPY . .

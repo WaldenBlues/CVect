@@ -1,16 +1,16 @@
 services:
   postgres:
-    image: ${CVECT_POSTGRES_IMAGE:-pgvector/pgvector:pg17}
+    image: ${CVECT_POSTGRES_IMAGE:?set in .env}
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${CVECT_POSTGRES_DB:-cvect}
-      POSTGRES_USER: ${CVECT_POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${CVECT_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${CVECT_POSTGRES_DB:?set in .env}
+      POSTGRES_USER: ${CVECT_POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${CVECT_POSTGRES_PASSWORD:?set in .env}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${CVECT_POSTGRES_USER:-postgres} -d ${CVECT_POSTGRES_DB:-cvect}"]
+      test: ["CMD-SHELL", "pg_isready -U ${CVECT_POSTGRES_USER:?set in .env} -d ${CVECT_POSTGRES_DB:?set in .env}"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -19,23 +19,23 @@ services:
     build:
       context: ./Qwen
       args:
-        PYTHON_BASE_IMAGE: ${CVECT_PYTHON_BASE_IMAGE:-python:3.10-slim}
-        DEBIAN_APT_MIRROR: ${CVECT_DEBIAN_APT_MIRROR:-}
-        PIP_INDEX_URL: ${CVECT_PIP_INDEX_URL:-}
-        PIP_TRUSTED_HOST: ${CVECT_PIP_TRUSTED_HOST:-}
+        PYTHON_BASE_IMAGE: ${CVECT_PYTHON_BASE_IMAGE:?set in .env}
+        DEBIAN_APT_MIRROR: ${CVECT_DEBIAN_APT_MIRROR-}
+        PIP_INDEX_URL: ${CVECT_PIP_INDEX_URL-}
+        PIP_TRUSTED_HOST: ${CVECT_PIP_TRUSTED_HOST-}
     restart: unless-stopped
     environment:
-      EMBEDDING_MODEL_ID: ${CVECT_EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-0.6B}
-      GENERATION_MODEL_ID: ${CVECT_GENERATION_MODEL:-Qwen/Qwen3-0.6B}
-      HF_ENDPOINT: ${CVECT_HF_ENDPOINT:-https://huggingface.co}
-      HF_HUB_OFFLINE: ${CVECT_HF_HUB_OFFLINE:-false}
-      DEVICE: ${CVECT_EMBEDDING_DEVICE:-cpu}
-      TORCH_DTYPE: ${CVECT_TORCH_DTYPE:-auto}
-      MAX_BATCH_SIZE: ${CVECT_EMBEDDING_BATCH_SIZE:-64}
-      MAX_INPUT_LENGTH: ${CVECT_EMBEDDING_MAX_INPUT_LENGTH:-8192}
-      MAX_NEW_TOKENS_DEFAULT: ${CVECT_MAX_NEW_TOKENS_DEFAULT:-256}
-      PRELOAD_MODELS: ${CVECT_PRELOAD_MODELS:-false}
-      READINESS_REQUIRE_GENERATION: ${CVECT_READINESS_REQUIRE_GENERATION:-false}
+      EMBEDDING_MODEL_ID: ${CVECT_EMBEDDING_MODEL:?set in .env}
+      GENERATION_MODEL_ID: ${CVECT_GENERATION_MODEL:?set in .env}
+      HF_ENDPOINT: ${CVECT_HF_ENDPOINT:?set in .env}
+      HF_HUB_OFFLINE: ${CVECT_HF_HUB_OFFLINE:?set in .env}
+      DEVICE: ${CVECT_EMBEDDING_DEVICE:?set in .env}
+      TORCH_DTYPE: ${CVECT_TORCH_DTYPE:?set in .env}
+      MAX_BATCH_SIZE: ${CVECT_EMBEDDING_BATCH_SIZE:?set in .env}
+      MAX_INPUT_LENGTH: ${CVECT_EMBEDDING_MAX_INPUT_LENGTH:?set in .env}
+      MAX_NEW_TOKENS_DEFAULT: ${CVECT_MAX_NEW_TOKENS_DEFAULT:?set in .env}
+      PRELOAD_MODELS: ${CVECT_PRELOAD_MODELS:?set in .env}
+      READINESS_REQUIRE_GENERATION: ${CVECT_READINESS_REQUIRE_GENERATION:?set in .env}
       HOST: 0.0.0.0
       PORT: 8001
     volumes:
@@ -50,10 +50,10 @@ services:
     build:
       context: ./backend/cvect
       args:
-        MAVEN_BUILD_IMAGE: ${CVECT_MAVEN_BUILD_IMAGE:-maven:3.9.9-eclipse-temurin-17}
-        JAVA_RUNTIME_IMAGE: ${CVECT_JAVA_RUNTIME_IMAGE:-eclipse-temurin:17-jre-jammy}
-        MAVEN_MIRROR_URL: ${CVECT_MAVEN_MIRROR_URL:-}
-        UBUNTU_APT_MIRROR: ${CVECT_UBUNTU_APT_MIRROR:-}
+        MAVEN_BUILD_IMAGE: ${CVECT_MAVEN_BUILD_IMAGE:?set in .env}
+        JAVA_RUNTIME_IMAGE: ${CVECT_JAVA_RUNTIME_IMAGE:?set in .env}
+        MAVEN_MIRROR_URL: ${CVECT_MAVEN_MIRROR_URL-}
+        UBUNTU_APT_MIRROR: ${CVECT_UBUNTU_APT_MIRROR-}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -61,15 +61,15 @@ services:
       qwen:
         condition: service_healthy
     environment:
-      JAVA_OPTS: ${JAVA_OPTS:-}
+      JAVA_OPTS: ${JAVA_OPTS-}
       CVECT_SERVER_PORT: 8080
-      CVECT_DB_URL: jdbc:postgresql://postgres:5432/${CVECT_POSTGRES_DB:-cvect}
-      CVECT_DB_USERNAME: ${CVECT_POSTGRES_USER:-postgres}
-      CVECT_DB_PASSWORD: ${CVECT_POSTGRES_PASSWORD:-postgres}
+      CVECT_DB_URL: jdbc:postgresql://postgres:5432/${CVECT_POSTGRES_DB:?set in .env}
+      CVECT_DB_USERNAME: ${CVECT_POSTGRES_USER:?set in .env}
+      CVECT_DB_PASSWORD: ${CVECT_POSTGRES_PASSWORD:?set in .env}
       CVECT_EMBEDDING_SERVICE_URL: http://qwen:8001/embed
       CVECT_UPLOAD_STORAGE_DIR: /data/storage
-      CVECT_SHOW_SQL: ${CVECT_SHOW_SQL:-false}
-      CVECT_CACHE_ENABLED: ${CVECT_CACHE_ENABLED:-true}
+      CVECT_SHOW_SQL: ${CVECT_SHOW_SQL:?set in .env}
+      CVECT_CACHE_ENABLED: ${CVECT_CACHE_ENABLED:?set in .env}
     expose:
       - "8080"
     volumes:
@@ -84,20 +84,20 @@ services:
     build:
       context: ./frontend
       args:
-        NODE_BUILD_IMAGE: ${CVECT_NODE_BUILD_IMAGE:-node:20-alpine}
-        NGINX_RUNTIME_IMAGE: ${CVECT_NGINX_RUNTIME_IMAGE:-nginx:1.27-alpine}
-        NPM_REGISTRY: ${CVECT_NPM_REGISTRY:-}
-        ALPINE_APK_MIRROR: ${CVECT_ALPINE_APK_MIRROR:-}
+        NODE_BUILD_IMAGE: ${CVECT_NODE_BUILD_IMAGE:?set in .env}
+        NGINX_RUNTIME_IMAGE: ${CVECT_NGINX_RUNTIME_IMAGE:?set in .env}
+        NPM_REGISTRY: ${CVECT_NPM_REGISTRY-}
+        ALPINE_APK_MIRROR: ${CVECT_ALPINE_APK_MIRROR-}
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
     environment:
-      CVECT_BASIC_AUTH_ENABLED: ${CVECT_BASIC_AUTH_ENABLED:-true}
-      CVECT_BASIC_AUTH_USERNAME: ${CVECT_BASIC_AUTH_USERNAME:-}
-      CVECT_BASIC_AUTH_PASSWORD: ${CVECT_BASIC_AUTH_PASSWORD:-}
+      CVECT_BASIC_AUTH_ENABLED: ${CVECT_BASIC_AUTH_ENABLED:?set in .env}
+      CVECT_BASIC_AUTH_USERNAME: ${CVECT_BASIC_AUTH_USERNAME:?set in .env}
+      CVECT_BASIC_AUTH_PASSWORD: ${CVECT_BASIC_AUTH_PASSWORD:?set in .env}
     ports:
-      - "${CVECT_HTTP_PORT:-8088}:80"
+      - "${CVECT_HTTP_PORT:?set in .env}:80"
 
 volumes:
   postgres_data:

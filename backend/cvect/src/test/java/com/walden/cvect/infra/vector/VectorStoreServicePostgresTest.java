@@ -48,7 +48,7 @@ class VectorStoreServicePostgresTest {
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
-            DockerImageName.parse("pgvector/pgvector:pg16")
+            DockerImageName.parse("pgvector/pgvector:pg17")
                     .asCompatibleSubstituteFor("postgres"))
             .withDatabaseName("cvect_test")
             .withUsername("test")

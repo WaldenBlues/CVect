@@ -28,12 +28,12 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest
 @TestPropertySource(properties = {
-    "app.embedding.model-name=Qwen/Qwen2.5-Embedding-0.6B-Instruct",
+    "app.embedding.model-name=test-embedding-model",
     "app.embedding.device=cpu",
-    "app.embedding.batch-size=32",
-    "app.embedding.dimension=768",
-    "app.vector.dimension=768",
-    "app.embedding.max-input-length=8192"
+    "app.embedding.batch-size=8",
+    "app.embedding.dimension=1024",
+    "app.vector.dimension=1024",
+    "app.embedding.max-input-length=4096"
 })
 @Tag("integration")
 @DisplayName("EmbeddingService 配置测试（流水线测试）")
@@ -77,9 +77,10 @@ class EmbeddingServiceConfigurationTest {
     @DisplayName("EmbeddingService 应正确初始化配置")
     void should_initialize_with_correct_config() {
         // Then: 使用 @TestPropertySource 注入的配置值
-        assertEquals(768, embeddingService.getDimension());
-        assertEquals("Qwen/Qwen2.5-Embedding-0.6B-Instruct",
-            embeddingConfig.getModelName(), "配置应加载正确的模型名称");
+        assertEquals(1024, embeddingService.getDimension());
+        assertEquals("test-embedding-model",
+            embeddingConfig.getModelName(), "配置应加载测试覆盖的模型名称");
+        assertEquals(8, embeddingConfig.getBatchSize(), "配置应加载测试覆盖的批大小");
     }
 
     @Test

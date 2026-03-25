@@ -20,8 +20,10 @@ CVect/
 ├── frontend/             # Vue 3 + Vite 前端
 ├── Qwen/                 # Python Embedding/Generation 服务 + 数据生成脚本
 ├── infra/vllm/           # vLLM + nginx 网关编排
-├── scripts/              # vLLM 启停与冒烟测试脚本
-├── docker-compose.yml    # PostgreSQL (pgvector 镜像)
+├── scripts/              # 部署、探活与 vLLM 辅助脚本
+├── docker-compose.yml    # 本地 PostgreSQL (pgvector)
+├── docker-compose.prod.yml
+├── .env.example          # 单一部署环境变量模板
 ├── ARCHITECTURE_OVERVIEW.md
 └── CODE_DESIGN_REPORT.md
 ```

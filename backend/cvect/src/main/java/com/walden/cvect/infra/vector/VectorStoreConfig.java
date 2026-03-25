@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "app.vector")
 public class VectorStoreConfig {
 
-    private boolean enabled = false;
+    private boolean enabled = true;
     private String tableName = "resume_chunks";
     private String indexType = "hnsw";
     private String metric = "cosine";

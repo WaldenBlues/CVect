@@ -3,14 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${ROOT_DIR}/docker-compose.prod.yml"
-DEFAULT_ENV_FILE="${ROOT_DIR}/.env.cloud"
-if [[ -f "${ROOT_DIR}/.env.cn" ]]; then
-  DEFAULT_ENV_FILE="${ROOT_DIR}/.env.cn"
-fi
-if [[ -f "${ROOT_DIR}/.env.demo" ]]; then
-  DEFAULT_ENV_FILE="${ROOT_DIR}/.env.demo"
-fi
-ENV_FILE="${CVECT_ENV_FILE:-${DEFAULT_ENV_FILE}}"
+ENV_FILE="${ROOT_DIR}/.env"
 COMMAND="${1:-up}"
 SERVICE="${2:-}"
 
@@ -22,9 +15,7 @@ fi
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "Missing env file: ${ENV_FILE}"
   echo "Create it with:"
-  echo "  cp ${ROOT_DIR}/.env.demo.example ${ROOT_DIR}/.env.demo"
-  echo "  cp ${ROOT_DIR}/.env.cn.example ${ROOT_DIR}/.env.cn"
-  echo "  cp ${ROOT_DIR}/.env.cloud.example ${ENV_FILE}"
+  echo "  cp ${ROOT_DIR}/.env.example ${ROOT_DIR}/.env"
   exit 1
 fi
 
@@ -63,8 +54,7 @@ case "${COMMAND}" in
 Usage: scripts/cloud-deploy.sh [up|down|restart|status|logs|config|pull] [service]
 
 Examples:
-  cp .env.demo.example .env.demo
-  cp .env.cn.example .env.cn
+  cp .env.example .env
   scripts/cloud-deploy.sh up
   scripts/cloud-deploy.sh status
   scripts/cloud-deploy.sh logs backend

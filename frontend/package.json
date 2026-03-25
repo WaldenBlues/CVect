@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -10,10 +14,10 @@
     "test": "node --test src/utils/semanticMatching.test.mjs"
   },
   "dependencies": {
-    "vue": "^3.4.38"
+    "vue": "3.5.28"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.1.2",
-    "vite": "^5.4.12"
+    "@vitejs/plugin-vue": "5.2.4",
+    "vite": "5.4.21"
   }
 }

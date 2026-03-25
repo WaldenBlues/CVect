@@ -1,0 +1,66 @@
+name: CI - Config And Scripts
+
+on:
+  pull_request:
+    paths:
+      - ".env.example"
+      - "docker-compose*.yml"
+      - "scripts/**"
+      - "run.sh"
+      - "frontend/Dockerfile"
+      - "frontend/nginx.conf"
+      - "frontend/docker-entrypoint.d/**"
+      - "Qwen/Dockerfile"
+      - "backend/cvect/Dockerfile"
+      - ".github/workflows/ci-config.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".env.example"
+      - "docker-compose*.yml"
+      - "scripts/**"
+      - "run.sh"
+      - "frontend/Dockerfile"
+      - "frontend/nginx.conf"
+      - "frontend/docker-entrypoint.d/**"
+      - "Qwen/Dockerfile"
+      - "backend/cvect/Dockerfile"
+      - ".github/workflows/ci-config.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-config-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Shell + Compose Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Shell syntax
+        run: |
+          bash -n scripts/bootstrap-ubuntu-docker.sh
+          bash -n scripts/cloud-deploy.sh
+          bash -n scripts/cloud-smoke-test.sh
+          bash -n scripts/vllm-up.sh
+          bash -n scripts/vllm-down.sh
+          bash -n scripts/vllm-smoke-test.sh
+          bash -n run.sh
+          bash -n frontend/docker-entrypoint.d/30-cvect-auth.envsh
+
+      - name: Compose config
+        run: |
+          docker compose --env-file .env.example -f docker-compose.prod.yml config
+
+      - name: Diff whitespace check
+        run: |
+          git diff --check

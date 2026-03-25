@@ -13,7 +13,7 @@ Env vars:
 - GENERATION_MODEL_ID: default "Qwen/Qwen3-0.6B"
 - DEVICE: cpu/cuda/auto (default auto)
 - TORCH_DTYPE: auto/float16/bfloat16/float32 (default auto)
-- MAX_BATCH_SIZE: default 64
+- MAX_BATCH_SIZE: default 16
 - MAX_INPUT_LENGTH: default 8192
 - MAX_NEW_TOKENS_DEFAULT: default 256
 - HOST: default 0.0.0.0
@@ -70,7 +70,7 @@ EMBEDDING_MODEL_ID = os.getenv("EMBEDDING_MODEL_ID", "Qwen/Qwen3-Embedding-0.6B"
 GENERATION_MODEL_ID = os.getenv("GENERATION_MODEL_ID", "Qwen/Qwen3-0.6B")
 DEVICE = _resolve_device()
 TORCH_DTYPE = _resolve_dtype(DEVICE)
-MAX_BATCH_SIZE = int(os.getenv("MAX_BATCH_SIZE", "64"))
+MAX_BATCH_SIZE = int(os.getenv("MAX_BATCH_SIZE", "16"))
 MAX_INPUT_LENGTH = int(os.getenv("MAX_INPUT_LENGTH", "8192"))
 MAX_NEW_TOKENS_DEFAULT = int(os.getenv("MAX_NEW_TOKENS_DEFAULT", "256"))
 LOCAL_FILES_ONLY = os.getenv("HF_LOCAL_FILES_ONLY", "false").strip().lower() == "true"

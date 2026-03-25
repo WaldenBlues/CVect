@@ -43,7 +43,7 @@ CVect/
 ├── scripts/                    # vLLM 启停与 smoke test
 ├── docker-compose.yml          # 本地 PostgreSQL (pgvector)
 ├── docker-compose.prod.yml     # 单机容器化部署编排
-├── .env.prod.example           # 部署环境变量模板
+├── .env.example                # 单一部署环境变量模板
 ├── run.sh                      # 本地一键启动脚本
 ├── ARCHITECTURE_OVERVIEW.md    # 架构说明
 └── CODE_DESIGN_REPORT.md       # 设计分析
@@ -65,7 +65,7 @@ JD -> 上传简历 -> Tika 解析 -> 事实抽取 / 分块 -> 向量任务入队
 推荐在 Linux/macOS 本地开发环境运行，并预先安装：
 
 - Java 17
-- Node.js 18+
+- Node.js 20+
 - Python 3.10+
 - Docker + Docker Compose
 
@@ -92,6 +92,8 @@ pip install -r requirements.txt
 cd frontend
 npm install
 ```
+
+仓库内的 [frontend/.npmrc](/home/walden/Walden_project/CVect/frontend/.npmrc) 默认指向 `npmmirror`，并启用 `replace-registry-host=always`，用于减少锁文件和镜像源漂移。
 
 后端使用 Maven Wrapper，不需要单独安装 Maven。
 
@@ -180,10 +182,7 @@ npm run dev -- --host
 仓库已新增：
 
 - `docker-compose.prod.yml`：生产编排入口
-- `.env.demo.example`：面试 demo 推荐默认配置
-- `.env.cn.example`：国内网络/云主机兼容配置示例
-- `.env.prod.example`：部署变量示例
-- `.env.cloud.example`：云主机部署变量模板
+- `.env.example`：唯一部署环境变量模板
 - `backend/cvect/Dockerfile`：后端镜像构建
 - `frontend/Dockerfile`：前端镜像构建
 - `frontend/nginx.conf`：前端静态托管与 `/api` 反向代理
@@ -198,14 +197,12 @@ npm run dev -- --host
 - 简历上传会落本地文件，后端必须挂持久化卷，否则容器重建后会丢上传文件
 - embedding 服务和数据库都不是无状态组件，至少要把模型缓存和数据库目录持久化
 
-### 部署步骤
+### 默认部署路径
 
-### 面试 demo 最短路径
-
-如果你的目标是“单机/单台云主机，稳定展示一遍上传、解析、候选人列表和语义重排”，优先走这条：
+如果你的目标是“单机/单台云主机，稳定展示上传、解析、候选人列表和语义重排”，只保留这一套配置：
 
 ```bash
-cp .env.demo.example .env.demo
+cp .env.example .env
 scripts/cloud-deploy.sh up
 ```
 
@@ -215,41 +212,26 @@ scripts/cloud-deploy.sh up
 - Basic Auth 用户名：`demo`
 - Basic Auth 密码：`demo123`
 
-这套默认值针对 demo 做了收敛：
+后续所有部署和探活脚本都默认读取仓库根目录的 `.env`，不再切换其他 env 模板。
+`docker-compose.prod.yml` 也不再保留第二套默认值，部署参数以 `.env` 为唯一真源。
+
+这套默认值同时收敛了 demo 展示和国内网络兼容：
 
 - 只走 CPU
 - embedding batch 降到 `16`，降低小机器内存压力
 - 入口自带 Basic Auth
 - compose 会等到 `qwen` readiness 和 `/api/vector/health` 都通过再放前端起来
+- `pgvector` 和常见基础镜像默认走 DaoCloud 前缀
+- Maven / npm / pip / apt 默认走国内镜像源
+- `qwen` 支持通过 `CVECT_HF_ENDPOINT` 切到可达的 Hugging Face 代理，或在缓存预热后用 `CVECT_HF_HUB_OFFLINE=true` 离线启动
 
-如果你部署在远程机器，只需要把 `127.0.0.1` 换成服务器 IP，并在 `.env.demo` 里改掉 Basic Auth 密码。
-
-### 国内网络兼容路径
-
-如果你的云主机对 Docker Hub 访问不稳定，优先走这条：
-
-```bash
-cp .env.cn.example .env.cn
-scripts/cloud-deploy.sh up
-```
-
-这套配置做了三层兼容：
-
-- 镜像层：`docker-compose.prod.yml` 现在支持通过环境变量覆盖基础镜像和 `postgres` 镜像
-- 构建依赖层：支持 Maven / npm / pip / apt 使用国内镜像源
-- 模型下载层：`qwen` 现在支持通过 `CVECT_HF_ENDPOINT` 切到可达的 Hugging Face 代理，或在缓存预热后用 `CVECT_HF_HUB_OFFLINE=true` 离线启动
+如果你部署在远程机器，只需要把 `127.0.0.1:8088` 换成服务器 IP 和实际端口，并在 `.env` 里改掉 Basic Auth 密码。
 
 推荐顺序：
 
-1. 最稳妥：把需要的镜像同步到你自己的 ACR / TCR / SWR 私有仓库，然后在 `.env.cn` 里设置 `CVECT_*_IMAGE`
-2. 快速尝试：对 Docker Hub 镜像使用 DaoCloud 加速前缀，仓库里的 `.env.cn.example` 已包含 `pgvector/pgvector` 和常见基础镜像
+1. 最稳妥：把需要的镜像同步到你自己的 ACR / TCR / SWR 私有仓库，然后在 `.env` 里设置 `CVECT_*_IMAGE`
+2. 快速尝试：直接使用仓库默认的 DaoCloud 前缀
 3. 仍然不稳：自建 Docker Registry pull-through cache，再把镜像地址改到你的内网仓库
-
-如果你同时保留了多个环境文件，比如 `.env.demo` 和 `.env.cn`，请显式指定：
-
-```bash
-CVECT_ENV_FILE=.env.cn scripts/cloud-deploy.sh up
-```
 
 当前仓库已支持这些覆盖变量：
 
@@ -272,7 +254,7 @@ CVECT_ENV_FILE=.env.cn scripts/cloud-deploy.sh up
 1. 复制环境变量模板并按实际环境调整：
 
 ```bash
-cp .env.prod.example .env.prod
+cp .env.example .env
 ```
 
 重点改这些值：
@@ -287,20 +269,20 @@ cp .env.prod.example .env.prod
 2. 构建并启动：
 
 ```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+scripts/cloud-deploy.sh up
 ```
 
 3. 查看状态：
 
 ```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml ps
-docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f backend
-docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f qwen
+scripts/cloud-deploy.sh status
+scripts/cloud-deploy.sh logs backend
+scripts/cloud-deploy.sh logs qwen
 ```
 
 4. 访问入口：
 
-- 前端：`http://<your-host>:${CVECT_HTTP_PORT}`
+- 前端：`http://<your-host>:<CVECT_HTTP_PORT>`
 - API 通过前端 nginx 代理到后端，不需要再单独配置浏览器跨域
 
 ## 最小云部署
@@ -325,7 +307,7 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f qwen
 
 一台 Ubuntu 云主机即可：
 
-- `frontend` 对外暴露 `80`
+- `frontend` 对外暴露 `CVECT_HTTP_PORT`，默认 `8088`
 - `backend` 只在 Docker 内网暴露 `8080`
 - `qwen` 只在 Docker 内网暴露 `8001`
 - `postgres` 只在 Docker 内网暴露 `5432`
@@ -337,7 +319,7 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f qwen
 1. 开一台 Ubuntu 云主机，把安全组或防火墙至少放行：
 
 - `22/tcp`：SSH
-- `80/tcp`：网页访问
+- `8088/tcp`：网页访问；如果你修改了 `.env` 里的 `CVECT_HTTP_PORT`，这里放行对应端口
 
 不要对公网放行：
 
@@ -358,21 +340,14 @@ cd CVect
 sudo bash scripts/bootstrap-ubuntu-docker.sh
 ```
 
-如果你的云主机到 Docker 官方 apt 源不稳定，可以先切国内镜像再执行：
-
-```bash
-export CVECT_BOOTSTRAP_UBUNTU_APT_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/ubuntu
-export CVECT_BOOTSTRAP_DOCKER_APT_REPO=https://mirrors.aliyun.com/docker-ce/linux/ubuntu
-export CVECT_BOOTSTRAP_DOCKER_GPG_URL=https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg
-sudo -E bash scripts/bootstrap-ubuntu-docker.sh
-```
+脚本会优先读取根目录 `.env` 里的 `CVECT_BOOTSTRAP_*`；如果你还没创建 `.env`，它会退回读取 `.env.example`。当前仓库默认已经填好了国内镜像地址。
 
 如果你刚被加入 `docker` 组，重新登录一次。
 
 4. 准备云部署环境变量：
 
 ```bash
-cp .env.cloud.example .env.cloud
+cp .env.example .env
 ```
 
 至少修改：
@@ -384,7 +359,7 @@ cp .env.cloud.example .env.cloud
 如果你的云主机比较小，先保持：
 
 - `CVECT_EMBEDDING_DEVICE=cpu`
-- `CVECT_EMBEDDING_BATCH_SIZE=32`
+- `CVECT_EMBEDDING_BATCH_SIZE=16`
 
 5. 启动整套服务：
 
@@ -403,15 +378,13 @@ scripts/cloud-deploy.sh logs qwen
 7. 做最小检查：
 
 ```bash
-export CVECT_BASIC_AUTH_USERNAME=demo
-export CVECT_BASIC_AUTH_PASSWORD=demo123
-scripts/cloud-smoke-test.sh http://127.0.0.1
-scripts/cloud-smoke-test.sh http://<your-server-ip>
+scripts/cloud-smoke-test.sh
+scripts/cloud-smoke-test.sh http://<your-server-ip>:8088
 ```
 
 ### 你最终会得到什么
 
-- 浏览器访问 `http://<你的云服务器IP>/`
+- 浏览器访问 `http://<你的云服务器IP>:8088/`
 - 前端可打开
 - 前端通过 `/api` 访问后端
 - 后端通过内网访问 `qwen` 和 `postgres`
@@ -596,6 +569,13 @@ cd backend/cvect
 - 完整管线集成测试
 
 默认 Surefire 配置排除了 `postgres` 分组测试；需要这类测试时，建议单独按类或分组运行。
+
+例如：
+
+```bash
+cd backend/cvect
+./mvnw -DexcludedGroups= -Dgroups=postgres -Dtest=com.walden.cvect.infra.vector.VectorStoreServicePostgresTest test
+```
 
 ### 前端
 

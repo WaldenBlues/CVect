@@ -17,11 +17,13 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SpringBootTest
 @TestPropertySource(properties = {
-    "app.embedding.model-name=Qwen/Qwen2.5-Embedding-0.6B-Instruct",
-    "app.embedding.device=cpu",
-    "app.embedding.batch-size=32",
-    "app.embedding.dimension=768",
-    "app.embedding.max-input-length=8192",
+    "app.embedding.model-name=test-embedding-model",
+    "app.embedding.service-url=http://localhost:9001/embed",
+    "app.embedding.device=cuda",
+    "app.embedding.batch-size=8",
+    "app.embedding.dimension=1024",
+    "app.embedding.max-input-length=4096",
+    "app.embedding.timeout-seconds=15",
     "app.vector.enabled=false"
 })
 @Tag("integration")
@@ -32,14 +34,16 @@ class EmbeddingConfigTest {
     private EmbeddingConfig config;
 
     @Test
-    @DisplayName("配置类应正确加载属性值")
+    @DisplayName("配置类应正确加载覆盖属性值")
     void should_load_config_values() {
         // Then
-        assertEquals("Qwen/Qwen2.5-Embedding-0.6B-Instruct", config.getModelName());
-        assertEquals("cpu", config.getDevice());
-        assertEquals(32, config.getBatchSize());
-        assertEquals(768, config.getDimension());
-        assertEquals(8192, config.getMaxInputLength());
+        assertEquals("test-embedding-model", config.getModelName());
+        assertEquals("http://localhost:9001/embed", config.getServiceUrl());
+        assertEquals("cuda", config.getDevice());
+        assertEquals(8, config.getBatchSize());
+        assertEquals(1024, config.getDimension());
+        assertEquals(4096, config.getMaxInputLength());
+        assertEquals(15, config.getTimeoutSeconds());
     }
 
     @Test
@@ -50,9 +54,12 @@ class EmbeddingConfigTest {
 
         // Then: 验证默认值设置
         assertEquals("Qwen/Qwen3-Embedding-0.6B", newConfig.getModelName());
+        assertEquals("http://localhost:8001/embed", newConfig.getServiceUrl());
         assertEquals("cpu", newConfig.getDevice());
-        assertEquals(32, newConfig.getBatchSize());
+        assertEquals(16, newConfig.getBatchSize());
         assertEquals(1024, newConfig.getDimension());
+        assertEquals(8192, newConfig.getMaxInputLength());
+        assertEquals(60, newConfig.getTimeoutSeconds());
     }
 
     @Test
