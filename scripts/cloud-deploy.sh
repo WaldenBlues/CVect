@@ -105,6 +105,26 @@ run_compose() {
   docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
 }
 
+run_up() {
+  local build_flag="${1:-}"
+  shift || true
+
+  if uses_local_qwen; then
+    prepare_hf_cache_dir
+    if [[ -n "${build_flag}" ]]; then
+      run_compose up -d "${build_flag}" "$@"
+    else
+      run_compose up -d "$@"
+    fi
+  else
+    if [[ -n "${build_flag}" ]]; then
+      run_compose up -d "${build_flag}" "$@" postgres backend frontend
+    else
+      run_compose up -d "$@" postgres backend frontend
+    fi
+  fi
+}
+
 embedding_service_url() {
   local value
   value="${CVECT_EMBEDDING_SERVICE_URL:-$(read_env_value CVECT_EMBEDDING_SERVICE_URL)}"
@@ -122,23 +142,19 @@ uses_local_qwen() {
 
 case "${COMMAND}" in
   up)
-    if uses_local_qwen; then
-      prepare_hf_cache_dir
-      run_compose up -d --build
-    else
-      run_compose up -d --build postgres backend frontend
-    fi
+    run_up --build
+    ;;
+  up-no-build)
+    run_up --no-build
     ;;
   down)
     run_compose down
     ;;
   restart)
-    if uses_local_qwen; then
-      prepare_hf_cache_dir
-      run_compose up -d --build --force-recreate
-    else
-      run_compose up -d --build --force-recreate postgres backend frontend
-    fi
+    run_up --build --force-recreate
+    ;;
+  restart-no-build)
+    run_up --no-build --force-recreate
     ;;
   status)
     run_compose ps
@@ -158,12 +174,13 @@ case "${COMMAND}" in
     ;;
   *)
     cat <<EOF
-Usage: scripts/cloud-deploy.sh [up|down|restart|status|logs|config|pull] [service]
+Usage: scripts/cloud-deploy.sh [up|up-no-build|down|restart|restart-no-build|status|logs|config|pull] [service]
 
 Examples:
   cp .env.example .env
   scripts/qwen-offline-cache.sh prefetch
   scripts/cloud-deploy.sh up
+  scripts/cloud-deploy.sh up-no-build
   scripts/cloud-deploy.sh status
   scripts/cloud-deploy.sh logs backend
 EOF

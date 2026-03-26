@@ -230,6 +230,19 @@ scripts/cloud-deploy.sh up
 如果把 `CVECT_EMBEDDING_SERVICE_URL` 改成外部 OpenAI-compatible embedding 服务，
 `scripts/cloud-deploy.sh up` 会自动跳过本地 `qwen` 容器，只拉起 `postgres/backend/frontend`。
 
+如果你准备在本地构建镜像再上传到服务器，不要在服务器执行会触发重新构建的
+`scripts/cloud-deploy.sh up`，改用：
+
+```bash
+scripts/cloud-deploy.sh up-no-build
+```
+
+对应重建容器但不在服务器重新 build 的命令是：
+
+```bash
+scripts/cloud-deploy.sh restart-no-build
+```
+
 推荐顺序：
 
 1. 最稳妥：把需要的镜像同步到你自己的 ACR / TCR / SWR 私有仓库，然后在 `.env` 里设置 `CVECT_*_IMAGE`
