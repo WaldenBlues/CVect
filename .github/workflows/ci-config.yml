@@ -51,9 +51,8 @@ jobs:
           bash -n scripts/bootstrap-ubuntu-docker.sh
           bash -n scripts/cloud-deploy.sh
           bash -n scripts/cloud-smoke-test.sh
-          bash -n scripts/vllm-up.sh
-          bash -n scripts/vllm-down.sh
-          bash -n scripts/vllm-smoke-test.sh
+          bash -n scripts/debug-hf-connectivity.sh
+          bash -n scripts/qwen-offline-cache.sh
           bash -n run.sh
           bash -n frontend/docker-entrypoint.d/30-cvect-auth.envsh
 
