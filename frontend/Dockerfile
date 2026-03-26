@@ -32,7 +32,8 @@ RUN if [ -n "${ALPINE_APK_MIRROR}" ]; then \
     && apk add --no-cache apache2-utils
 
 COPY nginx.conf /etc/nginx/templates/default.conf.template
-COPY docker-entrypoint.d/30-cvect-auth.envsh /docker-entrypoint.d/30-cvect-auth.envsh
+COPY docker-entrypoint.d/30-cvect-auth.envsh /docker-entrypoint.d/04-cvect-auth.envsh
+RUN chmod +x /docker-entrypoint.d/04-cvect-auth.envsh
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80

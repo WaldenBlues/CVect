@@ -554,6 +554,7 @@ curl -s "http://localhost:8080/actuator/metrics/cvect.cache.hit.rate?tag=cache:s
 ### Vector
 
 - `CVECT_VECTOR_ENABLED`，默认 `true`
+- `CVECT_VECTOR_INGEST_WORKER_ENABLED`，默认 `true`
 - `CVECT_VECTOR_TABLE`，默认 `resume_chunks`
 - `CVECT_VECTOR_INDEX_TYPE`，默认 `hnsw`
 - `CVECT_VECTOR_METRIC`，默认 `cosine`
@@ -570,6 +571,8 @@ curl -s "http://localhost:8080/actuator/metrics/cvect.cache.hit.rate?tag=cache:s
 
 - `CVECT_EMBEDDING_DIMENSION` 与 `CVECT_VECTOR_DIMENSION` 必须一致
 - 切换 embedding 模型前，需要确认向量表维度和现有索引是否仍然兼容
+- 如果只需要先拉起 Web 页面、暂时不启动 `qwen`，可在 `.env` 中设置
+  `CVECT_VECTOR_ENABLED=false` 和 `CVECT_VECTOR_INGEST_WORKER_ENABLED=false`
 - 默认运行时 schema 由 Flyway 管理，`ddl-auto=validate`
 
 ## 数据库与迁移

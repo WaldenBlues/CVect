@@ -67,8 +67,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      qwen:
-        condition: service_healthy
     environment:
       JAVA_OPTS: ${JAVA_OPTS-}
       CVECT_SERVER_PORT: 8080
@@ -76,6 +74,8 @@ services:
       CVECT_DB_USERNAME: ${CVECT_POSTGRES_USER:?set in .env}
       CVECT_DB_PASSWORD: ${CVECT_POSTGRES_PASSWORD:?set in .env}
       CVECT_EMBEDDING_SERVICE_URL: http://qwen:8001/embed
+      CVECT_VECTOR_ENABLED: ${CVECT_VECTOR_ENABLED:-true}
+      CVECT_VECTOR_INGEST_WORKER_ENABLED: ${CVECT_VECTOR_INGEST_WORKER_ENABLED:-true}
       CVECT_UPLOAD_STORAGE_DIR: /data/storage
       CVECT_SHOW_SQL: ${CVECT_SHOW_SQL:?set in .env}
       CVECT_CACHE_ENABLED: ${CVECT_CACHE_ENABLED:?set in .env}
@@ -84,7 +84,7 @@ services:
     volumes:
       - backend_storage:/data/storage
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/vector/health"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/resumes/health"]
       interval: 15s
       timeout: 10s
       retries: 20
