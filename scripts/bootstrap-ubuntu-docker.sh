@@ -4,10 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_FILE="${ROOT_DIR}/.env"
 
-if [[ ! -f "${CONFIG_FILE}" ]]; then
-  CONFIG_FILE="${ROOT_DIR}/.env.example"
-fi
-
 read_config_value() {
   local key="$1"
   local line

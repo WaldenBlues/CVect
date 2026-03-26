@@ -39,10 +39,10 @@ CVect/
 ├── frontend/                   # Vue 单页前端
 ├── Qwen/                       # FastAPI embedding 服务与数据生成脚本
 ├── scripts/                    # 部署与探活脚本
-├── docker-compose.yml          # 本地 PostgreSQL (pgvector)
-├── docker-compose.prod.yml     # 单机容器化部署编排
-├── .env.example                # 单一部署环境变量模板
-├── run.sh                      # 本地一键启动脚本
+├── docker-compose.yml          # 唯一容器编排入口
+├── .env                        # 唯一环境变量文件
+├── scripts/local-run.sh        # 本地一键启动脚本
+├── scripts/server-run.sh       # 服务器一键部署脚本
 ├── ARCHITECTURE_OVERVIEW.md    # 架构说明
 └── CODE_DESIGN_REPORT.md       # 设计分析
 ```
@@ -80,6 +80,7 @@ JD -> 上传简历 -> Tika 解析 -> 事实抽取 / 分块 -> 向量任务入队
 cd Qwen
 python3 -m venv .venv
 source .venv/bin/activate
+pip install --extra-index-url https://download.pytorch.org/whl/cpu torch==2.10.0+cpu
 pip install -r requirements-service.txt
 ```
 
@@ -101,7 +102,7 @@ npm install
 在仓库根目录执行：
 
 ```bash
-./run.sh start
+scripts/local-run.sh start
 ```
 
 该脚本会尝试启动：
@@ -114,16 +115,16 @@ npm install
 常用命令：
 
 ```bash
-./run.sh status
-./run.sh stop
-./run.sh restart
+scripts/local-run.sh status
+scripts/local-run.sh stop
+scripts/local-run.sh restart
 ```
 
 说明：
 
-- `run.sh` 会在 `frontend/node_modules` 缺失时自动执行 `npm install`
-- `run.sh` 不会自动安装 Python 依赖，`Qwen` 环境需要先准备好
-- `run.sh` 会优先读取根目录 `.env`；没有 `.env` 时使用本地默认值
+- `scripts/local-run.sh` 会在 `frontend/node_modules` 缺失时自动执行 `npm install`
+- `scripts/local-run.sh` 不会自动安装 Python 依赖，`Qwen` 环境需要先准备好
+- `scripts/local-run.sh` 会优先读取根目录 `.env`
 - 本地 PostgreSQL 默认也走 `CVECT_POSTGRES_IMAGE`，未覆盖时使用 DaoCloud 的 `pgvector` 镜像
 - 脚本日志输出到 `.run/logs/`
 
@@ -179,13 +180,13 @@ npm run dev -- --host
 
 仓库已新增：
 
-- `docker-compose.prod.yml`：生产编排入口
-- `.env.example`：唯一部署环境变量模板
+- `docker-compose.yml`：唯一容器编排入口
+- `.env`：唯一环境变量文件
 - `backend/cvect/Dockerfile`：后端镜像构建
 - `frontend/Dockerfile`：前端镜像构建
 - `frontend/nginx.conf`：前端静态托管与 `/api` 反向代理
 - `scripts/bootstrap-ubuntu-docker.sh`：Ubuntu 云主机安装 Docker
-- `scripts/cloud-deploy.sh`：云主机一键启动/停止/看日志
+- `scripts/server-run.sh`：云主机一键启动/停止/看日志
 - `scripts/cloud-smoke-test.sh`：云主机最小可用性检查
 
 ### 为什么这样部署
@@ -200,9 +201,8 @@ npm run dev -- --host
 如果你的目标是“单机/单台云主机，稳定展示上传、解析、候选人列表和语义重排”，只保留这一套配置：
 
 ```bash
-cp .env.example .env
 scripts/qwen-offline-cache.sh prefetch
-scripts/cloud-deploy.sh up
+scripts/server-run.sh up
 ```
 
 默认访问：
@@ -211,8 +211,8 @@ scripts/cloud-deploy.sh up
 - Basic Auth 用户名：`demo`
 - Basic Auth 密码：`demo123`
 
-后续所有部署和探活脚本都默认读取仓库根目录的 `.env`，不再切换其他 env 模板。
-`docker-compose.prod.yml` 也不再保留第二套默认值，部署参数以 `.env` 为唯一真源。
+后续所有部署和探活脚本都默认读取仓库根目录的 `.env`。
+`docker-compose.yml` 是唯一编排入口，部署参数以 `.env` 为唯一真源。
 
 这套默认值同时收敛了 demo 展示和国内网络兼容：
 
@@ -228,19 +228,19 @@ scripts/cloud-deploy.sh up
 如果你部署在远程机器，只需要把 `127.0.0.1:8088` 换成服务器 IP 和实际端口，并在 `.env` 里改掉 Basic Auth 密码。
 
 如果把 `CVECT_EMBEDDING_SERVICE_URL` 改成外部 OpenAI-compatible embedding 服务，
-`scripts/cloud-deploy.sh up` 会自动跳过本地 `qwen` 容器，只拉起 `postgres/backend/frontend`。
+`scripts/server-run.sh up` 会自动跳过本地 `qwen` 容器，只拉起 `postgres/backend/frontend`。
 
 如果你准备在本地构建镜像再上传到服务器，不要在服务器执行会触发重新构建的
-`scripts/cloud-deploy.sh up`，改用：
+`scripts/server-run.sh up`，改用：
 
 ```bash
-scripts/cloud-deploy.sh up-no-build
+scripts/server-run.sh up-no-build
 ```
 
 对应重建容器但不在服务器重新 build 的命令是：
 
 ```bash
-scripts/cloud-deploy.sh restart-no-build
+scripts/server-run.sh restart-no-build
 ```
 
 推荐顺序：
@@ -272,11 +272,7 @@ scripts/cloud-deploy.sh restart-no-build
 - `CVECT_HTTPS_PROXY`
 - `CVECT_NO_PROXY`
 
-1. 复制环境变量模板并按实际环境调整：
-
-```bash
-cp .env.example .env
-```
+1. 直接修改仓库根目录 `.env` 并按实际环境调整：
 
 重点改这些值：
 
@@ -312,15 +308,15 @@ scripts/qwen-offline-cache.sh verify
 3. 构建并启动：
 
 ```bash
-scripts/cloud-deploy.sh up
+scripts/server-run.sh up
 ```
 
 4. 查看状态：
 
 ```bash
-scripts/cloud-deploy.sh status
-scripts/cloud-deploy.sh logs backend
-scripts/cloud-deploy.sh logs qwen
+scripts/server-run.sh status
+scripts/server-run.sh logs backend
+scripts/server-run.sh logs qwen
 ```
 
 5. 访问入口：
@@ -383,15 +379,11 @@ cd CVect
 sudo bash scripts/bootstrap-ubuntu-docker.sh
 ```
 
-脚本会优先读取根目录 `.env` 里的 `CVECT_BOOTSTRAP_*`；如果你还没创建 `.env`，它会退回读取 `.env.example`。当前仓库默认已经填好了国内镜像地址。
+脚本会优先读取根目录 `.env` 里的 `CVECT_BOOTSTRAP_*`。当前仓库默认已经填好了国内镜像地址。
 
 如果你刚被加入 `docker` 组，重新登录一次。
 
-4. 准备云部署环境变量：
-
-```bash
-cp .env.example .env
-```
+4. 准备云部署环境变量：直接修改根目录 `.env`
 
 至少修改：
 
@@ -413,15 +405,15 @@ cp .env.example .env
 
 ```bash
 scripts/qwen-offline-cache.sh unpack /tmp/qwen-hf-cache.tgz
-scripts/cloud-deploy.sh up
+scripts/server-run.sh up
 ```
 
 6. 看运行状态：
 
 ```bash
-scripts/cloud-deploy.sh status
-scripts/cloud-deploy.sh logs backend
-scripts/cloud-deploy.sh logs qwen
+scripts/server-run.sh status
+scripts/server-run.sh logs backend
+scripts/server-run.sh logs qwen
 ```
 
 7. 做最小检查：
@@ -450,7 +442,7 @@ scripts/cloud-smoke-test.sh http://<your-server-ip>:8088
 - 当前生产 compose 默认启用前置 Basic Auth；但后端还没有内建业务级鉴权/RBAC
 - 模型首次启动需要下载 Hugging Face 权重，时间和磁盘占用都要预留
 - 默认是单实例部署；SSE、上传队列和本地存储都还没按多副本场景设计
-- `docker-compose.prod.yml` 默认用 CPU 跑 embedding-only Qwen，只适合功能验证或小规模使用
+- `docker-compose.yml` 默认用 CPU 跑 embedding-only Qwen，只适合功能验证或小规模使用
 
 ### 如果后面要上正式环境
 
@@ -695,7 +687,7 @@ CVECT_HF_HUB_DISABLE_XET=true
 然后只重建 `qwen`：
 
 ```bash
-docker compose --env-file .env -f docker-compose.prod.yml up -d --force-recreate qwen
+docker compose --env-file .env -f docker-compose.yml up -d --force-recreate qwen
 ```
 
 2. 服务器完全不能访问 Hugging Face
@@ -713,15 +705,15 @@ scripts/qwen-offline-cache.sh pack
 ```bash
 scripts/qwen-offline-cache.sh unpack /path/to/qwen-hf-cache.tgz
 scripts/qwen-offline-cache.sh verify
-docker compose --env-file .env -f docker-compose.prod.yml up -d --force-recreate qwen
+docker compose --env-file .env -f docker-compose.yml up -d --force-recreate qwen
 ```
 
-默认 `.env.example` 已经把 `CVECT_HF_HUB_OFFLINE=true`、`CVECT_HF_LOCAL_FILES_ONLY=true` 打开，服务器不会再尝试在线下载模型。
+默认 `.env` 已经把 `CVECT_HF_HUB_OFFLINE=true`、`CVECT_HF_LOCAL_FILES_ONLY=true` 打开，服务器不会再尝试在线下载模型。
 
 `backend/frontend` 本身不需要因为这个问题单独重建；`qwen` healthy 之后，再执行一次：
 
 ```bash
-scripts/cloud-deploy.sh up
+scripts/server-run.sh up
 ```
 
 把剩余服务补起来即可。

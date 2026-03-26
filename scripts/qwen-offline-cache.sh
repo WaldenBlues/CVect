@@ -7,7 +7,7 @@ COMMAND="${1:-help}"
 ARG1="${2:-}"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
-  echo "Missing ${ENV_FILE}. Create it from .env.example first." >&2
+  echo "Missing ${ENV_FILE}. Create or restore it first." >&2
   exit 1
 fi
 
@@ -262,14 +262,13 @@ Commands:
   info       Print the current model/cache configuration.
 
 Examples:
-  cp .env.example .env
   scripts/qwen-offline-cache.sh prefetch
   scripts/qwen-offline-cache.sh verify
   scripts/qwen-offline-cache.sh pack
   scp .artifacts/qwen-hf-cache.tgz <server>:/tmp/
   # on the server:
   scripts/qwen-offline-cache.sh unpack /tmp/qwen-hf-cache.tgz
-  scripts/cloud-deploy.sh up
+  scripts/server-run.sh up
 EOF
     ;;
   *)

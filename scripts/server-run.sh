@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="${ROOT_DIR}/docker-compose.prod.yml"
+COMPOSE_FILE="${ROOT_DIR}/docker-compose.yml"
 ENV_FILE="${ROOT_DIR}/.env"
 COMMAND="${1:-up}"
 SERVICE="${2:-}"
@@ -96,8 +96,6 @@ fi
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "Missing env file: ${ENV_FILE}"
-  echo "Create it with:"
-  echo "  cp ${ROOT_DIR}/.env.example ${ROOT_DIR}/.env"
   exit 1
 fi
 
@@ -174,15 +172,14 @@ case "${COMMAND}" in
     ;;
   *)
     cat <<EOF
-Usage: scripts/cloud-deploy.sh [up|up-no-build|down|restart|restart-no-build|status|logs|config|pull] [service]
+Usage: scripts/server-run.sh [up|up-no-build|down|restart|restart-no-build|status|logs|config|pull] [service]
 
 Examples:
-  cp .env.example .env
   scripts/qwen-offline-cache.sh prefetch
-  scripts/cloud-deploy.sh up
-  scripts/cloud-deploy.sh up-no-build
-  scripts/cloud-deploy.sh status
-  scripts/cloud-deploy.sh logs backend
+  scripts/server-run.sh up
+  scripts/server-run.sh up-no-build
+  scripts/server-run.sh status
+  scripts/server-run.sh logs backend
 EOF
     exit 1
     ;;

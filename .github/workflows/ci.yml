@@ -1,0 +1,298 @@
+name: CI
+
+on:
+  pull_request:
+    paths:
+      - ".env"
+      - "docker-compose*.yml"
+      - "scripts/**"
+      - "frontend/**"
+      - "Qwen/**"
+      - "qwen/**"
+      - "backend/cvect/**"
+      - ".github/workflows/**"
+      - ".github/maven-settings.xml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".env"
+      - "docker-compose*.yml"
+      - "scripts/**"
+      - "frontend/**"
+      - "Qwen/**"
+      - "qwen/**"
+      - "backend/cvect/**"
+      - ".github/workflows/**"
+      - ".github/maven-settings.xml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect Changed Areas
+    runs-on: ubuntu-latest
+    outputs:
+      config: ${{ steps.detect.outputs.config }}
+      backend: ${{ steps.detect.outputs.backend }}
+      python: ${{ steps.detect.outputs.python }}
+      frontend: ${{ steps.detect.outputs.frontend }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            changed_files="$(git ls-files)"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            changed_files="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")"
+          else
+            before_sha="${{ github.event.before }}"
+            if [[ -z "${before_sha}" || "${before_sha}" == "0000000000000000000000000000000000000000" ]]; then
+              changed_files="$(git ls-files)"
+            else
+              changed_files="$(git diff --name-only "${before_sha}" "${{ github.sha }}")"
+            fi
+          fi
+
+          printf 'Changed files:\n%s\n' "${changed_files:-<none>}"
+
+          config=false
+          backend=false
+          python=false
+          frontend=false
+          workflow_changed=false
+
+          while IFS= read -r file; do
+            [[ -z "${file}" ]] && continue
+            case "${file}" in
+              .github/workflows/*)
+                workflow_changed=true
+                ;;
+            esac
+            case "${file}" in
+              .env|docker-compose*.yml|scripts/*|frontend/Dockerfile|frontend/nginx.conf|frontend/docker-entrypoint.d/*|Qwen/Dockerfile|backend/cvect/Dockerfile)
+                config=true
+                ;;
+            esac
+            case "${file}" in
+              backend/cvect/*|backend/cvect/**|.github/maven-settings.xml)
+                backend=true
+                ;;
+            esac
+            case "${file}" in
+              Qwen/*|Qwen/**|qwen/*|qwen/**)
+                python=true
+                ;;
+            esac
+            case "${file}" in
+              frontend/*|frontend/**)
+                frontend=true
+                ;;
+            esac
+          done <<< "${changed_files}"
+
+          if [[ "${workflow_changed}" == "true" ]]; then
+            config=true
+            backend=true
+            python=true
+            frontend=true
+          fi
+
+          {
+            echo "config=${config}"
+            echo "backend=${backend}"
+            echo "python=${python}"
+            echo "frontend=${frontend}"
+          } >> "${GITHUB_OUTPUT}"
+
+  config:
+    name: Config And Scripts
+    needs: changes
+    if: needs.changes.outputs.config == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Shell syntax
+        run: |
+          bash -n scripts/bootstrap-ubuntu-docker.sh
+          bash -n scripts/server-run.sh
+          bash -n scripts/cloud-smoke-test.sh
+          bash -n scripts/debug-hf-connectivity.sh
+          bash -n scripts/qwen-offline-cache.sh
+          bash -n scripts/local-run.sh
+          bash -n frontend/docker-entrypoint.d/30-cvect-auth.envsh
+
+      - name: Compose config
+        run: docker compose --env-file .env -f docker-compose.yml config
+
+      - name: Diff whitespace check
+        run: git diff --check
+
+  backend:
+    name: Java Backend
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend/cvect
+    env:
+      MAVEN_OPTS: -Xmx2g
+      MAVEN_REPO_LOCAL: ${{ github.workspace }}/.m2-ci
+      CVECT_TESTCONTAINERS_POSTGRES_IMAGE: m.daocloud.io/docker.io/pgvector/pgvector:pg17
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          cache-dependency-path: backend/cvect/pom.xml
+
+      - name: Ensure Maven wrapper is executable
+        run: chmod +x mvnw
+
+      - name: Compile
+        run: |
+          ./mvnw --batch-mode --no-transfer-progress \
+            -Dmaven.repo.local="$MAVEN_REPO_LOCAL" \
+            -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            -DskipTests compile
+
+      - name: Test default suite
+        run: |
+          ./mvnw --batch-mode --no-transfer-progress \
+            -Dmaven.repo.local="$MAVEN_REPO_LOCAL" \
+            -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            test
+
+      - name: Test PostgreSQL smoke
+        run: |
+          ./mvnw --batch-mode --no-transfer-progress \
+            -Dmaven.repo.local="$MAVEN_REPO_LOCAL" \
+            -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            -DexcludedGroups= \
+            -Dgroups=postgres \
+            -Dtest=com.walden.cvect.infra.vector.VectorStoreServicePostgresTest \
+            test
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-test-reports
+          path: |
+            backend/cvect/target/surefire-reports/**
+            backend/cvect/target/failsafe-reports/**
+          if-no-files-found: ignore
+
+  python:
+    name: Python Qwen
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: Qwen/requirements-service.txt
+
+      - name: Strict parse check
+        run: |
+          while IFS= read -r file; do
+            python -m py_compile "$file"
+          done < <(git ls-files "Qwen/*.py")
+
+      - name: Bytecode compile check
+        run: |
+          while IFS= read -r file; do
+            python -m compileall -q "$file"
+          done < <(git ls-files "Qwen/*.py")
+
+      - name: Install service dependencies
+        if: matrix.python-version == '3.10'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --extra-index-url https://download.pytorch.org/whl/cpu torch==2.10.0+cpu
+          python -m pip install -r Qwen/requirements-service.txt
+
+      - name: Import smoke
+        if: matrix.python-version == '3.10'
+        run: |
+          python - <<'PY'
+          import accelerate
+          import fastapi
+          import numpy
+          import pydantic
+          import safetensors
+          import sentencepiece
+          import torch
+          import transformers
+          import uvicorn
+          print("service dependency import smoke passed")
+          PY
+
+      - name: Pip metadata check
+        if: matrix.python-version == '3.10'
+        run: python -m pip check
+
+  frontend:
+    name: Frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+          registry-url: https://registry.npmmirror.com
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build

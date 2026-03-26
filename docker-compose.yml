@@ -1,22 +1,124 @@
+name: cvect
 
 services:
   postgres:
-    image: ${CVECT_POSTGRES_IMAGE:-m.daocloud.io/docker.io/pgvector/pgvector:pg17}
-    container_name: cvect-postgres
+    image: ${CVECT_POSTGRES_IMAGE:?set in .env}
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: ${CVECT_POSTGRES_DB:-cvect}
-      POSTGRES_USER: ${CVECT_POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${CVECT_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${CVECT_POSTGRES_DB:?set in .env}
+      POSTGRES_USER: ${CVECT_POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${CVECT_POSTGRES_PASSWORD:?set in .env}
       PGDATA: /var/lib/postgresql/data/pgdata
-    ports:
-      - "${CVECT_DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${CVECT_POSTGRES_USER:-postgres} -d ${CVECT_POSTGRES_DB:-cvect}"]
+      test: ["CMD-SHELL", "pg_isready -U ${CVECT_POSTGRES_USER:?set in .env} -d ${CVECT_POSTGRES_DB:?set in .env}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
+
+  qwen:
+    build:
+      context: ./Qwen
+      args:
+        PYTHON_BASE_IMAGE: ${CVECT_PYTHON_BASE_IMAGE:?set in .env}
+        DEBIAN_APT_MIRROR: ${CVECT_DEBIAN_APT_MIRROR-}
+        PIP_INDEX_URL: ${CVECT_PIP_INDEX_URL-}
+        PIP_TRUSTED_HOST: ${CVECT_PIP_TRUSTED_HOST-}
+        TORCH_PACKAGE: ${CVECT_TORCH_PACKAGE:-torch==2.10.0+cpu}
+        TORCH_WHEEL_INDEX_URL: ${CVECT_TORCH_WHEEL_INDEX_URL:-https://download.pytorch.org/whl/cpu}
+        TORCH_WHEEL_TRUSTED_HOST: ${CVECT_TORCH_WHEEL_TRUSTED_HOST:-download.pytorch.org}
+    restart: unless-stopped
+    environment:
+      EMBEDDING_MODEL_ID: ${CVECT_EMBEDDING_MODEL:?set in .env}
+      HF_HOME: /root/.cache/huggingface
+      HF_ENDPOINT: ${CVECT_HF_ENDPOINT:?set in .env}
+      HF_HUB_OFFLINE: ${CVECT_HF_HUB_OFFLINE:?set in .env}
+      HF_LOCAL_FILES_ONLY: ${CVECT_HF_LOCAL_FILES_ONLY:?set in .env}
+      HF_HUB_DISABLE_XET: ${CVECT_HF_HUB_DISABLE_XET:?set in .env}
+      HTTP_PROXY: ${CVECT_HTTP_PROXY-}
+      HTTPS_PROXY: ${CVECT_HTTPS_PROXY-}
+      NO_PROXY: ${CVECT_NO_PROXY-}
+      http_proxy: ${CVECT_HTTP_PROXY-}
+      https_proxy: ${CVECT_HTTPS_PROXY-}
+      no_proxy: ${CVECT_NO_PROXY-}
+      DEVICE: ${CVECT_EMBEDDING_DEVICE:?set in .env}
+      TORCH_DTYPE: ${CVECT_TORCH_DTYPE:?set in .env}
+      TORCH_NUM_THREADS: ${CVECT_TORCH_NUM_THREADS:-1}
+      TORCH_NUM_INTEROP_THREADS: ${CVECT_TORCH_NUM_INTEROP_THREADS:-1}
+      OMP_NUM_THREADS: ${CVECT_TORCH_NUM_THREADS:-1}
+      MKL_NUM_THREADS: ${CVECT_TORCH_NUM_THREADS:-1}
+      MAX_BATCH_SIZE: ${CVECT_EMBEDDING_BATCH_SIZE:?set in .env}
+      MAX_CONCURRENT_REQUESTS: ${CVECT_EMBEDDING_MAX_CONCURRENT_REQUESTS:-1}
+      MAX_INPUT_LENGTH: ${CVECT_EMBEDDING_MAX_INPUT_LENGTH:?set in .env}
+      PRELOAD_MODELS: ${CVECT_PRELOAD_MODELS:?set in .env}
+      MALLOC_ARENA_MAX: ${CVECT_MALLOC_ARENA_MAX:-2}
+      TOKENIZERS_PARALLELISM: "false"
+      HOST: 0.0.0.0
+      PORT: 8001
+    volumes:
+      - ${CVECT_HF_CACHE_DIR:?set in .env}:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/ready', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+
+  backend:
+    build:
+      context: ./backend/cvect
+      args:
+        MAVEN_BUILD_IMAGE: ${CVECT_MAVEN_BUILD_IMAGE:?set in .env}
+        JAVA_RUNTIME_IMAGE: ${CVECT_JAVA_RUNTIME_IMAGE:?set in .env}
+        MAVEN_MIRROR_URL: ${CVECT_MAVEN_MIRROR_URL-}
+        UBUNTU_APT_MIRROR: ${CVECT_UBUNTU_APT_MIRROR-}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      JAVA_OPTS: ${JAVA_OPTS-}
+      CVECT_SERVER_PORT: 8080
+      CVECT_DB_URL: jdbc:postgresql://postgres:5432/${CVECT_POSTGRES_DB:?set in .env}
+      CVECT_DB_USERNAME: ${CVECT_POSTGRES_USER:?set in .env}
+      CVECT_DB_PASSWORD: ${CVECT_POSTGRES_PASSWORD:?set in .env}
+      CVECT_EMBEDDING_SERVICE_URL: ${CVECT_EMBEDDING_SERVICE_URL:-http://qwen:8001/embed}
+      CVECT_EMBEDDING_API_FORMAT: ${CVECT_EMBEDDING_API_FORMAT:-auto}
+      CVECT_EMBEDDING_HEALTH_URL: ${CVECT_EMBEDDING_HEALTH_URL:-http://qwen:8001/ready}
+      CVECT_VECTOR_ENABLED: ${CVECT_VECTOR_ENABLED:-true}
+      CVECT_VECTOR_INGEST_WORKER_ENABLED: ${CVECT_VECTOR_INGEST_WORKER_ENABLED:-true}
+      CVECT_UPLOAD_STORAGE_DIR: /data/storage
+      CVECT_SHOW_SQL: ${CVECT_SHOW_SQL:?set in .env}
+      CVECT_CACHE_ENABLED: ${CVECT_CACHE_ENABLED:?set in .env}
+    expose:
+      - "8080"
+    volumes:
+      - backend_storage:/data/storage
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/resumes/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NODE_BUILD_IMAGE: ${CVECT_NODE_BUILD_IMAGE:?set in .env}
+        NGINX_RUNTIME_IMAGE: ${CVECT_NGINX_RUNTIME_IMAGE:?set in .env}
+        NPM_REGISTRY: ${CVECT_NPM_REGISTRY-}
+        ALPINE_APK_MIRROR: ${CVECT_ALPINE_APK_MIRROR-}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      CVECT_BASIC_AUTH_ENABLED: ${CVECT_BASIC_AUTH_ENABLED:?set in .env}
+      CVECT_BASIC_AUTH_USERNAME: ${CVECT_BASIC_AUTH_USERNAME:?set in .env}
+      CVECT_BASIC_AUTH_PASSWORD: ${CVECT_BASIC_AUTH_PASSWORD:?set in .env}
+    ports:
+      - "${CVECT_HTTP_PORT:?set in .env}:80"
 
 volumes:
   postgres_data:
+  backend_storage:

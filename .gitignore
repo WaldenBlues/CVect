@@ -23,9 +23,8 @@ Thumbs.db
 # ---------- Python ----------
 __pycache__/
 *.py[cod]
-.env
-.env.*
-!.env.example
+.env.local
+.env.*.local
 .venv/
 venv/
 .envrc

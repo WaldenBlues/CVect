@@ -3,7 +3,6 @@
 fastapi==0.134.0
 uvicorn==0.41.0
 transformers==5.2.0
-torch==2.10.0
 accelerate==1.12.0
 safetensors==0.7.0
 sentencepiece==0.2.1

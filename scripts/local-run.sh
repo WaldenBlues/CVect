@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_DIR="${ROOT_DIR}/.run"
 LOG_DIR="${RUN_DIR}/logs"
 PID_DIR="${RUN_DIR}/pids"
@@ -328,7 +328,7 @@ start_all() {
   wait_for_http "backend" "${BACKEND_HEALTH_URL}" "${BACKEND_WAIT_TIMEOUT}" "${BACKEND_PID_FILE}" "${BACKEND_LOG}"
   wait_for_http "frontend" "${FRONTEND_URL}" "${FRONTEND_WAIT_TIMEOUT}" "${FRONTEND_PID_FILE}" "${FRONTEND_LOG}"
   echo ""
-  echo "All services are ready. Logs:"
+  echo "All local services are ready. Logs:"
   echo "  embedding: ${EMBED_LOG}"
   echo "  backend:   ${BACKEND_LOG}"
   echo "  frontend:  ${FRONTEND_LOG}"
@@ -376,7 +376,7 @@ case "${cmd}" in
     status_all
     ;;
   *)
-    echo "Usage: ./run.sh {start|stop|restart|status}"
+    echo "Usage: scripts/local-run.sh {start|stop|restart|status}"
     exit 1
     ;;
 esac

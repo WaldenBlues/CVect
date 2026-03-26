@@ -5,6 +5,9 @@ FROM ${PYTHON_BASE_IMAGE}
 ARG DEBIAN_APT_MIRROR
 ARG PIP_INDEX_URL
 ARG PIP_TRUSTED_HOST
+ARG TORCH_PACKAGE=torch==2.10.0+cpu
+ARG TORCH_WHEEL_INDEX_URL=https://download.pytorch.org/whl/cpu
+ARG TORCH_WHEEL_TRUSTED_HOST=download.pytorch.org
 
 WORKDIR /app
 
@@ -26,6 +29,7 @@ RUN if [ -n "${PIP_INDEX_URL}" ]; then \
     && if [ -n "${PIP_TRUSTED_HOST}" ]; then \
       pip config set global.trusted-host "${PIP_TRUSTED_HOST}"; \
     fi \
+    && pip install --no-cache-dir --extra-index-url "${TORCH_WHEEL_INDEX_URL}" --trusted-host "${TORCH_WHEEL_TRUSTED_HOST}" "${TORCH_PACKAGE}" \
     && pip install --no-cache-dir -r requirements-service.txt
 
 COPY embedding_service.py .

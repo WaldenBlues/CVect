@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ROOT_DIR}/.env"
-COMPOSE_FILE="${ROOT_DIR}/docker-compose.prod.yml"
+COMPOSE_FILE="${ROOT_DIR}/docker-compose.yml"
 
 read_env_value() {
   local key="$1"
@@ -33,7 +33,7 @@ read_env_value() {
 }
 
 if [[ ! -f "${ENV_FILE}" ]]; then
-  echo "Missing ${ENV_FILE}. Create it from .env.example first." >&2
+  echo "Missing ${ENV_FILE}. Create or restore it first." >&2
   exit 1
 fi
 
