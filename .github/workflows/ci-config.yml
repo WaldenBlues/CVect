@@ -3,7 +3,7 @@ name: CI - Config And Scripts
 on:
   pull_request:
     paths:
-      - ".env.example"
+      - ".env"
       - "docker-compose*.yml"
       - "scripts/**"
       - "run.sh"
