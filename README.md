@@ -17,6 +17,12 @@ CVect 是一个招聘场景下的简历处理与候选人管理系统，覆盖 `
 - 一个本地模型服务：`Qwen` CPU embedding
 - 两个运行脚本：`scripts/local-run.sh`、`scripts/server-run.sh`
 
+## Live Demo
+
+- Public URL: [http://111.228.5.197:8088/](http://111.228.5.197:8088/)
+- Access policy is controlled by the deployed server configuration.
+- Repository does not publish any deployment credentials.
+
 ## Stack
 
 - Backend: Java 17, Spring Boot 3.5, Flyway, JPA
@@ -181,7 +187,7 @@ curl -fsS http://127.0.0.1:8080/api/resumes/health
 Compose / server mode:
 
 ```bash
-curl -u demo:demo123 -fsS http://127.0.0.1:8088/healthz
+curl -u <username>:<password> -fsS http://127.0.0.1:8088/healthz
 docker compose --env-file .env -f docker-compose.yml ps
 ```
 
@@ -240,7 +246,8 @@ Small machine defaults are already tuned for `2C4G`:
 
 ## Notes
 
+- Live demo URL can be linked from the GitHub repository "About" section.
 - The default deployment is single-node.
 - `qwen` is embedding-only by default.
-- Frontend auth is Basic Auth at the nginx layer.
+- Frontend auth is configured at the nginx layer and should be managed via `.env`.
 - This repository is optimized for local development, demos, and single-host deployment.
