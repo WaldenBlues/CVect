@@ -29,6 +29,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 @TestPropertySource(properties = {
     "app.embedding.model-name=test-embedding-model",
+    "app.embedding.api-format=openai",
+    "app.embedding.health-url=http://localhost:9001/health",
     "app.embedding.device=cpu",
     "app.embedding.batch-size=8",
     "app.embedding.dimension=1024",
@@ -80,6 +82,8 @@ class EmbeddingServiceConfigurationTest {
         assertEquals(1024, embeddingService.getDimension());
         assertEquals("test-embedding-model",
             embeddingConfig.getModelName(), "配置应加载测试覆盖的模型名称");
+        assertEquals("openai", embeddingConfig.getApiFormat(), "配置应加载 embedding API 格式");
+        assertEquals("http://localhost:9001/health", embeddingConfig.getHealthUrl(), "配置应加载 health URL");
         assertEquals(8, embeddingConfig.getBatchSize(), "配置应加载测试覆盖的批大小");
     }
 

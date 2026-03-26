@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
 """
-Unified Qwen FastAPI service
+Qwen embedding FastAPI service.
 
 Features:
 - POST /embed: text embeddings
-- POST /generate: text generation
-- POST /models/preload: preload/download models
+- POST /models/preload: preload/download embedding model
 - GET /health, GET /ready, GET /info
 
 Env vars:
 - EMBEDDING_MODEL_ID: default "Qwen/Qwen3-Embedding-0.6B"
-- GENERATION_MODEL_ID: default "Qwen/Qwen3-0.6B"
 - DEVICE: cpu/cuda/auto (default auto)
 - TORCH_DTYPE: auto/float16/bfloat16/float32 (default auto)
-- MAX_BATCH_SIZE: default 16
-- MAX_INPUT_LENGTH: default 8192
-- MAX_NEW_TOKENS_DEFAULT: default 256
+- TORCH_NUM_THREADS: CPU worker threads (default min(2, cpu_count))
+- TORCH_NUM_INTEROP_THREADS: CPU inter-op threads (default 1)
+- MAX_BATCH_SIZE: default 1
+- MAX_INPUT_LENGTH: default 1024
+- MAX_CONCURRENT_REQUESTS: default 1
 - HOST: default 0.0.0.0
 - PORT: default 8001
 - PRELOAD_MODELS: true/false (default false)
-- READINESS_REQUIRE_GENERATION: true/false (default false)
 """
 
 from __future__ import annotations
@@ -28,18 +27,20 @@ import logging
 import os
 import threading
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import torch
 import torch.nn.functional as F
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer
 
+
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("qwen-fastapi")
+logger = logging.getLogger("qwen-embedding-fastapi")
 
 
 def _resolve_device() -> str:
@@ -66,17 +67,44 @@ def _resolve_dtype(device: str) -> torch.dtype:
     return torch.float32
 
 
+def _resolve_thread_count(env_name: str, default_value: int) -> int:
+    configured = os.getenv(env_name, "").strip()
+    if configured:
+        try:
+            return max(1, int(configured))
+        except ValueError:
+            logger.warning("Invalid %s=%s, using default %s", env_name, configured, default_value)
+    return default_value
+
+
 EMBEDDING_MODEL_ID = os.getenv("EMBEDDING_MODEL_ID", "Qwen/Qwen3-Embedding-0.6B")
-GENERATION_MODEL_ID = os.getenv("GENERATION_MODEL_ID", "Qwen/Qwen3-0.6B")
 DEVICE = _resolve_device()
 TORCH_DTYPE = _resolve_dtype(DEVICE)
-MAX_BATCH_SIZE = int(os.getenv("MAX_BATCH_SIZE", "16"))
-MAX_INPUT_LENGTH = int(os.getenv("MAX_INPUT_LENGTH", "8192"))
-MAX_NEW_TOKENS_DEFAULT = int(os.getenv("MAX_NEW_TOKENS_DEFAULT", "256"))
+MAX_BATCH_SIZE = int(os.getenv("MAX_BATCH_SIZE", "1"))
+MAX_INPUT_LENGTH = int(os.getenv("MAX_INPUT_LENGTH", "1024"))
+MAX_CONCURRENT_REQUESTS = max(1, int(os.getenv("MAX_CONCURRENT_REQUESTS", "1")))
 LOCAL_FILES_ONLY = os.getenv("HF_LOCAL_FILES_ONLY", "false").strip().lower() == "true"
-READINESS_REQUIRE_GENERATION = (
-    os.getenv("READINESS_REQUIRE_GENERATION", "false").strip().lower() == "true"
-)
+CPU_COUNT = os.cpu_count() or 1
+TORCH_NUM_THREADS = _resolve_thread_count("TORCH_NUM_THREADS", min(2, CPU_COUNT))
+TORCH_NUM_INTEROP_THREADS = _resolve_thread_count("TORCH_NUM_INTEROP_THREADS", 1)
+
+REQUEST_SEMAPHORE = threading.Semaphore(MAX_CONCURRENT_REQUESTS)
+
+
+def _configure_torch_runtime() -> None:
+    if DEVICE != "cpu":
+        return
+    try:
+        torch.set_num_threads(TORCH_NUM_THREADS)
+    except RuntimeError as exc:
+        logger.warning("Unable to set torch num threads: %s", exc)
+    try:
+        torch.set_num_interop_threads(TORCH_NUM_INTEROP_THREADS)
+    except RuntimeError as exc:
+        logger.warning("Unable to set torch interop threads: %s", exc)
+
+
+_configure_torch_runtime()
 
 
 class EmbeddingRequest(BaseModel):
@@ -92,29 +120,11 @@ class EmbeddingResponse(BaseModel):
     processing_time_ms: float
 
 
-class GenerateRequest(BaseModel):
-    prompt: str = Field(..., min_length=1)
-    max_new_tokens: int = Field(default=MAX_NEW_TOKENS_DEFAULT, ge=1, le=2048)
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    top_p: float = Field(default=0.9, ge=0.0, le=1.0)
-    do_sample: bool = True
-
-
-class GenerateResponse(BaseModel):
-    text: str
-    model: str
-    prompt_tokens: int
-    completion_tokens: int
-    processing_time_ms: float
-
-
 class ModelRegistry:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self.embedding_tokenizer = None
         self.embedding_model = None
-        self.generation_tokenizer = None
-        self.generation_model = None
 
     def load_embedding(self) -> None:
         if self.embedding_model is not None and self.embedding_tokenizer is not None:
@@ -133,6 +143,7 @@ class ModelRegistry:
                 torch_dtype=TORCH_DTYPE,
                 trust_remote_code=True,
                 local_files_only=LOCAL_FILES_ONLY,
+                low_cpu_mem_usage=(DEVICE == "cpu"),
             )
             if DEVICE == "cuda":
                 model = model.to(DEVICE)
@@ -140,31 +151,6 @@ class ModelRegistry:
             self.embedding_tokenizer = tokenizer
             self.embedding_model = model
             logger.info("Embedding model ready on %s", DEVICE)
-
-    def load_generation(self) -> None:
-        if self.generation_model is not None and self.generation_tokenizer is not None:
-            return
-        with self._lock:
-            if self.generation_model is not None and self.generation_tokenizer is not None:
-                return
-            logger.info("Loading generation model: %s", GENERATION_MODEL_ID)
-            tokenizer = AutoTokenizer.from_pretrained(
-                GENERATION_MODEL_ID,
-                trust_remote_code=True,
-                local_files_only=LOCAL_FILES_ONLY,
-            )
-            model = AutoModelForCausalLM.from_pretrained(
-                GENERATION_MODEL_ID,
-                torch_dtype=TORCH_DTYPE,
-                trust_remote_code=True,
-                local_files_only=LOCAL_FILES_ONLY,
-            )
-            if DEVICE == "cuda":
-                model = model.to(DEVICE)
-            model.eval()
-            self.generation_tokenizer = tokenizer
-            self.generation_model = model
-            logger.info("Generation model ready on %s", DEVICE)
 
 
 registry = ModelRegistry()
@@ -182,72 +168,36 @@ def _embedding_forward(texts: List[str], normalize: bool) -> List[List[float]]:
     tokenizer = registry.embedding_tokenizer
     model = registry.embedding_model
 
-    inputs = tokenizer(
-        texts,
-        padding=True,
-        truncation=True,
-        max_length=MAX_INPUT_LENGTH,
-        return_tensors="pt",
-    )
-    inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-
-    with torch.no_grad():
-        outputs = model(**inputs, return_dict=True)
-        token_embeddings = getattr(outputs, "last_hidden_state", None)
-        if token_embeddings is None:
-            hidden_states = getattr(outputs, "hidden_states", None)
-            if not hidden_states:
-                raise RuntimeError("Embedding model output missing last_hidden_state")
-            token_embeddings = hidden_states[-1]
-
-        pooled = _mean_pool(token_embeddings, inputs["attention_mask"])
-        if normalize:
-            pooled = F.normalize(pooled, p=2, dim=1)
-
-    return pooled.cpu().tolist()
-
-
-def _generation_forward(request: GenerateRequest) -> Dict[str, object]:
-    registry.load_generation()
-    tokenizer = registry.generation_tokenizer
-    model = registry.generation_model
-
-    encoded = tokenizer(
-        request.prompt,
-        truncation=True,
-        max_length=MAX_INPUT_LENGTH,
-        return_tensors="pt",
-    )
-    encoded = {k: v.to(DEVICE) for k, v in encoded.items()}
-    prompt_len = encoded["input_ids"].shape[1]
-
-    with torch.no_grad():
-        generated = model.generate(
-            **encoded,
-            max_new_tokens=request.max_new_tokens,
-            temperature=request.temperature,
-            top_p=request.top_p,
-            do_sample=request.do_sample,
-            pad_token_id=tokenizer.eos_token_id,
-            eos_token_id=tokenizer.eos_token_id,
+    with REQUEST_SEMAPHORE:
+        inputs = tokenizer(
+            texts,
+            padding=True,
+            truncation=True,
+            max_length=MAX_INPUT_LENGTH,
+            return_tensors="pt",
         )
+        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
 
-    completion_ids = generated[0][prompt_len:]
-    text = tokenizer.decode(completion_ids, skip_special_tokens=True)
-    if not text.strip():
-        text = tokenizer.decode(generated[0], skip_special_tokens=True)
-    completion_tokens = max(0, generated[0].shape[0] - prompt_len)
-    return {
-        "text": text,
-        "prompt_tokens": int(prompt_len),
-        "completion_tokens": int(completion_tokens),
-    }
+        with torch.inference_mode():
+            outputs = model(**inputs, return_dict=True)
+            token_embeddings = getattr(outputs, "last_hidden_state", None)
+            if token_embeddings is None:
+                hidden_states = getattr(outputs, "hidden_states", None)
+                if not hidden_states:
+                    raise RuntimeError("Embedding model output missing last_hidden_state")
+                token_embeddings = hidden_states[-1]
+
+            pooled = _mean_pool(token_embeddings, inputs["attention_mask"])
+            if normalize:
+                pooled = F.normalize(pooled, p=2, dim=1)
+
+        return pooled.cpu().tolist()
 
 
 app = FastAPI(
-    title="Qwen Unified Service",
-    description="Embedding + Generation FastAPI service",
-    version="2.0.0",
+    title="Qwen Embedding Service",
+    description="Embedding-only FastAPI service for local CPU deployment",
+    version="3.0.0",
 )
 
 app.add_middleware(
@@ -263,11 +213,17 @@ app.add_middleware(
 def _startup() -> None:
     preload = os.getenv("PRELOAD_MODELS", "false").strip().lower() == "true"
     logger.info(
-        "Service startup. device=%s dtype=%s preload_models=%s", DEVICE, TORCH_DTYPE, preload
+        "Service startup. device=%s dtype=%s preload_models=%s num_threads=%s interop_threads=%s max_batch_size=%s max_concurrent_requests=%s",
+        DEVICE,
+        TORCH_DTYPE,
+        preload,
+        TORCH_NUM_THREADS,
+        TORCH_NUM_INTEROP_THREADS,
+        MAX_BATCH_SIZE,
+        MAX_CONCURRENT_REQUESTS,
     )
     if preload:
         registry.load_embedding()
-        registry.load_generation()
 
 
 @app.get("/health")
@@ -277,7 +233,9 @@ def health() -> Dict[str, object]:
         "device": DEVICE,
         "dtype": str(TORCH_DTYPE).replace("torch.", ""),
         "embedding_loaded": registry.embedding_model is not None,
-        "generation_loaded": registry.generation_model is not None,
+        "torch_num_threads": TORCH_NUM_THREADS,
+        "torch_num_interop_threads": TORCH_NUM_INTEROP_THREADS,
+        "max_concurrent_requests": MAX_CONCURRENT_REQUESTS,
     }
 
 
@@ -286,10 +244,6 @@ def ready() -> Dict[str, object]:
     start = time.time()
     try:
         registry.load_embedding()
-        generation_ready = registry.generation_model is not None
-        if READINESS_REQUIRE_GENERATION:
-            registry.load_generation()
-            generation_ready = True
     except Exception as exc:  # noqa: BLE001
         logger.exception("Readiness probe failed")
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -300,8 +254,9 @@ def ready() -> Dict[str, object]:
         "device": DEVICE,
         "dtype": str(TORCH_DTYPE).replace("torch.", ""),
         "embedding_loaded": registry.embedding_model is not None,
-        "generation_loaded": generation_ready,
-        "generation_required": READINESS_REQUIRE_GENERATION,
+        "torch_num_threads": TORCH_NUM_THREADS,
+        "torch_num_interop_threads": TORCH_NUM_INTEROP_THREADS,
+        "max_concurrent_requests": MAX_CONCURRENT_REQUESTS,
         "processing_time_ms": round(elapsed, 2),
     }
 
@@ -310,11 +265,12 @@ def ready() -> Dict[str, object]:
 def info() -> Dict[str, object]:
     return {
         "embedding_model": EMBEDDING_MODEL_ID,
-        "generation_model": GENERATION_MODEL_ID,
         "device": DEVICE,
         "max_batch_size": MAX_BATCH_SIZE,
         "max_input_length": MAX_INPUT_LENGTH,
-        "max_new_tokens_default": MAX_NEW_TOKENS_DEFAULT,
+        "torch_num_threads": TORCH_NUM_THREADS,
+        "torch_num_interop_threads": TORCH_NUM_INTEROP_THREADS,
+        "max_concurrent_requests": MAX_CONCURRENT_REQUESTS,
     }
 
 
@@ -322,11 +278,10 @@ def info() -> Dict[str, object]:
 def preload_models() -> Dict[str, object]:
     start = time.time()
     registry.load_embedding()
-    registry.load_generation()
     elapsed = (time.time() - start) * 1000
     return {
         "status": "ok",
-        "message": "models loaded",
+        "message": "embedding model loaded",
         "processing_time_ms": round(elapsed, 2),
     }
 
@@ -353,25 +308,6 @@ def embed(request: EmbeddingRequest) -> EmbeddingResponse:
         model=EMBEDDING_MODEL_ID,
         dimension=dimension,
         batch_size=len(request.texts),
-        processing_time_ms=elapsed,
-    )
-
-
-@app.post("/generate", response_model=GenerateResponse)
-def generate(request: GenerateRequest) -> GenerateResponse:
-    start = time.time()
-    try:
-        out = _generation_forward(request)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("Generation failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    elapsed = (time.time() - start) * 1000
-    return GenerateResponse(
-        text=out["text"],
-        model=GENERATION_MODEL_ID,
-        prompt_tokens=out["prompt_tokens"],
-        completion_tokens=out["completion_tokens"],
         processing_time_ms=elapsed,
     )
 

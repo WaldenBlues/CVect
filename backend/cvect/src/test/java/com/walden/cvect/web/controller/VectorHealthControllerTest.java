@@ -68,4 +68,21 @@ class VectorHealthControllerTest {
         assertEquals(false, response.getBody().embeddingReachable());
         assertEquals(1L, response.getBody().pendingCount());
     }
+
+    @Test
+    @DisplayName("health should resolve llama.cpp health endpoint from embedding URL")
+    void shouldResolveLlamaCppHealthEndpoint() {
+        EmbeddingConfig config = new EmbeddingConfig();
+        config.setServiceUrl("http://127.0.0.1:65535/embedding");
+        when(taskRepository.countByStatusIn(anyCollection())).thenReturn(0L);
+        when(vectorStoreService.isOperational()).thenReturn(true);
+        when(vectorStoreService.getAvailabilityMessage()).thenReturn(null);
+        VectorHealthController controller = new VectorHealthController(taskRepository, config, vectorStoreService, true, true);
+
+        ResponseEntity<VectorHealthController.VectorHealthResponse> response = controller.health();
+
+        assertEquals(503, response.getStatusCode().value());
+        assertNotNull(response.getBody());
+        assertEquals("http://127.0.0.1:65535/health", response.getBody().embeddingHealthUrl());
+    }
 }

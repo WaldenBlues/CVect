@@ -1,5 +1,5 @@
-# Qwen Embedding Service dependencies.
-# Pin versions so Docker builds and CI do not drift with upstream releases.
+# Extra local tooling dependencies for data generation workflows.
+# The production embedding image installs `requirements-service.txt` instead.
 fastapi==0.134.0
 uvicorn==0.41.0
 transformers==5.2.0

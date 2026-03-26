@@ -841,14 +841,11 @@ const saveEditJd = async (jd) => {
 }
 
 const deleteJd = async (jd) => {
-  if (!confirm(`删除 JD: ${jd.title} ?`)) return
+  if (!confirm(`删除 JD: ${jd.title} ?\n\n这会一并删除该 JD 下的候选人、上传批次和向量数据。`)) return
   jdSaving.value = true
   jdMessage.value = ''
   try {
     const resp = await fetch(`/api/jds/${jd.id}`, { method: 'DELETE' })
-    if (resp.status === 409) {
-      throw new Error('该 JD 仍有候选人，无法删除')
-    }
     if (!resp.ok && resp.status !== 204) throw new Error('删除 JD 失败')
     jds.value = jds.value.filter((item) => item.id !== jd.id)
     if (selectedJdId.value === jd.id) {

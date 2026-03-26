@@ -119,9 +119,6 @@ public class JobDescriptionController {
         if (jd == null) {
             return ResponseEntity.notFound().build();
         }
-        if (candidateRepository.countByJobDescriptionId(id) > 0) {
-            return ResponseEntity.status(409).build();
-        }
         vectorStoreService.deleteByJobDescription(id);
         snapshotRepository.deleteByJdId(id);
         contactRepository.deleteByJobDescriptionId(id);

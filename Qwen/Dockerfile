@@ -19,26 +19,30 @@ RUN if [ -n "${DEBIAN_APT_MIRROR}" ]; then \
     && apt-get install -y --no-install-recommends gcc \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY requirements-service.txt .
 RUN if [ -n "${PIP_INDEX_URL}" ]; then \
       pip config set global.index-url "${PIP_INDEX_URL}"; \
     fi \
     && if [ -n "${PIP_TRUSTED_HOST}" ]; then \
       pip config set global.trusted-host "${PIP_TRUSTED_HOST}"; \
     fi \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir -r requirements-service.txt
 
 COPY embedding_service.py .
 
 ENV EMBEDDING_MODEL_ID="Qwen/Qwen3-Embedding-0.6B"
-ENV GENERATION_MODEL_ID="Qwen/Qwen3-0.6B"
 ENV DEVICE="cpu"
 ENV TORCH_DTYPE="auto"
-ENV MAX_BATCH_SIZE="16"
-ENV MAX_INPUT_LENGTH="8192"
-ENV MAX_NEW_TOKENS_DEFAULT="256"
+ENV TORCH_NUM_THREADS="1"
+ENV TORCH_NUM_INTEROP_THREADS="1"
+ENV OMP_NUM_THREADS="1"
+ENV MKL_NUM_THREADS="1"
+ENV MAX_CONCURRENT_REQUESTS="1"
+ENV MALLOC_ARENA_MAX="2"
+ENV TOKENIZERS_PARALLELISM="false"
+ENV MAX_BATCH_SIZE="1"
+ENV MAX_INPUT_LENGTH="1024"
 ENV PRELOAD_MODELS="false"
-ENV READINESS_REQUIRE_GENERATION="false"
 ENV HOST="0.0.0.0"
 ENV PORT="8001"
 

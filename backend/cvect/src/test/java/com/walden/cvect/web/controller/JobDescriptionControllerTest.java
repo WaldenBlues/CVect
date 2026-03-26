@@ -1,6 +1,7 @@
 package com.walden.cvect.web.controller;
 
 import com.walden.cvect.infra.vector.VectorStoreService;
+import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.CandidateSnapshotJpaRepository;
 import com.walden.cvect.repository.ContactJpaRepository;
@@ -20,6 +21,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -78,5 +81,41 @@ class JobDescriptionControllerTest {
         assertNotNull(response.getBody());
         assertTrue(response.getBody().isEmpty());
         verify(candidateRepository, never()).countGroupedByJobDescriptionIds(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("delete should cascade related data when JD exists")
+    void deleteShouldCascadeRelatedData() {
+        UUID jdId = UUID.randomUUID();
+        JobDescription jd = new JobDescription("Backend", "Spring");
+        when(jdRepository.findById(jdId)).thenReturn(Optional.of(jd));
+
+        JobDescriptionController controller = new JobDescriptionController(
+                jdRepository,
+                candidateRepository,
+                snapshotRepository,
+                contactRepository,
+                linkRepository,
+                honorRepository,
+                educationRepository,
+                experienceRepository,
+                batchRepository,
+                itemRepository,
+                vectorStoreService);
+
+        ResponseEntity<Void> response = controller.delete(jdId);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        verify(vectorStoreService).deleteByJobDescription(jdId);
+        verify(snapshotRepository).deleteByJdId(jdId);
+        verify(contactRepository).deleteByJobDescriptionId(jdId);
+        verify(linkRepository).deleteByJobDescriptionId(jdId);
+        verify(honorRepository).deleteByJobDescriptionId(jdId);
+        verify(educationRepository).deleteByJobDescriptionId(jdId);
+        verify(experienceRepository).deleteByJobDescriptionId(jdId);
+        verify(candidateRepository).deleteByJobDescriptionId(jdId);
+        verify(itemRepository).deleteByJobDescriptionId(jdId);
+        verify(batchRepository).deleteByJobDescriptionId(jdId);
+        verify(jdRepository).delete(jd);
     }
 }

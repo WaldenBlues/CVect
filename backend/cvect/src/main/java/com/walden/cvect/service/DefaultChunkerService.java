@@ -2,6 +2,7 @@ package com.walden.cvect.service;
 
 import com.walden.cvect.model.ChunkType;
 import com.walden.cvect.model.ResumeChunk;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ public class DefaultChunkerService implements ChunkerService {
     private static final int MAX_SECTION_TITLE_LENGTH = 6;
     private static final int MAX_HEADER_LENGTH = 30;
     private static final int LONG_TEXT_THRESHOLD = 80;
+    private static final double SPLIT_SEARCH_WINDOW_RATIO = 0.6d;
 
     private static final List<String> SECTION_TITLE_SUFFIXES = List.of(
             "经历", "项目", "技能", "教育", "荣誉");
@@ -34,6 +36,16 @@ public class DefaultChunkerService implements ChunkerService {
             "奖", "竞赛", "证书", "荣誉", "rank");
     private static final List<String> LINK_KEYWORDS = List.of(
             "github.com", "gitee.com", "blog", "个人博客");
+
+    private final int maxChunkLength;
+    private final int chunkOverlap;
+
+    public DefaultChunkerService(
+            @Value("${app.chunking.max-length:1000}") int maxChunkLength,
+            @Value("${app.chunking.overlap:100}") int chunkOverlap) {
+        this.maxChunkLength = Math.max(64, maxChunkLength);
+        this.chunkOverlap = Math.max(0, Math.min(this.maxChunkLength / 4, chunkOverlap));
+    }
 
     @Override
     public List<ResumeChunk> chunk(String normalizedText) {
@@ -130,10 +142,94 @@ public class DefaultChunkerService implements ChunkerService {
             return;
         }
 
-        result.add(new ResumeChunk(
-                result.size(),
-                buffer.toString().trim(),
-                type));
+        appendChunk(result, buffer.toString().trim(), type);
+    }
+
+    private void appendChunk(List<ResumeChunk> result, String content, ChunkType type) {
+        if (content == null || content.isBlank()) {
+            return;
+        }
+
+        if (!shouldHardSplit(type, content)) {
+            result.add(new ResumeChunk(result.size(), content, type));
+            return;
+        }
+
+        for (String part : splitLongChunk(content)) {
+            if (!part.isBlank()) {
+                result.add(new ResumeChunk(result.size(), part, type));
+            }
+        }
+    }
+
+    private boolean shouldHardSplit(ChunkType type, String content) {
+        return (type == ChunkType.EXPERIENCE || type == ChunkType.SKILL)
+                && content.length() > maxChunkLength;
+    }
+
+    private List<String> splitLongChunk(String content) {
+        List<String> parts = new ArrayList<>();
+        int start = 0;
+        int length = content.length();
+
+        while (start < length) {
+            int remaining = length - start;
+            if (remaining <= maxChunkLength) {
+                addSplitPart(parts, content.substring(start));
+                break;
+            }
+
+            int tentativeEnd = Math.min(length, start + maxChunkLength);
+            int minPreferredEnd = Math.min(
+                    tentativeEnd,
+                    start + Math.max(MIN_CHUNK_LENGTH, (int) (maxChunkLength * SPLIT_SEARCH_WINDOW_RATIO)));
+            int end = findSplitBoundary(content, minPreferredEnd, tentativeEnd);
+            if (end <= start) {
+                end = tentativeEnd;
+            }
+
+            addSplitPart(parts, content.substring(start, end));
+            if (end >= length) {
+                break;
+            }
+
+            int nextStart = Math.max(end - chunkOverlap, start + 1);
+            while (nextStart < length && Character.isWhitespace(content.charAt(nextStart))) {
+                nextStart++;
+            }
+            start = nextStart;
+        }
+
+        return parts;
+    }
+
+    private void addSplitPart(List<String> parts, String rawPart) {
+        String part = rawPart == null ? "" : rawPart.trim();
+        if (!part.isBlank()) {
+            parts.add(part);
+        }
+    }
+
+    private int findSplitBoundary(String content, int minPreferredEnd, int tentativeEnd) {
+        for (int i = tentativeEnd; i > minPreferredEnd; i--) {
+            char ch = content.charAt(i - 1);
+            if (isPreferredSplitCharacter(ch)) {
+                return i;
+            }
+        }
+        return tentativeEnd;
+    }
+
+    private boolean isPreferredSplitCharacter(char ch) {
+        return Character.isWhitespace(ch)
+                || ch == '。'
+                || ch == '！'
+                || ch == '？'
+                || ch == '.'
+                || ch == ';'
+                || ch == '；'
+                || ch == ','
+                || ch == '，';
     }
 
     /**

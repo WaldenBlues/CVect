@@ -9,10 +9,12 @@ public class EmbeddingConfig {
 
     private String modelName = "Qwen/Qwen3-Embedding-0.6B";
     private String serviceUrl = "http://localhost:8001/embed";
+    private String apiFormat = "auto";
+    private String healthUrl;
     private String device = "cpu";
-    private int batchSize = 16;
+    private int batchSize = 1;
     private int dimension = 1024;
-    private int maxInputLength = 8192;
+    private int maxInputLength = 1024;
     private int timeoutSeconds = 60;
 
     public String getModelName() {
@@ -37,6 +39,22 @@ public class EmbeddingConfig {
 
     public void setServiceUrl(String serviceUrl) {
         this.serviceUrl = serviceUrl;
+    }
+
+    public String getApiFormat() {
+        return apiFormat;
+    }
+
+    public void setApiFormat(String apiFormat) {
+        this.apiFormat = apiFormat;
+    }
+
+    public String getHealthUrl() {
+        return healthUrl;
+    }
+
+    public void setHealthUrl(String healthUrl) {
+        this.healthUrl = healthUrl;
     }
 
     public int getBatchSize() {

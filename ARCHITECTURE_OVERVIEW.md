@@ -18,9 +18,8 @@ CVect 是一个 HR 简历处理与检索系统，核心能力包括：
 CVect/
 ├── backend/cvect/        # Spring Boot 后端
 ├── frontend/             # Vue 3 + Vite 前端
-├── Qwen/                 # Python Embedding/Generation 服务 + 数据生成脚本
-├── infra/vllm/           # vLLM + nginx 网关编排
-├── scripts/              # 部署、探活与 vLLM 辅助脚本
+├── Qwen/                 # Python 模型服务与数据生成脚本
+├── scripts/              # 部署与探活脚本
 ├── docker-compose.yml    # 本地 PostgreSQL (pgvector)
 ├── docker-compose.prod.yml
 ├── .env.example          # 单一部署环境变量模板
@@ -32,7 +31,7 @@ CVect/
 
 - `backend/cvect` 负责业务编排、数据一致性、队列消费与 API。
 - `frontend` 负责运营台交互、SSE 消费、语义排序展示。
-- `Qwen` 与 `infra/vllm` 提供模型侧能力（embedding / chat / 数据生成）。
+- `Qwen` 提供模型侧能力（embedding / 数据生成）。
 - 数据持久化主库为 PostgreSQL；本地测试可退回 H2。
 
 ## 3. 运行拓扑
@@ -45,14 +44,6 @@ CVect/
    - 批次流：`/api/sse/batches/{batchId}`（兼容：`/api/uploads/batches/{batchId}/stream`）
 3. 后端将业务数据写入 PostgreSQL（包含上传队列与向量入库任务）。
 4. 后端调用 Python embedding 服务（默认 `http://localhost:8001/embed`）生成向量。
-
-### 3.2 模型服务路径（可选）
-
-- `scripts/vllm-up.sh` 启动 `infra/vllm/docker-compose.yml`：
-  - LLM: `:8000`
-  - Embedding: `:8001`
-  - 统一网关: `:8002`
-- `nginx.conf` 将 `/v1/embeddings` 转发到 embedding 服务，其余 `/v1/*` 转发到 LLM。
 
 ## 4. 后端核心架构
 

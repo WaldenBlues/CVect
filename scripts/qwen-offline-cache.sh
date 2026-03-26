@@ -101,10 +101,6 @@ embedding_model() {
   printf '%s' "${CVECT_EMBEDDING_MODEL:-$(read_env_value CVECT_EMBEDDING_MODEL)}"
 }
 
-generation_model() {
-  printf '%s' "${CVECT_GENERATION_MODEL:-$(read_env_value CVECT_GENERATION_MODEL)}"
-}
-
 hf_endpoint() {
   printf '%s' "${CVECT_HF_ENDPOINT:-$(read_env_value CVECT_HF_ENDPOINT)}"
 }
@@ -121,13 +117,12 @@ export_proxy_env() {
 }
 
 prefetch_models() {
-  local cache_dir embedding generation
+  local cache_dir embedding
   cache_dir="$(hf_cache_dir)"
   embedding="$(embedding_model)"
-  generation="$(generation_model)"
 
-  if [[ -z "${embedding}" || -z "${generation}" ]]; then
-    echo "Missing CVECT_EMBEDDING_MODEL or CVECT_GENERATION_MODEL in ${ENV_FILE}" >&2
+  if [[ -z "${embedding}" ]]; then
+    echo "Missing CVECT_EMBEDDING_MODEL in ${ENV_FILE}" >&2
     exit 1
   fi
 
@@ -139,7 +134,7 @@ prefetch_models() {
 
   ensure_hf_tooling
 
-  "${PYTHON_BIN}" - <<'PY' "${embedding}" "${generation}"
+  "${PYTHON_BIN}" - <<'PY' "${embedding}"
 import json
 import os
 import pathlib
@@ -204,10 +199,9 @@ unpack_cache() {
 }
 
 verify_cache() {
-  local cache_dir embedding generation
+  local cache_dir embedding
   cache_dir="$(hf_cache_dir)"
   embedding="$(embedding_model)"
-  generation="$(generation_model)"
 
   if [[ ! -d "${cache_dir}" ]]; then
     echo "Cache directory does not exist: ${cache_dir}" >&2
@@ -219,7 +213,7 @@ verify_cache() {
   export HF_LOCAL_FILES_ONLY=true
   ensure_hf_tooling
 
-  "${PYTHON_BIN}" - <<'PY' "${embedding}" "${generation}"
+  "${PYTHON_BIN}" - <<'PY' "${embedding}"
 import os
 import sys
 from huggingface_hub import snapshot_download
@@ -235,7 +229,6 @@ show_info() {
   cat <<EOF
 HF endpoint:      $(hf_endpoint)
 Embedding model:  $(embedding_model)
-Generation model: $(generation_model)
 Cache dir:        $(hf_cache_dir)
 Archive path:     $(hf_cache_archive)
 EOF
@@ -262,10 +255,10 @@ case "${COMMAND}" in
 Usage: scripts/qwen-offline-cache.sh [prefetch|pack|unpack|verify|info] [archive]
 
 Commands:
-  prefetch   Download embedding and generation models into CVECT_HF_CACHE_DIR.
+  prefetch   Download the embedding model into CVECT_HF_CACHE_DIR.
   pack       Create a tar.gz archive from the local Hugging Face cache.
   unpack     Extract an archive into CVECT_HF_CACHE_DIR on the target machine.
-  verify     Check that both models can be resolved from the offline cache only.
+  verify     Check that the embedding model can be resolved from the offline cache only.
   info       Print the current model/cache configuration.
 
 Examples:

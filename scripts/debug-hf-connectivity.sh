@@ -39,7 +39,6 @@ fi
 
 HF_ENDPOINT="${CVECT_HF_ENDPOINT:-$(read_env_value CVECT_HF_ENDPOINT)}"
 EMBEDDING_MODEL="${CVECT_EMBEDDING_MODEL:-$(read_env_value CVECT_EMBEDDING_MODEL)}"
-GENERATION_MODEL="${CVECT_GENERATION_MODEL:-$(read_env_value CVECT_GENERATION_MODEL)}"
 HF_CACHE_DIR="${CVECT_HF_CACHE_DIR:-$(read_env_value CVECT_HF_CACHE_DIR)}"
 HTTP_PROXY_VALUE="${CVECT_HTTP_PROXY:-$(read_env_value CVECT_HTTP_PROXY)}"
 HTTPS_PROXY_VALUE="${CVECT_HTTPS_PROXY:-$(read_env_value CVECT_HTTPS_PROXY)}"
@@ -61,11 +60,9 @@ resolve_url() {
 }
 
 HOST_PROBE_URL="$(resolve_url "${EMBEDDING_MODEL}")"
-GENERATION_PROBE_URL="$(resolve_url "${GENERATION_MODEL}")"
 
 echo "HF endpoint:            ${HF_ENDPOINT}"
 echo "Embedding model probe:  ${HOST_PROBE_URL}"
-echo "Generation model probe: ${GENERATION_PROBE_URL}"
 echo "HF cache dir:           ${HF_CACHE_DIR:-<empty>}"
 echo "HF_HUB_OFFLINE:         ${HF_HUB_OFFLINE:-}"
 echo "HF_LOCAL_FILES_ONLY:    ${HF_LOCAL_FILES_ONLY:-}"

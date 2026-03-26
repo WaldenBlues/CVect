@@ -1,6 +1,7 @@
 package com.walden.cvect.web.controller;
 
 import com.walden.cvect.model.entity.Candidate;
+import com.walden.cvect.model.entity.CandidateSnapshot;
 import com.walden.cvect.config.PostgresIntegrationTestBase;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.model.entity.UploadBatch;
@@ -10,6 +11,7 @@ import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
+import com.walden.cvect.repository.CandidateSnapshotJpaRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,9 @@ class JobDescriptionControllerIntegrationTest extends PostgresIntegrationTestBas
     private CandidateJpaRepository candidateRepository;
 
     @Autowired
+    private CandidateSnapshotJpaRepository snapshotRepository;
+
+    @Autowired
     private UploadBatchJpaRepository batchRepository;
 
     @Autowired
@@ -77,10 +82,10 @@ class JobDescriptionControllerIntegrationTest extends PostgresIntegrationTestBas
     }
 
     @Test
-    @DisplayName("should return 409 when JD still has candidates")
-    void shouldReturn409WhenJdHasCandidates() throws Exception {
+    @DisplayName("should delete JD together with candidates and snapshots")
+    void shouldDeleteJdWhenCandidatesExist() throws Exception {
         JobDescription jd = jdRepository.save(new JobDescription("JD with candidate", "cannot delete"));
-        candidateRepository.save(new Candidate(
+        Candidate candidate = candidateRepository.save(new Candidate(
                 "resume.pdf",
                 UUID.randomUUID().toString().replace("-", ""),
                 "Alice",
@@ -89,11 +94,29 @@ class JobDescriptionControllerIntegrationTest extends PostgresIntegrationTestBas
                 100L,
                 50,
                 false));
+        CandidateSnapshot snapshot = new CandidateSnapshot(candidate.getId());
+        snapshot.setJdId(jd.getId());
+        snapshot.setRecruitmentStatus(candidate.getRecruitmentStatus().name());
+        snapshot.setName(candidate.getName());
+        snapshot.setSourceFileName(candidate.getSourceFileName());
+        snapshot.setContentType(candidate.getContentType());
+        snapshot.setFileSizeBytes(candidate.getFileSizeBytes());
+        snapshot.setParsedCharCount(candidate.getParsedCharCount());
+        snapshot.setTruncated(candidate.getTruncated());
+        snapshot.setCandidateCreatedAt(candidate.getCreatedAt());
+        snapshot.setEmailsJson("[]");
+        snapshot.setPhonesJson("[]");
+        snapshot.setEducationsJson("[]");
+        snapshot.setHonorsJson("[]");
+        snapshot.setLinksJson("[]");
+        snapshotRepository.save(snapshot);
 
         mockMvc.perform(delete("/api/jds/{id}", jd.getId()))
-                .andExpect(status().isConflict());
+                .andExpect(status().isNoContent());
 
-        assertTrue(jdRepository.findById(jd.getId()).isPresent());
+        assertTrue(jdRepository.findById(jd.getId()).isEmpty());
+        assertEquals(0L, candidateRepository.countByJobDescriptionId(jd.getId()));
+        assertTrue(snapshotRepository.findByJdIdOrderByCandidateCreatedAtDesc(jd.getId()).isEmpty());
     }
 
     @Test

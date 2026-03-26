@@ -8,6 +8,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -23,6 +24,10 @@ import java.util.List;
 public class EmbeddingService {
 
     private static final Logger log = LoggerFactory.getLogger(EmbeddingService.class);
+    private static final String API_FORMAT_AUTO = "auto";
+    private static final String API_FORMAT_NATIVE = "native";
+    private static final String API_FORMAT_OPENAI = "openai";
+    private static final String API_FORMAT_LLAMA_CPP = "llama_cpp";
 
     private final WebClient webClient;
     private final EmbeddingConfig config;
@@ -36,6 +41,7 @@ public class EmbeddingService {
         this.requestTimeout = Duration.ofSeconds(Math.max(1, config.getTimeoutSeconds()));
         log.info("EmbeddingService initialized with model: {}", config.getModelName());
         log.info("Connecting to embedding service at: {}", config.getServiceUrl());
+        log.info("Embedding API format: {}", normalizeApiFormat(config.getApiFormat()));
     }
 
     /**
@@ -55,11 +61,21 @@ public class EmbeddingService {
             return List.of();
         }
 
+        String apiFormat = normalizeApiFormat(config.getApiFormat());
+        int batchSize = Math.max(1, config.getBatchSize());
+        List<float[]> results = new ArrayList<>(texts.size());
         try {
-            EmbeddingResponse response = requestNativeEmbedding(texts);
-            return validateAndConvert(texts, response);
+            for (int start = 0; start < texts.size(); start += batchSize) {
+                List<String> batch = texts.subList(start, Math.min(texts.size(), start + batchSize));
+                results.addAll(requestEmbeddings(batch, apiFormat));
+            }
+            return List.copyOf(results);
         } catch (WebClientResponseException.NotFound notFound) {
-            String fallbackOpenAiUrl = resolveFallbackOpenAiUrl(config.getServiceUrl());
+            if (API_FORMAT_OPENAI.equals(apiFormat) || API_FORMAT_LLAMA_CPP.equals(apiFormat)) {
+                log.error("Failed to generate embeddings: {}", notFound.getMessage());
+                throw new RuntimeException("Embedding generation failed: " + notFound.getMessage(), notFound);
+            }
+            String fallbackOpenAiUrl = resolveFallbackOpenAiUrl(config.getServiceUrl(), apiFormat);
             if (fallbackOpenAiUrl == null) {
                 log.error("Failed to generate embeddings: {}", notFound.getMessage());
                 throw new RuntimeException("Embedding generation failed: " + notFound.getMessage(), notFound);
@@ -77,6 +93,45 @@ public class EmbeddingService {
             log.error("Failed to generate embeddings: {}", e.getMessage());
             throw new RuntimeException("Embedding generation failed: " + e.getMessage(), e);
         }
+    }
+
+    private List<float[]> requestEmbeddings(List<String> texts, String apiFormat) {
+        return switch (apiFormat) {
+            case API_FORMAT_NATIVE -> requestNativeEmbeddings(texts);
+            case API_FORMAT_OPENAI -> requestOpenAiEmbeddings(config.getServiceUrl(), texts);
+            case API_FORMAT_LLAMA_CPP -> requestLlamaCppEmbeddings(config.getServiceUrl(), texts);
+            default -> requestAutoDetectedEmbeddings(texts);
+        };
+    }
+
+    private List<float[]> requestNativeEmbeddings(List<String> texts) {
+        EmbeddingResponse response = requestNativeEmbedding(texts);
+        return validateAndConvert(texts, response);
+    }
+
+    private List<float[]> requestOpenAiEmbeddings(String url, List<String> texts) {
+        OpenAiEmbeddingResponse response = requestOpenAiEmbedding(url, texts);
+        return validateAndConvertOpenAi(texts, response);
+    }
+
+    private List<float[]> requestAutoDetectedEmbeddings(List<String> texts) {
+        if (looksLikeOpenAiEndpoint(config.getServiceUrl())) {
+            return requestOpenAiEmbeddings(config.getServiceUrl(), texts);
+        }
+        if (looksLikeLlamaCppEndpoint(config.getServiceUrl())) {
+            return requestLlamaCppEmbeddings(config.getServiceUrl(), texts);
+        }
+        return requestNativeEmbeddings(texts);
+    }
+
+    private List<float[]> requestLlamaCppEmbeddings(String url, List<String> texts) {
+        List<float[]> embeddings = new ArrayList<>(texts.size());
+        for (String text : texts) {
+            LlamaCppEmbeddingResponse response = requestLlamaCppEmbedding(url, text);
+            embeddings.add(validateAndConvertLlamaCpp(response));
+        }
+        log.info("Generated {} embeddings (llama.cpp)", embeddings.size());
+        return embeddings;
     }
 
     private EmbeddingResponse requestNativeEmbedding(List<String> texts) {
@@ -98,6 +153,19 @@ public class EmbeddingService {
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(OpenAiEmbeddingResponse.class)
+                .timeout(requestTimeout)
+                .block();
+    }
+
+    private LlamaCppEmbeddingResponse requestLlamaCppEmbedding(String url, String text) {
+        LlamaCppEmbeddingRequest request = new LlamaCppEmbeddingRequest(text);
+        return WebClient.builder()
+                .baseUrl(url)
+                .build()
+                .post()
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(LlamaCppEmbeddingResponse.class)
                 .timeout(requestTimeout)
                 .block();
     }
@@ -131,6 +199,18 @@ public class EmbeddingService {
         return toFloatArrays(vectors);
     }
 
+    private float[] validateAndConvertLlamaCpp(LlamaCppEmbeddingResponse response) {
+        if (response == null || response.embedding() == null) {
+            throw new IllegalStateException("llama.cpp embedding service returned empty response");
+        }
+        validateVectorDimension(response.embedding());
+        float[] vector = new float[response.embedding().size()];
+        for (int i = 0; i < response.embedding().size(); i++) {
+            vector[i] = response.embedding().get(i);
+        }
+        return vector;
+    }
+
     private void validateVectorDimension(List<Float> vector) {
         if (vector == null || vector.size() != config.getDimension()) {
             throw new IllegalStateException(
@@ -151,14 +231,24 @@ public class EmbeddingService {
                 .toList();
     }
 
-    private String resolveFallbackOpenAiUrl(String rawServiceUrl) {
+    private String resolveFallbackOpenAiUrl(String rawServiceUrl, String apiFormat) {
+        if (API_FORMAT_OPENAI.equals(apiFormat) || looksLikeOpenAiEndpoint(rawServiceUrl)) {
+            return null;
+        }
         try {
             URI uri = URI.create(rawServiceUrl);
             String path = uri.getPath();
-            if (path == null || !path.endsWith("/embed")) {
+            if (path == null) {
                 return null;
             }
-            String fallbackPath = path.substring(0, path.length() - "/embed".length()) + "/v1/embeddings";
+            String fallbackPath;
+            if (path.endsWith("/embed")) {
+                fallbackPath = path.substring(0, path.length() - "/embed".length()) + "/v1/embeddings";
+            } else if (path.endsWith("/embedding")) {
+                fallbackPath = path.substring(0, path.length() - "/embedding".length()) + "/v1/embeddings";
+            } else {
+                return null;
+            }
             URI fallbackUri = new URI(
                     uri.getScheme(),
                     uri.getUserInfo(),
@@ -171,6 +261,52 @@ public class EmbeddingService {
         } catch (Exception ex) {
             return null;
         }
+    }
+
+    private boolean looksLikeOpenAiEndpoint(String rawServiceUrl) {
+        try {
+            URI uri = URI.create(rawServiceUrl);
+            String path = uri.getPath();
+            if (path == null) {
+                return false;
+            }
+            String normalizedPath = path.replaceAll("/+$", "");
+            return normalizedPath.endsWith("/v1/embeddings") || normalizedPath.endsWith("/embeddings");
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private boolean looksLikeLlamaCppEndpoint(String rawServiceUrl) {
+        try {
+            URI uri = URI.create(rawServiceUrl);
+            String path = uri.getPath();
+            if (path == null) {
+                return false;
+            }
+            return path.replaceAll("/+$", "").endsWith("/embedding");
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private String normalizeApiFormat(String rawApiFormat) {
+        if (rawApiFormat == null || rawApiFormat.isBlank()) {
+            return API_FORMAT_AUTO;
+        }
+        String normalized = rawApiFormat.trim().toLowerCase();
+        if ("openai-compatible".equals(normalized)) {
+            return API_FORMAT_OPENAI;
+        }
+        if ("llama-cpp".equals(normalized) || "llama.cpp".equals(normalized)) {
+            return API_FORMAT_LLAMA_CPP;
+        }
+        if (API_FORMAT_NATIVE.equals(normalized)
+                || API_FORMAT_OPENAI.equals(normalized)
+                || API_FORMAT_LLAMA_CPP.equals(normalized)) {
+            return normalized;
+        }
+        return API_FORMAT_AUTO;
     }
 
     public int getDimension() {
@@ -191,5 +327,11 @@ public class EmbeddingService {
     }
 
     public record OpenAiEmbeddingResponse(List<OpenAiEmbeddingData> data) {
+    }
+
+    public record LlamaCppEmbeddingRequest(String content) {
+    }
+
+    public record LlamaCppEmbeddingResponse(List<Float> embedding) {
     }
 }

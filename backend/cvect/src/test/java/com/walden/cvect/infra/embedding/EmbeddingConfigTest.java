@@ -19,6 +19,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestPropertySource(properties = {
     "app.embedding.model-name=test-embedding-model",
     "app.embedding.service-url=http://localhost:9001/embed",
+    "app.embedding.api-format=openai",
+    "app.embedding.health-url=http://localhost:9001/health",
     "app.embedding.device=cuda",
     "app.embedding.batch-size=8",
     "app.embedding.dimension=1024",
@@ -39,6 +41,8 @@ class EmbeddingConfigTest {
         // Then
         assertEquals("test-embedding-model", config.getModelName());
         assertEquals("http://localhost:9001/embed", config.getServiceUrl());
+        assertEquals("openai", config.getApiFormat());
+        assertEquals("http://localhost:9001/health", config.getHealthUrl());
         assertEquals("cuda", config.getDevice());
         assertEquals(8, config.getBatchSize());
         assertEquals(1024, config.getDimension());
@@ -55,10 +59,12 @@ class EmbeddingConfigTest {
         // Then: 验证默认值设置
         assertEquals("Qwen/Qwen3-Embedding-0.6B", newConfig.getModelName());
         assertEquals("http://localhost:8001/embed", newConfig.getServiceUrl());
+        assertEquals("auto", newConfig.getApiFormat());
+        assertNull(newConfig.getHealthUrl());
         assertEquals("cpu", newConfig.getDevice());
-        assertEquals(16, newConfig.getBatchSize());
+        assertEquals(1, newConfig.getBatchSize());
         assertEquals(1024, newConfig.getDimension());
-        assertEquals(8192, newConfig.getMaxInputLength());
+        assertEquals(1024, newConfig.getMaxInputLength());
         assertEquals(60, newConfig.getTimeoutSeconds());
     }
 
@@ -70,11 +76,13 @@ class EmbeddingConfigTest {
 
         // When
         testConfig.setModelName("new-model");
+        testConfig.setApiFormat("openai");
         testConfig.setDevice("cuda");
         testConfig.setBatchSize(64);
 
         // Then
         assertEquals("new-model", testConfig.getModelName());
+        assertEquals("openai", testConfig.getApiFormat());
         assertEquals("cuda", testConfig.getDevice());
         assertEquals(64, testConfig.getBatchSize());
     }

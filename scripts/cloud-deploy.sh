@@ -105,17 +105,40 @@ run_compose() {
   docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
 }
 
+embedding_service_url() {
+  local value
+  value="${CVECT_EMBEDDING_SERVICE_URL:-$(read_env_value CVECT_EMBEDDING_SERVICE_URL)}"
+  if [[ -z "${value}" ]]; then
+    value="http://qwen:8001/embed"
+  fi
+  printf '%s' "${value}"
+}
+
+uses_local_qwen() {
+  local url
+  url="$(embedding_service_url)"
+  [[ "${url}" =~ ^https?://qwen(:[0-9]+)?(/.*)?$ ]]
+}
+
 case "${COMMAND}" in
   up)
-    prepare_hf_cache_dir
-    run_compose up -d --build
+    if uses_local_qwen; then
+      prepare_hf_cache_dir
+      run_compose up -d --build
+    else
+      run_compose up -d --build postgres backend frontend
+    fi
     ;;
   down)
     run_compose down
     ;;
   restart)
-    prepare_hf_cache_dir
-    run_compose up -d --build --force-recreate
+    if uses_local_qwen; then
+      prepare_hf_cache_dir
+      run_compose up -d --build --force-recreate
+    else
+      run_compose up -d --build --force-recreate postgres backend frontend
+    fi
     ;;
   status)
     run_compose ps

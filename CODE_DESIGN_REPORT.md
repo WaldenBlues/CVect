@@ -6,7 +6,7 @@
 
 - 后端：`backend/cvect/src/main/java`（当前 `97` 个 Java 类）
 - 前端：`frontend/src`
-- Python/模型侧：`Qwen/` 与 `infra/vllm/`
+- Python/模型侧：`Qwen/`
 
 ## 1. 代码资产概览
 
@@ -251,11 +251,6 @@ Controller 列表：
 
 - 简历数据集生成（多领域、多格式、可控随机）。
 - 长任务编排：批次重试、状态恢复、最终产物合并。
-
-## 7.3 `infra/vllm`
-
-- `docker-compose.yml` 启动 LLM + Embedding + nginx gateway。
-- gateway 统一 OpenAI 风格访问入口（`:8002`）。
 
 ## 8. 测试设计
 

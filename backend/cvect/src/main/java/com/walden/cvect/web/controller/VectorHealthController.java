@@ -106,7 +106,7 @@ public class VectorHealthController {
     }
 
     private EmbeddingHealth checkEmbeddingHealth(String embeddingServiceUrl) {
-        String healthUrl = resolveHealthUrl(embeddingServiceUrl);
+        String healthUrl = resolveHealthUrl(embeddingConfig.getHealthUrl(), embeddingServiceUrl);
         try {
             webClient.get()
                     .uri(healthUrl)
@@ -120,12 +120,19 @@ public class VectorHealthController {
         }
     }
 
-    private String resolveHealthUrl(String embeddingServiceUrl) {
+    private String resolveHealthUrl(String configuredHealthUrl, String embeddingServiceUrl) {
+        if (configuredHealthUrl != null && !configuredHealthUrl.isBlank()) {
+            return configuredHealthUrl;
+        }
         try {
             URI uri = URI.create(embeddingServiceUrl);
             String path = uri.getPath();
             if (path == null || path.isBlank() || "/".equals(path)) {
                 path = "/ready";
+            } else if (path.endsWith("/v1/embeddings") || path.endsWith("/embeddings")) {
+                path = "/health";
+            } else if (path.endsWith("/embedding")) {
+                path = path.substring(0, path.length() - "/embedding".length()) + "/health";
             } else if (path.endsWith("/embed")) {
                 path = path.substring(0, path.length() - "/embed".length()) + "/ready";
             } else {
