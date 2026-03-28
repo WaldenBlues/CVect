@@ -5,6 +5,7 @@ import com.walden.cvect.model.entity.CandidateRecruitmentStatus;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.ResumeChunkVectorJpaRepository;
+import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
 import com.walden.cvect.service.CandidateSnapshotService;
 import com.walden.cvect.web.stream.CandidateStreamEvent;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +39,8 @@ class CandidateControllerTest {
     private CandidateSnapshotService snapshotService;
     @Mock
     private ResumeChunkVectorJpaRepository resumeChunkVectorRepository;
+    @Mock
+    private VectorIngestTaskJpaRepository vectorIngestTaskRepository;
 
     @Test
     @DisplayName("listByJd should not query vector ids when candidate list is empty")
@@ -49,7 +52,8 @@ class CandidateControllerTest {
         CandidateController controller = new CandidateController(
                 candidateRepository,
                 snapshotService,
-                resumeChunkVectorRepository);
+                resumeChunkVectorRepository,
+                vectorIngestTaskRepository);
 
         ResponseEntity<List<CandidateController.CandidateListItem>> response = controller.listByJd(jdId);
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -84,7 +88,8 @@ class CandidateControllerTest {
         CandidateController controller = new CandidateController(
                 candidateRepository,
                 snapshotService,
-                resumeChunkVectorRepository);
+                resumeChunkVectorRepository,
+                vectorIngestTaskRepository);
 
         ResponseEntity<CandidateStreamEvent> response = controller.updateRecruitmentStatus(
                 candidateId,
@@ -119,7 +124,8 @@ class CandidateControllerTest {
         CandidateController controller = new CandidateController(
                 candidateRepository,
                 snapshotService,
-                resumeChunkVectorRepository);
+                resumeChunkVectorRepository,
+                vectorIngestTaskRepository);
 
         ResponseEntity<CandidateStreamEvent> response = controller.updateRecruitmentStatus(
                 candidateId,

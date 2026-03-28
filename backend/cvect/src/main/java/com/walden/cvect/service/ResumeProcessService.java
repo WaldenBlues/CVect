@@ -1,8 +1,11 @@
 package com.walden.cvect.service;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
@@ -70,43 +73,78 @@ public class ResumeProcessService {
      */
     public ProcessResult process(InputStream is, String contentType, String sourceFileName, Long fileSizeBytes, UUID jdId) {
         try {
-            byte[] fileBytes = readAllBytes(Objects.requireNonNull(is, "input stream must not be null"));
-            String fileHash = sha256Hex(fileBytes);
-            JobDescription jobDescription = resolveJobDescription(jdId);
-            Candidate existing = findExistingCandidate(fileHash, jdId);
-
-            ParseResult parsed = Objects.requireNonNull(
-                    parser.parse(new ByteArrayInputStream(fileBytes), contentType),
-                    "resume parser returned null result");
-            String normalized = normalizer.normalize(Objects.requireNonNullElse(parsed.getContent(), ""));
-            String extractedName = nameExtractor.extract(normalized);
-            List<ResumeChunk> chunks = chunker.chunk(normalized);
-            UUID candidateId;
-            boolean duplicated = existing != null;
-            if (existing != null) {
-                candidateId = existing.getId();
-                if (extractedName != null && !extractedName.isBlank()
-                        && !extractedName.equals(existing.getName())) {
-                    existing.setName(extractedName);
-                }
-                if (jobDescription != null && existing.getJobDescription() == null) {
-                    existing.setJobDescription(jobDescription);
-                }
-                candidateRepository.save(existing);
-            } else {
-                candidateId = persistCandidate(parsed, sourceFileName, fileSizeBytes, fileHash, extractedName, jobDescription);
+            Path tempFile = Files.createTempFile("cvect-resume-process-", ".bin");
+            try {
+                copyToFile(Objects.requireNonNull(is, "input stream must not be null"), tempFile);
+                long resolvedFileSize = fileSizeBytes != null ? fileSizeBytes : Files.size(tempFile);
+                return processInternal(tempFile, contentType, sourceFileName, resolvedFileSize, jdId);
+            } finally {
+                Files.deleteIfExists(tempFile);
             }
-
-            if (existing == null) {
-                processChunks(candidateId, chunks);
-            } else {
-                log.info("Duplicate file detected, skipping persistence. fileHash={}, candidateId={}", fileHash, candidateId);
-            }
-            publishCandidateEvent(candidateId, duplicated ? "DUPLICATE" : "DONE");
-
-            return new ProcessResult(candidateId, chunks, duplicated, fileHash);
         } catch (Exception e) {
-            throw new ResumeProcessingException("Failed to process resume", e);
+            throw wrapProcessingException(e);
+        }
+    }
+
+    public ProcessResult process(Path sourcePath, String contentType, String sourceFileName, Long fileSizeBytes, UUID jdId) {
+        try {
+            return processInternal(
+                    Objects.requireNonNull(sourcePath, "source path must not be null"),
+                    contentType,
+                    sourceFileName,
+                    fileSizeBytes,
+                    jdId);
+        } catch (Exception e) {
+            throw wrapProcessingException(e);
+        }
+    }
+
+    private ProcessResult processInternal(
+            Path sourcePath,
+            String contentType,
+            String sourceFileName,
+            Long fileSizeBytes,
+            UUID jdId) throws IOException {
+        Path normalizedPath = sourcePath.toAbsolutePath().normalize();
+        String fileHash = sha256Hex(normalizedPath);
+        JobDescription jobDescription = resolveJobDescription(jdId);
+        Candidate existing = findExistingCandidate(fileHash, jdId);
+
+        ParseResult parsed = parse(normalizedPath, contentType);
+        String normalized = normalizer.normalize(Objects.requireNonNullElse(parsed.getContent(), ""));
+        String extractedName = nameExtractor.extract(normalized);
+        List<ResumeChunk> chunks = chunker.chunk(normalized);
+        UUID candidateId;
+        boolean duplicated = existing != null;
+        if (existing != null) {
+            candidateId = existing.getId();
+            if (extractedName != null && !extractedName.isBlank()
+                    && !extractedName.equals(existing.getName())) {
+                existing.setName(extractedName);
+            }
+            if (jobDescription != null && existing.getJobDescription() == null) {
+                existing.setJobDescription(jobDescription);
+            }
+            candidateRepository.save(existing);
+        } else {
+            candidateId = persistCandidate(parsed, sourceFileName, fileSizeBytes, fileHash, extractedName, jobDescription);
+        }
+
+        if (existing == null) {
+            processChunks(candidateId, chunks);
+        } else {
+            log.info("Duplicate file detected, skipping persistence. fileHash={}, candidateId={}", fileHash, candidateId);
+        }
+        publishCandidateEvent(candidateId, duplicated ? "DUPLICATE" : "DONE");
+
+        return new ProcessResult(candidateId, chunks, duplicated, fileHash);
+    }
+
+    private ParseResult parse(Path sourcePath, String contentType) throws IOException {
+        try (InputStream input = Files.newInputStream(sourcePath)) {
+            return Objects.requireNonNull(
+                    parser.parse(input, contentType),
+                    "resume parser returned null result");
         }
     }
 
@@ -146,22 +184,41 @@ public class ResumeProcessService {
         return jobDescriptionRepository.findById(jdId).orElse(null);
     }
 
-    private byte[] readAllBytes(InputStream is) throws IOException {
-        return is.readAllBytes();
+    private void copyToFile(InputStream input, Path target) throws IOException {
+        try (OutputStream output = Files.newOutputStream(target)) {
+            input.transferTo(output);
+        }
     }
 
-    private String sha256Hex(byte[] bytes) {
+    private String sha256Hex(Path sourcePath) throws IOException {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(bytes);
-            StringBuilder sb = new StringBuilder(hash.length * 2);
-            for (byte b : hash) {
-                sb.append(String.format("%02x", b));
+            MessageDigest digest = newSha256Digest();
+            try (InputStream input = new DigestInputStream(Files.newInputStream(sourcePath), digest)) {
+                input.transferTo(OutputStream.nullOutputStream());
             }
-            return sb.toString();
+            return toHex(digest.digest());
         } catch (NoSuchAlgorithmException e) {
             throw new ResumeProcessingException("SHA-256 not available", e);
         }
+    }
+
+    private MessageDigest newSha256Digest() throws NoSuchAlgorithmException {
+        return MessageDigest.getInstance("SHA-256");
+    }
+
+    private String toHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+
+    private ResumeProcessingException wrapProcessingException(Exception e) {
+        if (e instanceof ResumeProcessingException processingException) {
+            return processingException;
+        }
+        return new ResumeProcessingException("Failed to process resume", e);
     }
 
     /**

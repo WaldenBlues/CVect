@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.io.InputStream;
 import java.sql.Connection;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -242,15 +241,12 @@ public class UploadQueueWorkerService {
 
             long fileSize = Files.size(source);
             String contentType = guessContentType(item.getFileName());
-            ResumeProcessService.ProcessResult result;
-            try (InputStream input = Files.newInputStream(source)) {
-                result = resumeProcessService.process(
-                        input,
-                        contentType,
-                        item.getFileName(),
-                        fileSize,
-                        jdId);
-            }
+            ResumeProcessService.ProcessResult result = resumeProcessService.process(
+                    source,
+                    contentType,
+                    item.getFileName(),
+                    fileSize,
+                    jdId);
 
             Path canonical = reconcileStorage(source, result.fileHash());
             if (canonical != null) {

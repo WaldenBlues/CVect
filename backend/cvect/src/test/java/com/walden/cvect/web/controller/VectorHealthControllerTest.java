@@ -85,4 +85,21 @@ class VectorHealthControllerTest {
         assertNotNull(response.getBody());
         assertEquals("http://127.0.0.1:65535/health", response.getBody().embeddingHealthUrl());
     }
+
+    @Test
+    @DisplayName("health should resolve native embed endpoint to non-loading health endpoint")
+    void shouldResolveNativeEmbedEndpointToHealth() {
+        EmbeddingConfig config = new EmbeddingConfig();
+        config.setServiceUrl("http://127.0.0.1:65535/embed");
+        when(taskRepository.countByStatusIn(anyCollection())).thenReturn(0L);
+        when(vectorStoreService.isOperational()).thenReturn(true);
+        when(vectorStoreService.getAvailabilityMessage()).thenReturn(null);
+        VectorHealthController controller = new VectorHealthController(taskRepository, config, vectorStoreService, true, true);
+
+        ResponseEntity<VectorHealthController.VectorHealthResponse> response = controller.health();
+
+        assertEquals(503, response.getStatusCode().value());
+        assertNotNull(response.getBody());
+        assertEquals("http://127.0.0.1:65535/health", response.getBody().embeddingHealthUrl());
+    }
 }

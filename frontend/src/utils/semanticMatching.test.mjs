@@ -11,7 +11,8 @@ describe('semanticMatching', () => {
       filterByExperience: DEFAULT_SEMANTIC_MAPPING.filterByExperience,
       filterBySkill: DEFAULT_SEMANTIC_MAPPING.filterBySkill,
       experienceWeight: 0.5,
-      skillWeight: 0.5
+      skillWeight: 0.5,
+      onlyVectorReadyCandidates: true
     })
   })
 

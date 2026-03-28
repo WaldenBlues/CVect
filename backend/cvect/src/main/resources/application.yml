@@ -34,12 +34,15 @@ server:
   port: ${CVECT_SERVER_PORT:8080}
 
 app:
+  sse:
+    timeout-ms: ${CVECT_SSE_TIMEOUT_MS:600000}
+
   embedding:
     model-name: ${CVECT_EMBEDDING_MODEL:Qwen/Qwen3-Embedding-0.6B}
     service-url: ${CVECT_EMBEDDING_SERVICE_URL:http://localhost:8001/embed}
     api-format: ${CVECT_EMBEDDING_API_FORMAT:auto}
     health-url: ${CVECT_EMBEDDING_HEALTH_URL:}
-    timeout-seconds: ${CVECT_EMBEDDING_TIMEOUT_SECONDS:60}
+    timeout-seconds: ${CVECT_EMBEDDING_TIMEOUT_SECONDS:120}
     device: ${CVECT_EMBEDDING_DEVICE:cpu}
     batch-size: ${CVECT_EMBEDDING_BATCH_SIZE:1}
     dimension: ${CVECT_EMBEDDING_DIMENSION:1024}
@@ -109,7 +112,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,env,beans,mappings,metrics,loggers,uploadperformance,vectoringestperformance
+        include: health,info,env,beans,mappings,metrics,loggers,uploadperformance,vectoringestperformance,streamperformance
   endpoint:
     health:
       show-details: always

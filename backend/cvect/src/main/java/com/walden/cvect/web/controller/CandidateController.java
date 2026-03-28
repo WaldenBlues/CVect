@@ -2,8 +2,10 @@ package com.walden.cvect.web.controller;
 
 import com.walden.cvect.model.entity.Candidate;
 import com.walden.cvect.model.entity.CandidateRecruitmentStatus;
+import com.walden.cvect.model.entity.vector.VectorIngestTaskStatus;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.ResumeChunkVectorJpaRepository;
+import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
 import com.walden.cvect.service.CandidateSnapshotService;
 import com.walden.cvect.web.stream.CandidateStreamEvent;
 import jakarta.validation.Valid;
@@ -32,13 +34,16 @@ public class CandidateController {
     private final CandidateJpaRepository candidateRepository;
     private final CandidateSnapshotService snapshotService;
     private final ResumeChunkVectorJpaRepository resumeChunkVectorRepository;
+    private final VectorIngestTaskJpaRepository vectorIngestTaskRepository;
 
     public CandidateController(CandidateJpaRepository candidateRepository,
             CandidateSnapshotService snapshotService,
-            ResumeChunkVectorJpaRepository resumeChunkVectorRepository) {
+            ResumeChunkVectorJpaRepository resumeChunkVectorRepository,
+            VectorIngestTaskJpaRepository vectorIngestTaskRepository) {
         this.candidateRepository = candidateRepository;
         this.snapshotService = snapshotService;
         this.resumeChunkVectorRepository = resumeChunkVectorRepository;
+        this.vectorIngestTaskRepository = vectorIngestTaskRepository;
     }
 
     @GetMapping
@@ -56,6 +61,16 @@ public class CandidateController {
         Set<UUID> vectorizedCandidateIds = candidateIds.isEmpty()
                 ? Set.of()
                 : new HashSet<>(resumeChunkVectorRepository.findDistinctCandidateIdsIn(candidateIds));
+        Set<UUID> inflightCandidateIds = candidateIds.isEmpty()
+                ? Set.of()
+                : new HashSet<>(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
+                        candidateIds,
+                        List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING)));
+        Set<UUID> failedCandidateIds = candidateIds.isEmpty()
+                ? Set.of()
+                : new HashSet<>(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
+                        candidateIds,
+                        List.of(VectorIngestTaskStatus.FAILED)));
 
         List<CandidateListItem> events = new ArrayList<>();
         for (Candidate candidate : candidates) {
@@ -66,7 +81,11 @@ public class CandidateController {
             if (event == null) {
                 continue;
             }
-            boolean noVectorChunk = !vectorizedCandidateIds.contains(candidate.getId());
+            boolean hasVectorChunk = vectorizedCandidateIds.contains(candidate.getId());
+            boolean hasInflight = inflightCandidateIds.contains(candidate.getId());
+            boolean hasFailed = failedCandidateIds.contains(candidate.getId());
+            String vectorStatus = resolveVectorStatus(hasVectorChunk, hasInflight, hasFailed);
+            boolean noVectorChunk = !hasVectorChunk;
             events.add(new CandidateListItem(
                     event.candidateId(),
                     event.jdId(),
@@ -84,9 +103,29 @@ public class CandidateController {
                     event.educations(),
                     event.honors(),
                     event.links(),
+                    vectorStatus,
                     noVectorChunk));
         }
         return ResponseEntity.ok(events);
+    }
+
+    private static String resolveVectorStatus(boolean hasVectorChunk, boolean hasInflight, boolean hasFailed) {
+        if (hasInflight && hasVectorChunk) {
+            return "PARTIAL";
+        }
+        if (hasInflight) {
+            return "PROCESSING";
+        }
+        if (hasVectorChunk && hasFailed) {
+            return "PARTIAL";
+        }
+        if (hasVectorChunk) {
+            return "READY";
+        }
+        if (hasFailed) {
+            return "FAILED";
+        }
+        return "NONE";
     }
 
     @PatchMapping("/{id}/recruitment-status")
@@ -161,6 +200,7 @@ public class CandidateController {
             List<String> educations,
             List<String> honors,
             List<String> links,
+            String vectorStatus,
             boolean noVectorChunk
     ) {
     }

@@ -2,6 +2,7 @@ package com.walden.cvect.web.stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,11 +18,17 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class CandidateStreamService {
 
     private static final Logger log = LoggerFactory.getLogger(CandidateStreamService.class);
+    private static final long DEFAULT_TIMEOUT_MS = 10 * 60 * 1000L;
 
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
+    private final long emitterTimeoutMs;
+
+    public CandidateStreamService(@Value("${app.sse.timeout-ms:600000}") long emitterTimeoutMs) {
+        this.emitterTimeoutMs = emitterTimeoutMs > 0 ? emitterTimeoutMs : DEFAULT_TIMEOUT_MS;
+    }
 
     public SseEmitter register() {
-        SseEmitter emitter = new SseEmitter(0L);
+        SseEmitter emitter = new SseEmitter(emitterTimeoutMs);
         emitters.add(emitter);
 
         emitter.onCompletion(() -> emitters.remove(emitter));
@@ -49,6 +56,10 @@ public class CandidateStreamService {
         sendEvent("vector", event);
     }
 
+    public int activeEmitterCount() {
+        return emitters.size();
+    }
+
     /**
      * SSE 心跳，防止代理/浏览器断开连接
      */
@@ -69,6 +80,7 @@ public class CandidateStreamService {
             } catch (IOException e) {
                 log.debug("Failed to send SSE event, removing emitter", e);
                 emitters.remove(emitter);
+                emitter.completeWithError(e);
             }
         }
     }

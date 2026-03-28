@@ -20,7 +20,8 @@ export const buildSemanticSearchPayload = (jobDescription, options = {}) => {
     filterByExperience: DEFAULT_SEMANTIC_MAPPING.filterByExperience,
     filterBySkill: DEFAULT_SEMANTIC_MAPPING.filterBySkill,
     experienceWeight,
-    skillWeight
+    skillWeight,
+    onlyVectorReadyCandidates: true
   }
 }
 

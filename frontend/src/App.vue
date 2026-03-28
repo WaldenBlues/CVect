@@ -196,7 +196,11 @@
             <span v-if="item.links.length" class="tag">链接 {{ item.links.length }}</span>
             <span v-if="item.educations.length" class="tag">教育 {{ item.educations.length }}</span>
             <span v-if="item.honors.length" class="tag">荣誉 {{ item.honors.length }}</span>
-            <span v-if="item.noVectorChunk" class="tag warning">无向量分块</span>
+            <span v-if="item.vectorStatus === 'READY'" class="tag">向量完成</span>
+            <span v-else-if="item.vectorStatus === 'PROCESSING'" class="tag">向量处理中</span>
+            <span v-else-if="item.vectorStatus === 'PARTIAL'" class="tag warning">向量部分完成</span>
+            <span v-else-if="item.vectorStatus === 'FAILED'" class="tag danger">向量失败</span>
+            <span v-else-if="item.noVectorChunk" class="tag warning">无向量分块</span>
           </div>
           <div class="recruitment-row">
             <span class="recruitment-badge" :class="`status-${item.recruitmentStatus || 'TO_CONTACT'}`">
@@ -516,6 +520,9 @@ const normalizeCandidate = (payload) => {
   if (Object.prototype.hasOwnProperty.call(payload, 'noVectorChunk')) {
     normalized.noVectorChunk = Boolean(payload.noVectorChunk)
   }
+  if (Object.prototype.hasOwnProperty.call(payload, 'vectorStatus')) {
+    normalized.vectorStatus = payload.vectorStatus || 'NONE'
+  }
   return normalized
 }
 
@@ -540,27 +547,39 @@ const refreshCandidateVectorFlags = async (jdId = selectedJdId.value) => {
     const data = await resp.json()
     if (!Array.isArray(data)) return
 
-    const noVectorChunkById = new Map()
+    const vectorStateById = new Map()
     for (const payload of data) {
       const id = payload?.candidateId || payload?.id
       if (!id) continue
-      if (!Object.prototype.hasOwnProperty.call(payload, 'noVectorChunk')) continue
-      noVectorChunkById.set(id, Boolean(payload.noVectorChunk))
+      if (!Object.prototype.hasOwnProperty.call(payload, 'noVectorChunk') &&
+          !Object.prototype.hasOwnProperty.call(payload, 'vectorStatus')) {
+        continue
+      }
+      vectorStateById.set(id, {
+        noVectorChunk: Boolean(payload?.noVectorChunk),
+        vectorStatus: payload?.vectorStatus || 'NONE'
+      })
     }
-    if (!noVectorChunkById.size) return
+    if (!vectorStateById.size) return
 
     for (let i = 0; i < events.length; i += 1) {
       const item = events[i]
-      if (!noVectorChunkById.has(item.id)) continue
-      const next = noVectorChunkById.get(item.id)
-      if (item.noVectorChunk !== next) {
-        events[i] = { ...item, noVectorChunk: next }
+      if (!vectorStateById.has(item.id)) continue
+      const next = vectorStateById.get(item.id)
+      if (item.noVectorChunk !== next.noVectorChunk || item.vectorStatus !== next.vectorStatus) {
+        events[i] = {
+          ...item,
+          noVectorChunk: next.noVectorChunk,
+          vectorStatus: next.vectorStatus
+        }
       }
     }
-    if (selectedCandidate.value && noVectorChunkById.has(selectedCandidate.value.id)) {
+    if (selectedCandidate.value && vectorStateById.has(selectedCandidate.value.id)) {
+      const next = vectorStateById.get(selectedCandidate.value.id)
       selectedCandidate.value = {
         ...selectedCandidate.value,
-        noVectorChunk: noVectorChunkById.get(selectedCandidate.value.id)
+        noVectorChunk: next.noVectorChunk,
+        vectorStatus: next.vectorStatus
       }
     }
   } catch (_) {
@@ -619,13 +638,15 @@ const connect = () => {
       if (idx >= 0) {
         events[idx] = {
           ...events[idx],
-          noVectorChunk: false
+          noVectorChunk: false,
+          vectorStatus: 'READY'
         }
       }
       if (selectedCandidate.value?.id === candidateId) {
         selectedCandidate.value = {
           ...selectedCandidate.value,
-          noVectorChunk: false
+          noVectorChunk: false,
+          vectorStatus: 'READY'
         }
       }
       refreshCandidateVectorFlags(jdId || selectedJdId.value)

@@ -180,7 +180,7 @@ scripts/server-run.sh restart-no-build
 Local mode:
 
 ```bash
-curl -fsS http://127.0.0.1:8001/ready
+curl -fsS http://127.0.0.1:8001/health
 curl -fsS http://127.0.0.1:8080/api/resumes/health
 ```
 

@@ -20,7 +20,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/vector")
 public class VectorHealthController {
-    private static final String DEFAULT_EMBEDDING_READY_URL = "http://localhost:8001/ready";
+    private static final String DEFAULT_EMBEDDING_HEALTH_URL = "http://localhost:8001/health";
 
     private final VectorIngestTaskJpaRepository taskRepository;
     private final EmbeddingConfig embeddingConfig;
@@ -128,15 +128,15 @@ public class VectorHealthController {
             URI uri = URI.create(embeddingServiceUrl);
             String path = uri.getPath();
             if (path == null || path.isBlank() || "/".equals(path)) {
-                path = "/ready";
+                path = "/health";
             } else if (path.endsWith("/v1/embeddings") || path.endsWith("/embeddings")) {
                 path = "/health";
             } else if (path.endsWith("/embedding")) {
                 path = path.substring(0, path.length() - "/embedding".length()) + "/health";
             } else if (path.endsWith("/embed")) {
-                path = path.substring(0, path.length() - "/embed".length()) + "/ready";
+                path = path.substring(0, path.length() - "/embed".length()) + "/health";
             } else {
-                path = path.replaceAll("/+$", "") + "/ready";
+                path = path.replaceAll("/+$", "") + "/health";
             }
             URI healthUri = new URI(
                     uri.getScheme(),
@@ -148,7 +148,7 @@ public class VectorHealthController {
                     null);
             return healthUri.toString();
         } catch (Exception ex) {
-            return DEFAULT_EMBEDDING_READY_URL;
+            return DEFAULT_EMBEDDING_HEALTH_URL;
         }
     }
 

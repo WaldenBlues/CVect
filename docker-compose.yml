@@ -51,6 +51,8 @@ services:
       MAX_BATCH_SIZE: ${CVECT_EMBEDDING_BATCH_SIZE:?set in .env}
       MAX_CONCURRENT_REQUESTS: ${CVECT_EMBEDDING_MAX_CONCURRENT_REQUESTS:-1}
       MAX_INPUT_LENGTH: ${CVECT_EMBEDDING_MAX_INPUT_LENGTH:?set in .env}
+      IDLE_UNLOAD_SECONDS: ${CVECT_EMBEDDING_IDLE_UNLOAD_SECONDS:-900}
+      IDLE_CHECK_INTERVAL_SECONDS: ${CVECT_EMBEDDING_IDLE_CHECK_INTERVAL_SECONDS:-30}
       PRELOAD_MODELS: ${CVECT_PRELOAD_MODELS:?set in .env}
       MALLOC_ARENA_MAX: ${CVECT_MALLOC_ARENA_MAX:-2}
       TOKENIZERS_PARALLELISM: "false"
@@ -59,7 +61,7 @@ services:
     volumes:
       - ${CVECT_HF_CACHE_DIR:?set in .env}:/root/.cache/huggingface
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/ready', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5)"]
       interval: 15s
       timeout: 10s
       retries: 40
@@ -84,7 +86,7 @@ services:
       CVECT_DB_PASSWORD: ${CVECT_POSTGRES_PASSWORD:?set in .env}
       CVECT_EMBEDDING_SERVICE_URL: ${CVECT_EMBEDDING_SERVICE_URL:-http://qwen:8001/embed}
       CVECT_EMBEDDING_API_FORMAT: ${CVECT_EMBEDDING_API_FORMAT:-auto}
-      CVECT_EMBEDDING_HEALTH_URL: ${CVECT_EMBEDDING_HEALTH_URL:-http://qwen:8001/ready}
+      CVECT_EMBEDDING_HEALTH_URL: ${CVECT_EMBEDDING_HEALTH_URL:-http://qwen:8001/health}
       CVECT_VECTOR_ENABLED: ${CVECT_VECTOR_ENABLED:-true}
       CVECT_VECTOR_INGEST_WORKER_ENABLED: ${CVECT_VECTOR_INGEST_WORKER_ENABLED:-true}
       CVECT_UPLOAD_STORAGE_DIR: /data/storage

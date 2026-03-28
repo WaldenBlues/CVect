@@ -1,5 +1,6 @@
 package com.walden.cvect.web.sse;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -14,10 +15,17 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Service
 public class BatchStreamService {
 
+    private static final long DEFAULT_TIMEOUT_MS = 10 * 60 * 1000L;
+
     private final Map<UUID, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
+    private final long emitterTimeoutMs;
+
+    public BatchStreamService(@Value("${app.sse.timeout-ms:600000}") long emitterTimeoutMs) {
+        this.emitterTimeoutMs = emitterTimeoutMs > 0 ? emitterTimeoutMs : DEFAULT_TIMEOUT_MS;
+    }
 
     public SseEmitter subscribe(UUID batchId) {
-        SseEmitter emitter = new SseEmitter(0L);
+        SseEmitter emitter = new SseEmitter(emitterTimeoutMs);
         emitters.computeIfAbsent(batchId, key -> new CopyOnWriteArrayList<>()).add(emitter);
 
         emitter.onCompletion(() -> remove(batchId, emitter));
@@ -39,8 +47,13 @@ public class BatchStreamService {
                         .data(event));
             } catch (IOException e) {
                 remove(batchId, emitter);
+                emitter.completeWithError(e);
             }
         }
+    }
+
+    public int activeEmitterCount() {
+        return emitters.values().stream().mapToInt(List::size).sum();
     }
 
     @Scheduled(fixedRate = 20000)
@@ -61,6 +74,7 @@ public class BatchStreamService {
                             .data("ok"));
                 } catch (IOException e) {
                     remove(batchId, emitter);
+                    emitter.completeWithError(e);
                 }
             }
         }

@@ -105,7 +105,7 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
     let nextRank = ranked.length
     // /api/search 可能未覆盖全部已向量化候选人，给遗漏项补 0 分，避免卡片长期灰色。
     for (const item of events) {
-      if (item?.noVectorChunk !== false) continue
+      if (item?.vectorStatus !== 'READY') continue
       if (Object.prototype.hasOwnProperty.call(scoreByCandidateId, item.id)) continue
       scoreByCandidateId[item.id] = 0
       rankByCandidateId[item.id] = nextRank
