@@ -8,20 +8,39 @@
 ![Docker Compose](https://img.shields.io/badge/Docker%20Compose-Single%20Stack-2496ed?style=flat-square)
 ![Qwen CPU](https://img.shields.io/badge/Qwen-CPU%20Embedding-8b5cf6?style=flat-square)
 
-CVect 是一个招聘场景下的简历处理与候选人管理系统，覆盖 `JD 管理`、`简历上传解析`、`候选人列表`、`SSE 实时流` 和 `pgvector` 语义检索。
+CVect 是一个面向招聘场景的简历处理与候选人管理系统，覆盖 `JD 管理`、`简历上传解析`、`候选人列表`、`SSE 实时流` 和 `pgvector` 语义检索。
 
-默认形态已经收敛为：
+项目当前默认形态已经收敛为：
 
 - 一个编排入口：`docker-compose.yml`
 - 一个配置文件：`.env`
 - 一个本地模型服务：`Qwen` CPU embedding
 - 两个运行脚本：`scripts/local-run.sh`、`scripts/server-run.sh`
 
+## Preview
+
+<p align="center">
+  <img src="./image.png" alt="CVect Demo Preview" />
+</p>
+
 ## Live Demo
 
-- Public URL: [http://111.228.5.197:8088/](http://111.228.5.197:8088/)
-- Access policy is controlled by the deployed server configuration.
-- Repository does not publish any deployment credentials.
+| Item | Value |
+| --- | --- |
+| Public URL | [http://111.228.5.197:8088/](http://111.228.5.197:8088/) |
+| Username | `demo` |
+| Password | `demo123` |
+| Access | Interviewer / demo access |
+
+## Feature Highlights
+
+- JD create / update / delete
+- Resume upload, ZIP upload, retry, dedupe
+- Tika parsing and structured extraction
+- Candidate list and recruitment status updates
+- SSE batch and candidate streaming
+- Vector search backed by `pgvector`
+- Offline Hugging Face cache for `Qwen/Qwen3-Embedding-0.6B`
 
 ## Stack
 
@@ -31,13 +50,15 @@ CVect 是一个招聘场景下的简历处理与候选人管理系统，覆盖 `
 - Database: PostgreSQL 17, `pgvector`
 - Infra: Docker Compose
 
-## Components
+## Architecture
 
 ```text
 frontend -> nginx -> backend -> postgres
                        |
                        -> qwen embedding service
 ```
+
+## Project Layout
 
 ```text
 CVect/
@@ -49,16 +70,6 @@ CVect/
 └── .env                  # single config source
 ```
 
-## What Works
-
-- JD create / update / delete
-- Resume upload, ZIP upload, retry, dedupe
-- Tika parsing and structured extraction
-- Candidate list and recruitment status updates
-- SSE batch and candidate streaming
-- Vector search backed by `pgvector`
-- Offline Hugging Face cache for `Qwen/Qwen3-Embedding-0.6B`
-
 ## Requirements
 
 - Java 17
@@ -66,9 +77,11 @@ CVect/
 - Python 3.10+
 - Docker + Docker Compose
 
-## Local Development
+## Quick Start
 
-Edit [`.env`](/home/walden/Walden_project/CVect/.env) first, then run:
+### Local Development
+
+Edit [`.env`](./.env) first, then run:
 
 ```bash
 scripts/local-run.sh start
@@ -90,9 +103,9 @@ Local mode behavior:
 - `frontend` runs locally on `:5173`
 - logs and pid files are written under `.run/`
 
-## Docker Deployment
+### Docker Deployment
 
-Server mode reads the same [`.env`](/home/walden/Walden_project/CVect/.env) and uses the same [docker-compose.yml](/home/walden/Walden_project/CVect/docker-compose.yml).
+Server mode reads the same [`.env`](./.env) and uses the same [docker-compose.yml](./docker-compose.yml).
 
 Build and run on the target machine:
 
@@ -112,7 +125,7 @@ scripts/server-run.sh restart
 
 If `CVECT_EMBEDDING_SERVICE_URL` points to an external embedding service instead of `http://qwen:8001/embed`, `scripts/server-run.sh` will skip the local `qwen` container and only start `postgres/backend/frontend`.
 
-## Offline HF Cache
+### Offline HF Cache
 
 The default model is `Qwen/Qwen3-Embedding-0.6B`.
 The cache is prepared locally and mounted into the `qwen` container at `/root/.cache/huggingface`.
@@ -135,7 +148,7 @@ scripts/qwen-offline-cache.sh pack
 scripts/qwen-offline-cache.sh unpack /path/to/qwen-hf-cache.tgz
 ```
 
-## Local Build, Server Load
+### Local Build, Server Load
 
 If you do not want the server to build images:
 
@@ -175,7 +188,9 @@ scripts/server-run.sh up-no-build
 scripts/server-run.sh restart-no-build
 ```
 
-## Health Checks
+## Validation
+
+### Health Checks
 
 Local mode:
 
@@ -187,11 +202,11 @@ curl -fsS http://127.0.0.1:8080/api/resumes/health
 Compose / server mode:
 
 ```bash
-curl -u <username>:<password> -fsS http://127.0.0.1:8088/healthz
+curl -u 'demo:demo123' -fsS http://127.0.0.1:8088/healthz
 docker compose --env-file .env -f docker-compose.yml ps
 ```
 
-## Tests
+### Tests
 
 Backend:
 
@@ -213,9 +228,9 @@ Python syntax/import checks:
 python3 -m py_compile Qwen/embedding_service.py
 ```
 
-## Key Config
+## Key Configuration
 
-Most runtime behavior is controlled from [`.env`](/home/walden/Walden_project/CVect/.env).
+Most runtime behavior is controlled from [`.env`](./.env).
 
 Important keys:
 
@@ -244,7 +259,7 @@ Small machine defaults are already tuned for `2C4G`:
 - max input length `1024`
 - conservative JVM memory
 
-## Notes
+## Deployment Notes
 
 - Live demo URL can be linked from the GitHub repository "About" section.
 - The default deployment is single-node.
