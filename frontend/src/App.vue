@@ -496,6 +496,7 @@ watch(filteredCandidates, (items) => {
   if (!selectedCandidate.value) return
   const exists = items.some((item) => item.id === selectedCandidate.value?.id)
   if (!exists) {
+    recruitmentMessage.value = ''
     selectedCandidate.value = items[0] || null
   }
 })
@@ -635,6 +636,7 @@ const connect = () => {
       const belongsToSelectedJd = !selectedJdId.value || !candidate.jdId || candidate.jdId === selectedJdId.value
       if (belongsToSelectedJd) {
         applyCandidateUpdate(candidate)
+        recruitmentMessage.value = ''
         selectedCandidate.value = candidate
       }
       pushLog(`收到候选人: ${candidate.id}`)
@@ -763,6 +765,7 @@ const loadCandidatesForJd = async (jdId) => {
     stopVectorFlagPolling()
     events.splice(0, events.length)
     currentPage.value = 1
+    recruitmentMessage.value = ''
     selectedCandidate.value = null
     return
   }
@@ -773,6 +776,7 @@ const loadCandidatesForJd = async (jdId) => {
     if (requestSeq !== candidateLoadSeq) return
     events.splice(0, events.length, ...(Array.isArray(data) ? data.map(normalizeCandidate) : []))
     currentPage.value = 1
+    recruitmentMessage.value = ''
     selectedCandidate.value = events[0] || null
     startVectorFlagPolling()
     applySemanticTuningFromJd()
@@ -782,6 +786,7 @@ const loadCandidatesForJd = async (jdId) => {
     resetSemanticState(false)
     events.splice(0, events.length)
     currentPage.value = 1
+    recruitmentMessage.value = ''
     selectedCandidate.value = null
     jdMessage.value = `候选人加载失败: ${err.message}`
     pushLog(`候选人加载失败: ${err.message}`)
