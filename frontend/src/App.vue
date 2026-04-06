@@ -663,8 +663,10 @@ const connect = () => {
       const belongsToSelectedJd = !selectedJdId.value || (effectiveJdId && effectiveJdId === selectedJdId.value)
       if (belongsToSelectedJd) {
         applyCandidateUpdate(candidate)
-        recruitmentMessage.value = ''
-        selectedCandidate.value = candidate
+        if (!selectedCandidate.value) {
+          recruitmentMessage.value = ''
+          selectedCandidate.value = candidate
+        }
       }
       pushLog(`收到候选人: ${candidate.id}`)
       scheduleJdRefresh()
