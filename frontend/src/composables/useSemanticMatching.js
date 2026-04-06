@@ -80,11 +80,6 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
 
   const applySemanticRankingFromRaw = () => {
     const candidates = Array.isArray(semanticRawCandidates.value) ? semanticRawCandidates.value : []
-    if (!candidates.length) {
-      semanticScoreMap.value = {}
-      semanticRankMap.value = {}
-      return 0
-    }
     const { scoreByCandidateId, rankByCandidateId } = buildSemanticRankMaps({ candidates })
     const matchedCount = Object.keys(scoreByCandidateId).length
     let nextRank = Object.keys(rankByCandidateId).length
