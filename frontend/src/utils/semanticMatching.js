@@ -66,13 +66,24 @@ export const buildSemanticRankMaps = (searchResponse) => {
   return { scoreByCandidateId, rankByCandidateId }
 }
 
-export const reconcileSemanticRankMaps = ({ searchResponse, candidateEvents } = {}) => {
+export const reconcileSemanticRankMaps = ({
+  searchResponse,
+  candidateEvents,
+  previousScoreByCandidateId,
+  previousRankByCandidateId
+} = {}) => {
   const currentCandidates = Array.isArray(candidateEvents) ? candidateEvents : []
   const currentCandidateIds = new Set(
     currentCandidates
       .map((item) => item?.id)
       .filter(Boolean)
   )
+  const previousScores = previousScoreByCandidateId && typeof previousScoreByCandidateId === 'object'
+    ? previousScoreByCandidateId
+    : {}
+  const previousRanks = previousRankByCandidateId && typeof previousRankByCandidateId === 'object'
+    ? previousRankByCandidateId
+    : {}
   const searchCandidates = Array.isArray(searchResponse?.candidates)
     ? searchResponse.candidates.filter((candidate) => {
       const candidateId = candidate?.candidateId
@@ -81,12 +92,31 @@ export const reconcileSemanticRankMaps = ({ searchResponse, candidateEvents } = 
     : []
   const { scoreByCandidateId, rankByCandidateId } = buildSemanticRankMaps({ candidates: searchCandidates })
   const matchedCount = Object.keys(scoreByCandidateId).length
-  let nextRank = Object.keys(rankByCandidateId).length
+
+  for (const candidateId of currentCandidateIds) {
+    if (Object.prototype.hasOwnProperty.call(scoreByCandidateId, candidateId)) continue
+    const previousScore = parseCandidateScore(previousScores[candidateId])
+    if (previousScore == null) continue
+    scoreByCandidateId[candidateId] = previousScore
+    const previousRank = previousRanks[candidateId]
+    if (typeof previousRank === 'number' && Number.isFinite(previousRank)) {
+      rankByCandidateId[candidateId] = previousRank
+    }
+  }
+
+  const rankValues = Object.values(rankByCandidateId).filter((value) => typeof value === 'number' && Number.isFinite(value))
+  let nextRank = rankValues.length ? Math.max(...rankValues) + 1 : 0
 
   for (const item of currentCandidates) {
     if (item?.vectorStatus !== 'READY' || !item.id) continue
-    if (Object.prototype.hasOwnProperty.call(scoreByCandidateId, item.id)) continue
-    scoreByCandidateId[item.id] = 0
+    if (Object.prototype.hasOwnProperty.call(scoreByCandidateId, item.id)) {
+      if (!Object.prototype.hasOwnProperty.call(rankByCandidateId, item.id)) {
+        rankByCandidateId[item.id] = nextRank
+        nextRank += 1
+      }
+      continue
+    }
+    if (Object.prototype.hasOwnProperty.call(rankByCandidateId, item.id)) continue
     rankByCandidateId[item.id] = nextRank
     nextRank += 1
   }

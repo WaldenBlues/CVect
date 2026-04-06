@@ -36,21 +36,28 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
     return calibrateSemanticDisplayScore(semanticScoreMap.value[candidateId])
   }
 
+  const hasPendingSemanticScore = (candidateId) => {
+    const score = normalizeSemanticScore(semanticScoreMap.value[candidateId])
+    if (score != null) return false
+    const rank = semanticRankMap.value[candidateId]
+    return typeof rank === 'number' && Number.isFinite(rank)
+  }
+
   const semanticScorePercent = (candidateId) => {
     const score = semanticDisplayScore(candidateId)
-    if (score == null) return '--'
+    if (score == null) return hasPendingSemanticScore(candidateId) ? '待重算' : '--'
     return `${(score * 100).toFixed(1)}%`
   }
 
   const semanticScoreRaw = (candidateId) => {
     const score = normalizeSemanticScore(semanticScoreMap.value[candidateId])
-    if (score == null) return '(n/a)'
+    if (score == null) return hasPendingSemanticScore(candidateId) ? '(db)' : '(n/a)'
     return `(${score.toFixed(3)})`
   }
 
   const matchScoreClass = (candidateId) => {
     const score = semanticDisplayScore(candidateId)
-    if (score == null) return ['empty']
+    if (score == null) return hasPendingSemanticScore(candidateId) ? ['pending'] : ['empty']
     if (score >= 0.7) return ['level-high']
     if (score >= 0.35) return ['level-medium']
     return ['level-low']
@@ -78,11 +85,13 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
     }, delayMs)
   }
 
-  const applySemanticRankingFromRaw = () => {
+  const applySemanticRankingFromRaw = ({ preserveExistingScores = false } = {}) => {
     const candidates = Array.isArray(semanticRawCandidates.value) ? semanticRawCandidates.value : []
     const { scoreByCandidateId, rankByCandidateId, matchedCount } = reconcileSemanticRankMaps({
       searchResponse: { candidates },
-      candidateEvents: events
+      candidateEvents: events,
+      previousScoreByCandidateId: preserveExistingScores ? semanticScoreMap.value : null,
+      previousRankByCandidateId: preserveExistingScores ? semanticRankMap.value : null
     })
     semanticScoreMap.value = scoreByCandidateId
     semanticRankMap.value = rankByCandidateId
@@ -90,7 +99,7 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
   }
 
   const reconcileSemanticRanking = () => {
-    return applySemanticRankingFromRaw()
+    return applySemanticRankingFromRaw({ preserveExistingScores: true })
   }
 
   const resetSemanticState = (clearMessage = true) => {
@@ -152,8 +161,7 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
       if (requestSeq !== semanticRequestSeq) {
         return
       }
-      semanticRawCandidates.value = []
-      const matchedCount = applySemanticRankingFromRaw()
+      const matchedCount = applySemanticRankingFromRaw({ preserveExistingScores: true })
       semanticMessage.value = matchedCount > 0
         ? `${err.message}，已按数据库回退展示已就绪候选人。`
         : err.message

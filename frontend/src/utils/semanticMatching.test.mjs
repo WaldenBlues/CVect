@@ -86,7 +86,7 @@ describe('semanticMatching', () => {
     })
   })
 
-  it('reconcileSemanticRankMaps should backfill zero scores for ready database candidates', () => {
+  it('reconcileSemanticRankMaps should keep ready database candidates visible without fabricating zero scores', () => {
     const result = reconcileSemanticRankMaps({
       searchResponse: {
         candidates: [
@@ -103,8 +103,34 @@ describe('semanticMatching', () => {
 
     assert.equal(result.matchedCount, 1)
     assert.deepEqual(result.scoreByCandidateId, {
-      c1: 0.82,
-      c2: 0
+      c1: 0.82
+    })
+    assert.deepEqual(result.rankByCandidateId, {
+      c1: 0,
+      c2: 1
+    })
+  })
+
+  it('reconcileSemanticRankMaps should preserve existing semantic scores during db-only refresh', () => {
+    const result = reconcileSemanticRankMaps({
+      searchResponse: {
+        candidates: []
+      },
+      candidateEvents: [
+        { id: 'c1', vectorStatus: 'READY' },
+        { id: 'c2', vectorStatus: 'READY' }
+      ],
+      previousScoreByCandidateId: {
+        c1: 0.67
+      },
+      previousRankByCandidateId: {
+        c1: 0
+      }
+    })
+
+    assert.equal(result.matchedCount, 0)
+    assert.deepEqual(result.scoreByCandidateId, {
+      c1: 0.67
     })
     assert.deepEqual(result.rankByCandidateId, {
       c1: 0,
