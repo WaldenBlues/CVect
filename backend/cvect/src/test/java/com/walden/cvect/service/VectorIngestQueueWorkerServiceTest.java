@@ -41,6 +41,8 @@ class VectorIngestQueueWorkerServiceTest {
     @Mock
     private CandidateStreamService streamService;
     @Mock
+    private PersistedMatchScoreService persistedMatchScoreService;
+    @Mock
     private JdbcTemplate jdbcTemplate;
     @Mock
     private PlatformTransactionManager transactionManager;
@@ -68,6 +70,7 @@ class VectorIngestQueueWorkerServiceTest {
                 vectorStoreService,
                 snapshotService,
                 streamService,
+                persistedMatchScoreService,
                 jdbcTemplate,
                 transactionManager,
                 20,
@@ -107,6 +110,7 @@ class VectorIngestQueueWorkerServiceTest {
                 vectorStoreService,
                 snapshotService,
                 streamService,
+                persistedMatchScoreService,
                 jdbcTemplate,
                 transactionManager,
                 20,

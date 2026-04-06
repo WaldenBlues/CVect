@@ -549,6 +549,16 @@ const pushLog = (message) => {
 
 const normalizeCandidate = (payload) => {
   const safePayload = payload && typeof payload === 'object' ? payload : {}
+  const parseScore = (value) => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) return null
+      const parsed = Number(trimmed)
+      return Number.isFinite(parsed) ? parsed : null
+    }
+    return null
+  }
   const normalized = {
     id: safePayload.candidateId || safePayload.id || 'unknown',
     jdId: safePayload.jdId || safePayload.jd_id || '',
@@ -564,7 +574,11 @@ const normalizeCandidate = (payload) => {
     phones: ensureStringArray(safePayload.phones),
     educations: ensureStringArray(safePayload.educations),
     honors: ensureStringArray(safePayload.honors),
-    links: ensureStringArray(safePayload.links)
+    links: ensureStringArray(safePayload.links),
+    baselineMatchScore: parseScore(safePayload.baselineMatchScore),
+    baselineExperienceScore: parseScore(safePayload.baselineExperienceScore),
+    baselineSkillScore: parseScore(safePayload.baselineSkillScore),
+    baselineScoredAt: safePayload.baselineScoredAt || ''
   }
   if (Object.prototype.hasOwnProperty.call(safePayload, 'noVectorChunk')) {
     normalized.noVectorChunk = Boolean(safePayload.noVectorChunk)

@@ -174,6 +174,67 @@ public class VectorStoreService {
         return searchResults;
     }
 
+    public Map<UUID, CandidateScoreBreakdown> scoreCandidates(float[] queryEmbedding, Collection<UUID> candidateIds) {
+        if (!config.isEnabled()) {
+            throw new IllegalStateException("Vector store is disabled");
+        }
+        if (!vectorAvailable) {
+            throw new IllegalStateException("pgvector extension is unavailable");
+        }
+        ensureIndexCompatibility();
+        validateVectorInput(queryEmbedding, "queryEmbedding");
+
+        StringBuilder sql = new StringBuilder();
+        String queryVectorType = "vector(" + positiveDimension() + ")";
+        sql.append("SELECT candidate_id, chunk_type, ");
+        sql.append("MAX(1 - (");
+        sql.append(normalizedEmbeddingExpression()).append(" <=> ?::").append(queryVectorType);
+        sql.append(")) AS score ");
+        sql.append("FROM ").append(tableName).append(" ");
+        sql.append("WHERE embedding IS NOT NULL ");
+
+        List<Object> args = new ArrayList<>();
+        args.add(vectorToString(queryEmbedding));
+        if (candidateIds != null && !candidateIds.isEmpty()) {
+            sql.append("AND candidate_id IN (");
+            appendPlaceholders(sql, candidateIds.size());
+            sql.append(") ");
+            args.addAll(candidateIds);
+        }
+        sql.append("AND chunk_type IN ('EXPERIENCE', 'SKILL') ");
+        sql.append("GROUP BY candidate_id, chunk_type");
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql.toString(), args.toArray());
+        Map<UUID, MutableCandidateScoreBreakdown> rawScores = new LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            UUID candidateId = (UUID) row.get("candidate_id");
+            if (candidateId == null) {
+                continue;
+            }
+            ChunkType chunkType = parseChunkType(row.get("chunk_type"));
+            if (chunkType == null) {
+                continue;
+            }
+            float score = ((Number) row.get("score")).floatValue();
+            MutableCandidateScoreBreakdown current = rawScores.computeIfAbsent(
+                    candidateId,
+                    ignored -> new MutableCandidateScoreBreakdown());
+            if (chunkType == ChunkType.EXPERIENCE) {
+                current.experienceScore = Math.max(current.experienceScore, score);
+            } else if (chunkType == ChunkType.SKILL) {
+                current.skillScore = Math.max(current.skillScore, score);
+            }
+        }
+
+        Map<UUID, CandidateScoreBreakdown> scores = new LinkedHashMap<>();
+        for (Map.Entry<UUID, MutableCandidateScoreBreakdown> entry : rawScores.entrySet()) {
+            scores.put(entry.getKey(), new CandidateScoreBreakdown(
+                    entry.getValue().experienceScore,
+                    entry.getValue().skillScore));
+        }
+        return scores;
+    }
+
     /**
      * 验证 ChunkType 是否为有效枚举值
      * 作为白名单检查，确保 SQL 拼接安全
@@ -382,6 +443,15 @@ public class VectorStoreService {
         return value;
     }
 
+    private static void appendPlaceholders(StringBuilder sql, int count) {
+        for (int i = 0; i < count; i++) {
+            if (i > 0) {
+                sql.append(", ");
+            }
+            sql.append("?");
+        }
+    }
+
     /**
      * 搜索结果封装
      */
@@ -398,5 +468,15 @@ public class VectorStoreService {
             }
             return Math.max(0.0f, Math.min(1.0f, 1.0f - distance));
         }
+    }
+
+    public record CandidateScoreBreakdown(
+            float experienceScore,
+            float skillScore) {
+    }
+
+    private static final class MutableCandidateScoreBreakdown {
+        private float experienceScore;
+        private float skillScore;
     }
 }

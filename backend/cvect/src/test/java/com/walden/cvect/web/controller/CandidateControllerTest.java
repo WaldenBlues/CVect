@@ -3,10 +3,12 @@ package com.walden.cvect.web.controller;
 import com.walden.cvect.model.entity.Candidate;
 import com.walden.cvect.model.entity.CandidateRecruitmentStatus;
 import com.walden.cvect.model.entity.JobDescription;
+import com.walden.cvect.repository.CandidateMatchScoreJpaRepository;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.ResumeChunkVectorJpaRepository;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
 import com.walden.cvect.service.CandidateSnapshotService;
+import com.walden.cvect.service.PersistedMatchScoreService;
 import com.walden.cvect.web.stream.CandidateStreamEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,11 +38,15 @@ class CandidateControllerTest {
     @Mock
     private CandidateJpaRepository candidateRepository;
     @Mock
+    private CandidateMatchScoreJpaRepository candidateMatchScoreRepository;
+    @Mock
     private CandidateSnapshotService snapshotService;
     @Mock
     private ResumeChunkVectorJpaRepository resumeChunkVectorRepository;
     @Mock
     private VectorIngestTaskJpaRepository vectorIngestTaskRepository;
+    @Mock
+    private PersistedMatchScoreService persistedMatchScoreService;
 
     @Test
     @DisplayName("listByJd should not query vector ids when candidate list is empty")
@@ -51,9 +57,11 @@ class CandidateControllerTest {
 
         CandidateController controller = new CandidateController(
                 candidateRepository,
+                candidateMatchScoreRepository,
                 snapshotService,
                 resumeChunkVectorRepository,
-                vectorIngestTaskRepository);
+                vectorIngestTaskRepository,
+                persistedMatchScoreService);
 
         ResponseEntity<List<CandidateController.CandidateListItem>> response = controller.listByJd(jdId);
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -87,9 +95,11 @@ class CandidateControllerTest {
 
         CandidateController controller = new CandidateController(
                 candidateRepository,
+                candidateMatchScoreRepository,
                 snapshotService,
                 resumeChunkVectorRepository,
-                vectorIngestTaskRepository);
+                vectorIngestTaskRepository,
+                persistedMatchScoreService);
 
         ResponseEntity<CandidateStreamEvent> response = controller.updateRecruitmentStatus(
                 candidateId,
@@ -123,9 +133,11 @@ class CandidateControllerTest {
 
         CandidateController controller = new CandidateController(
                 candidateRepository,
+                candidateMatchScoreRepository,
                 snapshotService,
                 resumeChunkVectorRepository,
-                vectorIngestTaskRepository);
+                vectorIngestTaskRepository,
+                persistedMatchScoreService);
 
         ResponseEntity<CandidateStreamEvent> response = controller.updateRecruitmentStatus(
                 candidateId,

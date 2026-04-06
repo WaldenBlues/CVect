@@ -22,6 +22,12 @@ public class JobDescription {
     @Column(name = "content", columnDefinition = "TEXT")
     private String content;
 
+    @Column(name = "embedding", columnDefinition = "TEXT")
+    private float[] embedding;
+
+    @Column(name = "embedding_updated_at")
+    private LocalDateTime embeddingUpdatedAt;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -56,6 +62,22 @@ public class JobDescription {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public float[] getEmbedding() {
+        return embedding;
+    }
+
+    public void setEmbedding(float[] embedding) {
+        this.embedding = embedding;
+    }
+
+    public LocalDateTime getEmbeddingUpdatedAt() {
+        return embeddingUpdatedAt;
+    }
+
+    public void setEmbeddingUpdatedAt(LocalDateTime embeddingUpdatedAt) {
+        this.embeddingUpdatedAt = embeddingUpdatedAt;
     }
 
     public LocalDateTime getCreatedAt() {

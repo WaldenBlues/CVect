@@ -12,6 +12,7 @@ import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import com.walden.cvect.repository.LinkJpaRepository;
 import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
+import com.walden.cvect.service.PersistedMatchScoreService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,6 +58,8 @@ class JobDescriptionControllerTest {
     private UploadItemJpaRepository itemRepository;
     @Mock
     private VectorStoreService vectorStoreService;
+    @Mock
+    private PersistedMatchScoreService persistedMatchScoreService;
 
     @Test
     @DisplayName("list should return empty array when no JD exists")
@@ -74,7 +77,8 @@ class JobDescriptionControllerTest {
                 experienceRepository,
                 batchRepository,
                 itemRepository,
-                vectorStoreService);
+                vectorStoreService,
+                persistedMatchScoreService);
 
         ResponseEntity<List<JobDescriptionController.JobDescriptionSummary>> response = controller.list();
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -89,6 +93,7 @@ class JobDescriptionControllerTest {
         UUID jdId = UUID.randomUUID();
         JobDescription jd = new JobDescription("Backend", "Spring");
         when(jdRepository.findById(jdId)).thenReturn(Optional.of(jd));
+        when(candidateRepository.findIdsByJobDescriptionId(jdId)).thenReturn(List.of());
 
         JobDescriptionController controller = new JobDescriptionController(
                 jdRepository,
@@ -101,11 +106,13 @@ class JobDescriptionControllerTest {
                 experienceRepository,
                 batchRepository,
                 itemRepository,
-                vectorStoreService);
+                vectorStoreService,
+                persistedMatchScoreService);
 
         ResponseEntity<Void> response = controller.delete(jdId);
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        verify(persistedMatchScoreService).deleteByJobDescriptionId(jdId);
         verify(vectorStoreService).deleteByJobDescription(jdId);
         verify(snapshotRepository).deleteByJdId(jdId);
         verify(contactRepository).deleteByJobDescriptionId(jdId);

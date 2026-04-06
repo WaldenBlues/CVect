@@ -2,8 +2,10 @@ package com.walden.cvect.web.controller;
 
 import com.walden.cvect.config.PostgresIntegrationTestBase;
 import com.walden.cvect.model.entity.Candidate;
+import com.walden.cvect.model.entity.CandidateMatchScore;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.repository.CandidateJpaRepository;
+import com.walden.cvect.repository.CandidateMatchScoreJpaRepository;
 import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -36,6 +38,9 @@ class CandidateControllerIntegrationTest extends PostgresIntegrationTestBase {
 
     @Autowired
     private CandidateJpaRepository candidateRepository;
+
+    @Autowired
+    private CandidateMatchScoreJpaRepository candidateMatchScoreRepository;
 
     @Autowired
     private JobDescriptionJpaRepository jdRepository;
@@ -77,6 +82,27 @@ class CandidateControllerIntegrationTest extends PostgresIntegrationTestBase {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"recruitmentStatus\":\"REJECTED\"}"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("list candidates should include persisted baseline match scores")
+    void listShouldIncludePersistedBaselineMatchScores() throws Exception {
+        JobDescription jd = jdRepository.save(new JobDescription("JD baseline scores", "content"));
+        Candidate candidate = candidateRepository.save(newCandidate(jd, "Carol"));
+        candidateMatchScoreRepository.save(new CandidateMatchScore(
+                candidate.getId(),
+                jd.getId(),
+                0.72f,
+                0.80f,
+                0.64f,
+                java.time.LocalDateTime.now()));
+
+        mockMvc.perform(get("/api/candidates").param("jdId", jd.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].candidateId").value(candidate.getId().toString()))
+                .andExpect(jsonPath("$[0].baselineMatchScore").value(0.72))
+                .andExpect(jsonPath("$[0].baselineExperienceScore").value(0.8))
+                .andExpect(jsonPath("$[0].baselineSkillScore").value(0.64));
     }
 
     private Candidate newCandidate(JobDescription jd, String name) {

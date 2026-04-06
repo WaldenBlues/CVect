@@ -70,7 +70,9 @@ export const reconcileSemanticRankMaps = ({
   searchResponse,
   candidateEvents,
   previousScoreByCandidateId,
-  previousRankByCandidateId
+  previousRankByCandidateId,
+  storedScoreByCandidateId,
+  storedRankByCandidateId
 } = {}) => {
   const currentCandidates = Array.isArray(candidateEvents) ? candidateEvents : []
   const currentCandidateIds = new Set(
@@ -83,6 +85,12 @@ export const reconcileSemanticRankMaps = ({
     : {}
   const previousRanks = previousRankByCandidateId && typeof previousRankByCandidateId === 'object'
     ? previousRankByCandidateId
+    : {}
+  const storedScores = storedScoreByCandidateId && typeof storedScoreByCandidateId === 'object'
+    ? storedScoreByCandidateId
+    : {}
+  const storedRanks = storedRankByCandidateId && typeof storedRankByCandidateId === 'object'
+    ? storedRankByCandidateId
     : {}
   const searchCandidates = Array.isArray(searchResponse?.candidates)
     ? searchResponse.candidates.filter((candidate) => {
@@ -101,6 +109,17 @@ export const reconcileSemanticRankMaps = ({
     const previousRank = previousRanks[candidateId]
     if (typeof previousRank === 'number' && Number.isFinite(previousRank)) {
       rankByCandidateId[candidateId] = previousRank
+    }
+  }
+
+  for (const candidateId of currentCandidateIds) {
+    if (Object.prototype.hasOwnProperty.call(scoreByCandidateId, candidateId)) continue
+    const storedScore = parseCandidateScore(storedScores[candidateId])
+    if (storedScore == null) continue
+    scoreByCandidateId[candidateId] = storedScore
+    const storedRank = storedRanks[candidateId]
+    if (typeof storedRank === 'number' && Number.isFinite(storedRank)) {
+      rankByCandidateId[candidateId] = storedRank
     }
   }
 

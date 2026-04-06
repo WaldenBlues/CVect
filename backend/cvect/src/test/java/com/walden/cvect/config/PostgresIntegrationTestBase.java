@@ -35,6 +35,7 @@ public abstract class PostgresIntegrationTestBase {
             registry.add("app.vector.enabled", () -> "true");
             registry.add("app.vector.dimension", () -> "1024");
             registry.add("app.embedding.dimension", () -> "1024");
+            registry.add("app.match-scores.enabled", () -> "false");
             return;
         }
 
@@ -48,5 +49,6 @@ public abstract class PostgresIntegrationTestBase {
         registry.add("app.vector.enabled", () -> "false");
         registry.add("app.vector.dimension", () -> "1024");
         registry.add("app.embedding.dimension", () -> "1024");
+        registry.add("app.match-scores.enabled", () -> "false");
     }
 }

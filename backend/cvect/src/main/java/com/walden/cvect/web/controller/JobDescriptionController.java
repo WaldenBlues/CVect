@@ -12,6 +12,7 @@ import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import com.walden.cvect.repository.LinkJpaRepository;
 import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
+import com.walden.cvect.service.PersistedMatchScoreService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
@@ -41,6 +42,7 @@ public class JobDescriptionController {
     private final UploadBatchJpaRepository batchRepository;
     private final UploadItemJpaRepository itemRepository;
     private final VectorStoreService vectorStoreService;
+    private final PersistedMatchScoreService persistedMatchScoreService;
 
     public JobDescriptionController(JobDescriptionJpaRepository jdRepository,
             CandidateJpaRepository candidateRepository,
@@ -52,7 +54,8 @@ public class JobDescriptionController {
             ExperienceJpaRepository experienceRepository,
             UploadBatchJpaRepository batchRepository,
             UploadItemJpaRepository itemRepository,
-            VectorStoreService vectorStoreService) {
+            VectorStoreService vectorStoreService,
+            PersistedMatchScoreService persistedMatchScoreService) {
         this.jdRepository = jdRepository;
         this.candidateRepository = candidateRepository;
         this.snapshotRepository = snapshotRepository;
@@ -64,6 +67,7 @@ public class JobDescriptionController {
         this.batchRepository = batchRepository;
         this.itemRepository = itemRepository;
         this.vectorStoreService = vectorStoreService;
+        this.persistedMatchScoreService = persistedMatchScoreService;
     }
 
     @GetMapping
@@ -95,6 +99,8 @@ public class JobDescriptionController {
     @PostMapping
     public ResponseEntity<JobDescriptionSummary> create(@Valid @RequestBody JobDescriptionRequest request) {
         JobDescription saved = jdRepository.save(new JobDescription(request.title(), request.content()));
+        persistedMatchScoreService.markJobDescriptionDirty(saved.getId());
+        persistedMatchScoreService.scheduleRefreshForJobDescription(saved.getId());
         return ResponseEntity.ok(toSummary(saved));
     }
 
@@ -107,6 +113,8 @@ public class JobDescriptionController {
                     jd.setTitle(request.title());
                     jd.setContent(request.content());
                     JobDescription saved = jdRepository.save(jd);
+                    persistedMatchScoreService.markJobDescriptionDirty(saved.getId());
+                    persistedMatchScoreService.scheduleRefreshForJobDescription(saved.getId());
                     return ResponseEntity.ok(toSummary(saved));
                 })
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -119,6 +127,9 @@ public class JobDescriptionController {
         if (jd == null) {
             return ResponseEntity.notFound().build();
         }
+        List<UUID> candidateIds = candidateRepository.findIdsByJobDescriptionId(id);
+        persistedMatchScoreService.deleteByJobDescriptionId(id);
+        persistedMatchScoreService.deleteByCandidateIds(candidateIds);
         vectorStoreService.deleteByJobDescription(id);
         snapshotRepository.deleteByJdId(id);
         contactRepository.deleteByJobDescriptionId(id);

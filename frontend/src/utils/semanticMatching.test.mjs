@@ -138,6 +138,31 @@ describe('semanticMatching', () => {
     })
   })
 
+  it('reconcileSemanticRankMaps should fall back to stored baseline scores when search response is empty', () => {
+    const result = reconcileSemanticRankMaps({
+      searchResponse: { candidates: [] },
+      candidateEvents: [
+        { id: 'c1', vectorStatus: 'READY' },
+        { id: 'c2', vectorStatus: 'READY' }
+      ],
+      storedScoreByCandidateId: {
+        c1: 0.73
+      },
+      storedRankByCandidateId: {
+        c1: 0
+      }
+    })
+
+    assert.equal(result.matchedCount, 0)
+    assert.deepEqual(result.scoreByCandidateId, {
+      c1: 0.73
+    })
+    assert.deepEqual(result.rankByCandidateId, {
+      c1: 0,
+      c2: 1
+    })
+  })
+
   it('suggestSemanticWeights should adapt to JD keywords', () => {
     const skillHeavy = suggestSemanticWeights('Java Spring Kubernetes Redis skill stack')
     const expHeavy = suggestSemanticWeights('10年架构经验，负责主导交付与团队协作')

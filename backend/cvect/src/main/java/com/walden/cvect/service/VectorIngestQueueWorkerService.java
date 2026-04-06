@@ -37,6 +37,7 @@ public class VectorIngestQueueWorkerService {
     private final VectorStoreService vectorStoreService;
     private final CandidateSnapshotService snapshotService;
     private final CandidateStreamService streamService;
+    private final PersistedMatchScoreService persistedMatchScoreService;
     private final TransactionTemplate requiresNewTx;
     private final int claimBatchSize;
     private final int maxAttempts;
@@ -50,6 +51,7 @@ public class VectorIngestQueueWorkerService {
             VectorStoreService vectorStoreService,
             CandidateSnapshotService snapshotService,
             CandidateStreamService streamService,
+            PersistedMatchScoreService persistedMatchScoreService,
             JdbcTemplate jdbcTemplate,
             PlatformTransactionManager transactionManager,
             @Value("${app.vector.ingest.worker.claim-batch-size:20}") int claimBatchSize,
@@ -60,6 +62,7 @@ public class VectorIngestQueueWorkerService {
         this.vectorStoreService = vectorStoreService;
         this.snapshotService = snapshotService;
         this.streamService = streamService;
+        this.persistedMatchScoreService = persistedMatchScoreService;
         this.requiresNewTx = new TransactionTemplate(transactionManager);
         this.claimBatchSize = Math.max(1, Math.min(claimBatchSize, 200));
         this.maxAttempts = Math.max(1, maxAttempts);
@@ -227,6 +230,8 @@ public class VectorIngestQueueWorkerService {
         if (!hasDone) {
             return;
         }
+
+        persistedMatchScoreService.refreshForCandidate(candidateId);
 
         CandidateStreamEvent snapshot = snapshotService.build(candidateId, "VECTOR_DONE");
         if (snapshot == null) {

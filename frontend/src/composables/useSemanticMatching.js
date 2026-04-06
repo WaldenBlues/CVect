@@ -85,17 +85,67 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
     }, delayMs)
   }
 
+  const resolvePersistedSemanticScore = (candidate) => {
+    const overall = normalizeSemanticScore(candidate?.baselineMatchScore)
+    const experience = normalizeSemanticScore(candidate?.baselineExperienceScore)
+    const skill = normalizeSemanticScore(candidate?.baselineSkillScore)
+    if (experience == null && skill == null) {
+      return overall
+    }
+    const weighted = (experience ?? 0) * semanticTuning.experienceWeight + (skill ?? 0) * semanticTuning.skillWeight
+    if (weighted > 0) {
+      return normalizeSemanticScore(weighted)
+    }
+    return overall ?? normalizeSemanticScore(Math.max(experience ?? 0, skill ?? 0))
+  }
+
+  const buildPersistedSemanticMaps = () => {
+    const scoredEntries = []
+    const pendingIds = []
+    for (const item of events) {
+      const score = resolvePersistedSemanticScore(item)
+      if (score != null) {
+        scoredEntries.push({ candidateId: item.id, score })
+        continue
+      }
+      if (item?.vectorStatus === 'READY' && item?.id) {
+        pendingIds.push(item.id)
+      }
+    }
+    scoredEntries.sort((left, right) => right.score - left.score)
+    const scoreByCandidateId = {}
+    const rankByCandidateId = {}
+    scoredEntries.forEach((entry, index) => {
+      scoreByCandidateId[entry.candidateId] = entry.score
+      rankByCandidateId[entry.candidateId] = index
+    })
+    let nextRank = scoredEntries.length
+    for (const candidateId of pendingIds) {
+      if (Object.prototype.hasOwnProperty.call(rankByCandidateId, candidateId)) continue
+      rankByCandidateId[candidateId] = nextRank
+      nextRank += 1
+    }
+    return {
+      scoreByCandidateId,
+      rankByCandidateId,
+      matchedCount: scoredEntries.length
+    }
+  }
+
   const applySemanticRankingFromRaw = ({ preserveExistingScores = false } = {}) => {
     const candidates = Array.isArray(semanticRawCandidates.value) ? semanticRawCandidates.value : []
+    const persistedMaps = buildPersistedSemanticMaps()
     const { scoreByCandidateId, rankByCandidateId, matchedCount } = reconcileSemanticRankMaps({
       searchResponse: { candidates },
       candidateEvents: events,
       previousScoreByCandidateId: preserveExistingScores ? semanticScoreMap.value : null,
-      previousRankByCandidateId: preserveExistingScores ? semanticRankMap.value : null
+      previousRankByCandidateId: preserveExistingScores ? semanticRankMap.value : null,
+      storedScoreByCandidateId: persistedMaps.scoreByCandidateId,
+      storedRankByCandidateId: persistedMaps.rankByCandidateId
     })
     semanticScoreMap.value = scoreByCandidateId
     semanticRankMap.value = rankByCandidateId
-    return matchedCount
+    return Math.max(matchedCount, persistedMaps.matchedCount)
   }
 
   const reconcileSemanticRanking = () => {

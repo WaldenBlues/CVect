@@ -2,11 +2,14 @@ package com.walden.cvect.web.controller;
 
 import com.walden.cvect.model.entity.Candidate;
 import com.walden.cvect.model.entity.CandidateRecruitmentStatus;
+import com.walden.cvect.model.entity.CandidateMatchScore;
 import com.walden.cvect.model.entity.vector.VectorIngestTaskStatus;
+import com.walden.cvect.repository.CandidateMatchScoreJpaRepository;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.ResumeChunkVectorJpaRepository;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
 import com.walden.cvect.service.CandidateSnapshotService;
+import com.walden.cvect.service.PersistedMatchScoreService;
 import com.walden.cvect.web.stream.CandidateStreamEvent;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -32,18 +35,24 @@ public class CandidateController {
     private static final Logger log = LoggerFactory.getLogger(CandidateController.class);
 
     private final CandidateJpaRepository candidateRepository;
+    private final CandidateMatchScoreJpaRepository candidateMatchScoreRepository;
     private final CandidateSnapshotService snapshotService;
     private final ResumeChunkVectorJpaRepository resumeChunkVectorRepository;
     private final VectorIngestTaskJpaRepository vectorIngestTaskRepository;
+    private final PersistedMatchScoreService persistedMatchScoreService;
 
     public CandidateController(CandidateJpaRepository candidateRepository,
+            CandidateMatchScoreJpaRepository candidateMatchScoreRepository,
             CandidateSnapshotService snapshotService,
             ResumeChunkVectorJpaRepository resumeChunkVectorRepository,
-            VectorIngestTaskJpaRepository vectorIngestTaskRepository) {
+            VectorIngestTaskJpaRepository vectorIngestTaskRepository,
+            PersistedMatchScoreService persistedMatchScoreService) {
         this.candidateRepository = candidateRepository;
+        this.candidateMatchScoreRepository = candidateMatchScoreRepository;
         this.snapshotService = snapshotService;
         this.resumeChunkVectorRepository = resumeChunkVectorRepository;
         this.vectorIngestTaskRepository = vectorIngestTaskRepository;
+        this.persistedMatchScoreService = persistedMatchScoreService;
     }
 
     @GetMapping
@@ -58,9 +67,19 @@ public class CandidateController {
         Set<UUID> candidateIds = candidates.stream()
                 .map(Candidate::getId)
                 .collect(java.util.stream.Collectors.toSet());
+        Map<UUID, CandidateMatchScore> scoreByCandidateId = candidateIds.isEmpty()
+                ? Map.of()
+                : candidateMatchScoreRepository.findByJobDescriptionIdAndCandidateIdIn(jdId, candidateIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                CandidateMatchScore::getCandidateId,
+                                score -> score,
+                                (left, right) -> right));
         Set<UUID> vectorizedCandidateIds = candidateIds.isEmpty()
                 ? Set.of()
                 : new HashSet<>(resumeChunkVectorRepository.findDistinctCandidateIdsIn(candidateIds));
+        if (!vectorizedCandidateIds.isEmpty() && scoreByCandidateId.size() < vectorizedCandidateIds.size()) {
+            persistedMatchScoreService.scheduleRefreshForJobDescription(jdId);
+        }
         Set<UUID> inflightCandidateIds = candidateIds.isEmpty()
                 ? Set.of()
                 : new HashSet<>(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
@@ -84,6 +103,7 @@ public class CandidateController {
             boolean hasVectorChunk = vectorizedCandidateIds.contains(candidate.getId());
             boolean hasInflight = inflightCandidateIds.contains(candidate.getId());
             boolean hasFailed = failedCandidateIds.contains(candidate.getId());
+            CandidateMatchScore matchScore = scoreByCandidateId.get(candidate.getId());
             String vectorStatus = resolveVectorStatus(hasVectorChunk, hasInflight, hasFailed);
             boolean noVectorChunk = !hasVectorChunk;
             events.add(new CandidateListItem(
@@ -103,6 +123,10 @@ public class CandidateController {
                     event.educations(),
                     event.honors(),
                     event.links(),
+                    matchScore == null ? null : matchScore.getOverallScore(),
+                    matchScore == null ? null : matchScore.getExperienceScore(),
+                    matchScore == null ? null : matchScore.getSkillScore(),
+                    matchScore == null ? null : matchScore.getScoredAt(),
                     vectorStatus,
                     noVectorChunk));
         }
@@ -200,6 +224,10 @@ public class CandidateController {
             List<String> educations,
             List<String> honors,
             List<String> links,
+            Float baselineMatchScore,
+            Float baselineExperienceScore,
+            Float baselineSkillScore,
+            java.time.LocalDateTime baselineScoredAt,
             String vectorStatus,
             boolean noVectorChunk
     ) {
