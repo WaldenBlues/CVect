@@ -632,8 +632,11 @@ const connect = () => {
     try {
       const payload = JSON.parse(event.data)
       const candidate = normalizeCandidate(payload)
-      applyCandidateUpdate(candidate)
-      selectedCandidate.value = candidate
+      const belongsToSelectedJd = !selectedJdId.value || !candidate.jdId || candidate.jdId === selectedJdId.value
+      if (belongsToSelectedJd) {
+        applyCandidateUpdate(candidate)
+        selectedCandidate.value = candidate
+      }
       pushLog(`收到候选人: ${candidate.id}`)
       scheduleJdRefresh()
     } catch (err) {
@@ -907,7 +910,7 @@ const deleteJd = async (jd) => {
     } else if (!selectedJdId.value && jds.value.length) {
       selectJd(jds.value[0])
     }
-    refreshJds()
+    await refreshJds()
   } catch (err) {
     jdMessage.value = err.message
   } finally {

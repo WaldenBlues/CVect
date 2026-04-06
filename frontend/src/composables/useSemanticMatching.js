@@ -83,9 +83,10 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
     if (!candidates.length) {
       semanticScoreMap.value = {}
       semanticRankMap.value = {}
-      return
+      return 0
     }
     const { scoreByCandidateId, rankByCandidateId } = buildSemanticRankMaps({ candidates })
+    const matchedCount = Object.keys(scoreByCandidateId).length
     let nextRank = Object.keys(rankByCandidateId).length
     // /api/search 可能未覆盖全部已向量化候选人，给遗漏项补 0 分，避免卡片长期灰色。
     for (const item of events) {
@@ -97,6 +98,7 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
     }
     semanticScoreMap.value = scoreByCandidateId
     semanticRankMap.value = rankByCandidateId
+    return matchedCount
   }
 
   const resetSemanticState = (clearMessage = true) => {
@@ -150,8 +152,7 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
         return
       }
       semanticRawCandidates.value = Array.isArray(data?.candidates) ? data.candidates : []
-      applySemanticRankingFromRaw()
-      const matchedCount = Object.keys(semanticScoreMap.value).length
+      const matchedCount = applySemanticRankingFromRaw()
       semanticMessage.value = matchedCount > 0
         ? `已完成语义重排，命中 ${matchedCount} 位候选人。`
         : '语义检索完成，但暂无可用分数（请确认候选人已完成向量化）。'

@@ -2,7 +2,9 @@ const DEFAULT_TOP_K = 100
 
 const clampTopK = (topK) => {
   if (!Number.isFinite(topK) || topK <= 0) return DEFAULT_TOP_K
-  return Math.min(Math.floor(topK), 500)
+  const normalized = Math.floor(topK)
+  if (normalized <= 0) return DEFAULT_TOP_K
+  return Math.min(normalized, 500)
 }
 
 const clampWeight = (weight) => {

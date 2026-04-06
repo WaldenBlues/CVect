@@ -21,6 +21,11 @@ describe('semanticMatching', () => {
     assert.equal(payload.topK, 100)
   })
 
+  it('buildSemanticSearchPayload should reject fractional topK below one', () => {
+    const payload = buildSemanticSearchPayload('JD', { topK: 0.5 })
+    assert.equal(payload.topK, 100)
+  })
+
   it('buildSemanticSearchPayload should carry provided tuning weights', () => {
     const payload = buildSemanticSearchPayload('JD', { topK: 10, experienceWeight: 0.2, skillWeight: 0.8 })
     assert.equal(payload.experienceWeight, 0.2)
