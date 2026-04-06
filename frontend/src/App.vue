@@ -807,6 +807,7 @@ const loadCandidatesForJd = async (jdId, options = {}) => {
   const preservePage = Boolean(options.preservePage)
   const keepMessages = Boolean(options.keepMessages)
   const background = Boolean(options.background)
+  const skipSemanticRefresh = Boolean(options.skipSemanticRefresh)
   const requestSeq = ++candidateLoadSeq
   const previousSelectedCandidateId = preserveSelection ? selectedCandidate.value?.id || '' : ''
   const previousPage = preservePage ? currentPage.value : 1
@@ -838,7 +839,9 @@ const loadCandidatesForJd = async (jdId, options = {}) => {
       : nextCandidates[0] || null
     startVectorFlagPolling()
     applySemanticTuningFromJd()
-    await refreshSemanticRanking()
+    if (!skipSemanticRefresh) {
+      await refreshSemanticRanking()
+    }
     return true
   } catch (err) {
     if (requestSeq !== candidateLoadSeq) return false
@@ -881,13 +884,14 @@ const refreshSelectedJdCandidates = async () => {
     const loaded = await loadCandidatesForJd(selectedJdId.value, {
       preserveSelection: true,
       preservePage: true,
-      keepMessages: true
+      keepMessages: true,
+      skipSemanticRefresh: true
     })
     if (loaded) {
       const refreshedAt = new Date().toLocaleTimeString()
-      jdMessage.value = '已手动刷新当前 JD 候选人'
-      manualRefreshStatus.value = `已刷新 ${refreshedAt}`
-      pushLog('已手动刷新当前 JD 候选人')
+      jdMessage.value = '已按数据库刷新当前 JD 候选人'
+      manualRefreshStatus.value = `已按数据库刷新 ${refreshedAt}`
+      pushLog('已按数据库刷新当前 JD 候选人')
     } else {
       manualRefreshStatus.value = '刷新失败，请稍后重试'
     }
