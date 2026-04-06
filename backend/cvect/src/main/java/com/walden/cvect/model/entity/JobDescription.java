@@ -22,6 +22,7 @@ public class JobDescription {
     @Column(name = "content", columnDefinition = "TEXT")
     private String content;
 
+    @Convert(converter = FloatArrayTextConverter.class)
     @Column(name = "embedding", columnDefinition = "TEXT")
     private float[] embedding;
 

@@ -139,4 +139,16 @@ class JobDescriptionControllerIntegrationTest extends PostgresIntegrationTestBas
                 .andExpect(jsonPath("$[?(@.id=='" + jd1.getId() + "')].candidateCount", hasItem(1)))
                 .andExpect(jsonPath("$[?(@.id=='" + jd2.getId() + "')].candidateCount", hasItem(0)));
     }
+
+    @Test
+    @DisplayName("should list JDs when persisted embeddings are non-null")
+    void shouldListJdsWithPersistedEmbeddings() throws Exception {
+        JobDescription jd = new JobDescription("JD with embedding", "text");
+        jd.setEmbedding(new float[] {0.1f, 0.2f, 0.3f});
+        jdRepository.save(jd);
+
+        mockMvc.perform(get("/api/jds"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id=='" + jd.getId() + "')].title", hasItem("JD with embedding")));
+    }
 }

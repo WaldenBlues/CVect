@@ -2,6 +2,7 @@ package com.walden.cvect.model.entity.vector;
 
 import com.walden.cvect.model.ChunkType;
 import com.walden.cvect.model.entity.Candidate;
+import com.walden.cvect.model.entity.FloatArrayTextConverter;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -41,6 +42,7 @@ public class ResumeChunkVector {
 
     // H2兼容：使用 TEXT 存储（开发/测试环境）
     // 生产环境通过 Hibernate 物理命名策略转换为 vector(app.vector.dimension)
+    @Convert(converter = FloatArrayTextConverter.class)
     @Column(columnDefinition = "TEXT")
     private float[] embedding;
 
