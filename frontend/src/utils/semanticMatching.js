@@ -66,6 +66,34 @@ export const buildSemanticRankMaps = (searchResponse) => {
   return { scoreByCandidateId, rankByCandidateId }
 }
 
+export const reconcileSemanticRankMaps = ({ searchResponse, candidateEvents } = {}) => {
+  const currentCandidates = Array.isArray(candidateEvents) ? candidateEvents : []
+  const currentCandidateIds = new Set(
+    currentCandidates
+      .map((item) => item?.id)
+      .filter(Boolean)
+  )
+  const searchCandidates = Array.isArray(searchResponse?.candidates)
+    ? searchResponse.candidates.filter((candidate) => {
+      const candidateId = candidate?.candidateId
+      return candidateId && (!currentCandidateIds.size || currentCandidateIds.has(candidateId))
+    })
+    : []
+  const { scoreByCandidateId, rankByCandidateId } = buildSemanticRankMaps({ candidates: searchCandidates })
+  const matchedCount = Object.keys(scoreByCandidateId).length
+  let nextRank = Object.keys(rankByCandidateId).length
+
+  for (const item of currentCandidates) {
+    if (item?.vectorStatus !== 'READY' || !item.id) continue
+    if (Object.prototype.hasOwnProperty.call(scoreByCandidateId, item.id)) continue
+    scoreByCandidateId[item.id] = 0
+    rankByCandidateId[item.id] = nextRank
+    nextRank += 1
+  }
+
+  return { scoreByCandidateId, rankByCandidateId, matchedCount }
+}
+
 const EXPERIENCE_HINTS = [
   '经验', '年', 'years', 'ownership', 'architecture', '架构', 'lead', '主导', '负责人', '交付'
 ]

@@ -377,6 +377,7 @@ const {
   semanticScoreRaw,
   matchScoreClass,
   applySemanticTuningFromJd,
+  reconcileSemanticRanking,
   scheduleSemanticRefresh,
   refreshSemanticRanking,
   resetSemanticState,
@@ -839,7 +840,10 @@ const loadCandidatesForJd = async (jdId, options = {}) => {
       : nextCandidates[0] || null
     startVectorFlagPolling()
     applySemanticTuningFromJd()
-    if (!skipSemanticRefresh) {
+    if (skipSemanticRefresh) {
+      reconcileSemanticRanking()
+      semanticMessage.value = '已按数据库刷新，匹配度未重算。'
+    } else {
       await refreshSemanticRanking()
     }
     return true

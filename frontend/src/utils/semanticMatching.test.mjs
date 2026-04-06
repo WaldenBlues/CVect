@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { buildSemanticRankMaps, buildSemanticSearchPayload, DEFAULT_SEMANTIC_MAPPING, suggestSemanticWeights } from './semanticMatching.js'
+import {
+  buildSemanticRankMaps,
+  buildSemanticSearchPayload,
+  DEFAULT_SEMANTIC_MAPPING,
+  reconcileSemanticRankMaps,
+  suggestSemanticWeights
+} from './semanticMatching.js'
 
 describe('semanticMatching', () => {
   it('buildSemanticSearchPayload should use default Experience/Skill mapping', () => {
@@ -77,6 +83,32 @@ describe('semanticMatching', () => {
     assert.deepEqual(result.rankByCandidateId, {
       c3: 2,
       c4: 3
+    })
+  })
+
+  it('reconcileSemanticRankMaps should backfill zero scores for ready database candidates', () => {
+    const result = reconcileSemanticRankMaps({
+      searchResponse: {
+        candidates: [
+          { candidateId: 'c1', score: 0.82 },
+          { candidateId: 'other-jd', score: 0.91 }
+        ]
+      },
+      candidateEvents: [
+        { id: 'c1', vectorStatus: 'READY' },
+        { id: 'c2', vectorStatus: 'READY' },
+        { id: 'c3', vectorStatus: 'PROCESSING' }
+      ]
+    })
+
+    assert.equal(result.matchedCount, 1)
+    assert.deepEqual(result.scoreByCandidateId, {
+      c1: 0.82,
+      c2: 0
+    })
+    assert.deepEqual(result.rankByCandidateId, {
+      c1: 0,
+      c2: 1
     })
   })
 

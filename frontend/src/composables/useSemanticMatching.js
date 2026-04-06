@@ -1,5 +1,5 @@
 import { reactive, ref, watch } from 'vue'
-import { buildSemanticRankMaps, buildSemanticSearchPayload, suggestSemanticWeights } from '../utils/semanticMatching'
+import { buildSemanticSearchPayload, reconcileSemanticRankMaps, suggestSemanticWeights } from '../utils/semanticMatching'
 
 export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
   const semanticScoreMap = ref({})
@@ -80,20 +80,17 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
 
   const applySemanticRankingFromRaw = () => {
     const candidates = Array.isArray(semanticRawCandidates.value) ? semanticRawCandidates.value : []
-    const { scoreByCandidateId, rankByCandidateId } = buildSemanticRankMaps({ candidates })
-    const matchedCount = Object.keys(scoreByCandidateId).length
-    let nextRank = Object.keys(rankByCandidateId).length
-    // /api/search 可能未覆盖全部已向量化候选人，给遗漏项补 0 分，避免卡片长期灰色。
-    for (const item of events) {
-      if (item?.vectorStatus !== 'READY') continue
-      if (Object.prototype.hasOwnProperty.call(scoreByCandidateId, item.id)) continue
-      scoreByCandidateId[item.id] = 0
-      rankByCandidateId[item.id] = nextRank
-      nextRank += 1
-    }
+    const { scoreByCandidateId, rankByCandidateId, matchedCount } = reconcileSemanticRankMaps({
+      searchResponse: { candidates },
+      candidateEvents: events
+    })
     semanticScoreMap.value = scoreByCandidateId
     semanticRankMap.value = rankByCandidateId
     return matchedCount
+  }
+
+  const reconcileSemanticRanking = () => {
+    return applySemanticRankingFromRaw()
   }
 
   const resetSemanticState = (clearMessage = true) => {
@@ -156,9 +153,10 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
         return
       }
       semanticRawCandidates.value = []
-      semanticScoreMap.value = {}
-      semanticRankMap.value = {}
-      semanticMessage.value = err.message
+      const matchedCount = applySemanticRankingFromRaw()
+      semanticMessage.value = matchedCount > 0
+        ? `${err.message}，已按数据库回退展示已就绪候选人。`
+        : err.message
     } finally {
       if (requestSeq === semanticRequestSeq) {
         semanticLoading.value = false
@@ -197,6 +195,7 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
     semanticScoreRaw,
     matchScoreClass,
     applySemanticTuningFromJd,
+    reconcileSemanticRanking,
     scheduleSemanticRefresh,
     refreshSemanticRanking,
     resetSemanticState,
