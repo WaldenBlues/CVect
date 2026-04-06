@@ -799,8 +799,18 @@ const scheduleJdRefresh = () => {
   }, 1200)
 }
 
+const resetUploadState = () => {
+  uploadFiles.value = []
+  uploadMessage.value = ''
+  isDragActive.value = false
+  if (fileInputRef.value) {
+    fileInputRef.value.value = ''
+  }
+}
+
 const clearSelectedJd = () => {
   stopVectorFlagPolling()
+  resetUploadState()
   selectedJdId.value = ''
   jdTitle.value = ''
   jdText.value = ''
@@ -813,6 +823,7 @@ const selectJd = (jd) => {
     clearSelectedJd()
     return
   }
+  resetUploadState()
   selectedJdId.value = jd.id
   jdTitle.value = jd.title || ''
   jdText.value = jd.content || ''
