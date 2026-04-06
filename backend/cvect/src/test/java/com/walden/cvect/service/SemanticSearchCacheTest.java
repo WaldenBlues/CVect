@@ -137,6 +137,37 @@ class SemanticSearchCacheTest {
                 .value(), 0.0001d);
     }
 
+    @Test
+    @DisplayName("equivalent normalized weights should reuse cached search response")
+    void shouldReuseCachedSearchResponseAcrossEquivalentWeights() {
+        SearchController.SearchRequest first = new SearchController.SearchRequest(
+                "same jd",
+                10,
+                true,
+                true,
+                0.2f,
+                0.8f,
+                false);
+        SearchController.SearchRequest second = new SearchController.SearchRequest(
+                "same jd",
+                10,
+                true,
+                true,
+                0.4f,
+                1.6f,
+                false);
+
+        searchController.search(first);
+        searchController.search(second);
+
+        verify(embeddingService, times(1)).embed("same jd");
+        verify(vectorStoreService, times(1)).search(any(float[].class), eq(40), any(ChunkType[].class));
+        assertEquals(0.5d, meterRegistry.get("cvect.cache.hit.rate")
+                .tag("cache", CacheConfig.SEARCH_RESPONSE_CACHE)
+                .gauge()
+                .value(), 0.0001d);
+    }
+
     private double timerCount(String name) {
         var timer = meterRegistry.find(name).tag("outcome", "success").timer();
         return timer == null ? 0.0d : timer.count();

@@ -13,7 +13,6 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -54,7 +53,7 @@ public class SemanticSearchService {
         try {
             float[] queryEmbedding = queryEmbeddingCache.get(request.jobDescription());
             ChunkType[] types = resolveChunkTypes(request);
-            WeightConfig weightConfig = resolveWeights(request, types);
+            SearchWeightNormalizer.Weights weightConfig = SearchWeightNormalizer.resolve(request);
 
             int chunkTopK = resolveChunkTopK(request.topK());
             List<VectorStoreService.SearchResult> results = vectorStore.search(queryEmbedding, chunkTopK, types);
@@ -107,7 +106,7 @@ public class SemanticSearchService {
 
     private static List<SearchController.CandidateMatch> aggregateAndSort(
             List<VectorStoreService.SearchResult> results,
-            WeightConfig weightConfig) {
+            SearchWeightNormalizer.Weights weightConfig) {
         Map<UUID, SearchController.CandidateMatch> candidateMatches = new LinkedHashMap<>();
 
         for (VectorStoreService.SearchResult result : results) {
@@ -154,41 +153,6 @@ public class SemanticSearchService {
                 .toList();
     }
 
-    private static WeightConfig resolveWeights(SearchController.SearchRequest request, ChunkType[] types) {
-        boolean includeExperience = types == null || Arrays.asList(types).contains(ChunkType.EXPERIENCE);
-        boolean includeSkill = types == null || Arrays.asList(types).contains(ChunkType.SKILL);
-
-        float experience = sanitizeWeight(request.experienceWeight(), includeExperience ? 0.5f : 0.0f);
-        float skill = sanitizeWeight(request.skillWeight(), includeSkill ? 0.5f : 0.0f);
-
-        if (!includeExperience) {
-            experience = 0.0f;
-        }
-        if (!includeSkill) {
-            skill = 0.0f;
-        }
-
-        if (includeExperience && !includeSkill) {
-            return new WeightConfig(1.0f, 0.0f);
-        }
-        if (!includeExperience && includeSkill) {
-            return new WeightConfig(0.0f, 1.0f);
-        }
-
-        float sum = experience + skill;
-        if (sum <= 0.0f) {
-            return new WeightConfig(0.5f, 0.5f);
-        }
-        return new WeightConfig(experience / sum, skill / sum);
-    }
-
-    private static float sanitizeWeight(Float value, float defaultValue) {
-        if (value == null || !Float.isFinite(value) || value < 0.0f) {
-            return defaultValue;
-        }
-        return value;
-    }
-
     private List<SearchController.CandidateMatch> filterVectorReadyCandidates(
             List<SearchController.CandidateMatch> candidates) {
         if (candidates == null || candidates.isEmpty()) {
@@ -216,8 +180,5 @@ public class SemanticSearchService {
                     return id != null && doneIds.contains(id) && !inflightIds.contains(id);
                 })
                 .toList();
-    }
-
-    private record WeightConfig(float experienceWeight, float skillWeight) {
     }
 }

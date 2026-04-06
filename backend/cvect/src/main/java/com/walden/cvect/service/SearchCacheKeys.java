@@ -20,13 +20,14 @@ public final class SearchCacheKeys {
         if (request == null) {
             return "search:null";
         }
+        SearchWeightNormalizer.Weights weights = SearchWeightNormalizer.resolve(request);
         return "search:%s:%d:%s:%s:%s:%s:%s".formatted(
                 sha256(normalizeText(request.jobDescription())),
                 request.topK(),
                 request.filterByExperience(),
                 request.filterBySkill(),
-                normalizeFloat(request.experienceWeight()),
-                normalizeFloat(request.skillWeight()),
+                normalizeFloat(weights.experienceWeight()),
+                normalizeFloat(weights.skillWeight()),
                 request.onlyVectorReadyCandidates());
     }
 
