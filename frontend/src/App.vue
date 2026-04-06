@@ -165,6 +165,7 @@
       >
         {{ manualRefreshing ? '刷新中...' : '刷新当前 JD' }}
       </button>
+      <span v-if="manualRefreshStatus" class="muted">{{ manualRefreshStatus }}</span>
       <span class="filter-stats">显示 {{ pageRangeText }} / {{ filteredCandidates.length }}（总计 {{ totalCandidatesCount }}）</span>
     </section>
 
@@ -359,8 +360,11 @@ const editContent = ref('')
 const recruitmentUpdatingId = ref('')
 const recruitmentMessage = ref('')
 const manualRefreshing = ref(false)
+const manualRefreshStatus = ref('')
 const PAGE_SIZE = 20
 const currentPage = ref(1)
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const {
   semanticScoreMap,
@@ -859,15 +863,19 @@ const refreshSelectedJdCandidates = async () => {
   if (manualRefreshing.value) return
   if (!selectedJdId.value) {
     jdMessage.value = '请先选择 JD'
+    manualRefreshStatus.value = '请先选择 JD'
     return
   }
+  const startedAt = Date.now()
   manualRefreshing.value = true
   jdMessage.value = ''
+  manualRefreshStatus.value = '刷新中...'
   pushLog(`手动刷新当前 JD: ${selectedJd.value?.title || selectedJdId.value}`)
   try {
     await refreshJds()
     if (!selectedJdId.value) {
       jdMessage.value = '当前未选择 JD'
+      manualRefreshStatus.value = '当前未选择 JD'
       return
     }
     const loaded = await loadCandidatesForJd(selectedJdId.value, {
@@ -876,10 +884,18 @@ const refreshSelectedJdCandidates = async () => {
       keepMessages: true
     })
     if (loaded) {
+      const refreshedAt = new Date().toLocaleTimeString()
       jdMessage.value = '已手动刷新当前 JD 候选人'
+      manualRefreshStatus.value = `已刷新 ${refreshedAt}`
       pushLog('已手动刷新当前 JD 候选人')
+    } else {
+      manualRefreshStatus.value = '刷新失败，请稍后重试'
     }
   } finally {
+    const elapsedMs = Date.now() - startedAt
+    if (elapsedMs < 500) {
+      await delay(500 - elapsedMs)
+    }
     manualRefreshing.value = false
   }
 }
