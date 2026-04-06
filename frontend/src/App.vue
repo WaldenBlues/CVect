@@ -61,6 +61,7 @@
           </button>
           <div v-if="!jds.length" class="empty">暂无 JD，请先创建。</div>
         </div>
+        <p class="muted" v-if="jdMessage">{{ jdMessage }}</p>
       </div>
 
       <div class="panel jd-detail-card" :class="{ placeholder: !selectedJd }">
@@ -372,6 +373,18 @@ const recruitmentStatusLabel = (status) => {
   return recruitmentStatusLabelMap[status] || '待沟通'
 }
 
+const ensureStringArray = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item ?? '').trim())
+      .filter(Boolean)
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed ? [trimmed] : []
+  }
+  return []
+}
 
 const candidateSearchText = (item) => {
   return [
@@ -511,11 +524,11 @@ const normalizeCandidate = (payload) => {
     sourceFileName: payload.sourceFileName || '',
     contentType: payload.contentType || '',
     createdAt: payload.createdAt || payload.ingestedAt || '',
-    emails: payload.emails || [],
-    phones: payload.phones || [],
-    educations: payload.educations || [],
-    honors: payload.honors || [],
-    links: payload.links || []
+    emails: ensureStringArray(payload.emails),
+    phones: ensureStringArray(payload.phones),
+    educations: ensureStringArray(payload.educations),
+    honors: ensureStringArray(payload.honors),
+    links: ensureStringArray(payload.links)
   }
   if (Object.prototype.hasOwnProperty.call(payload, 'noVectorChunk')) {
     normalized.noVectorChunk = Boolean(payload.noVectorChunk)
@@ -721,6 +734,15 @@ const refreshJds = async () => {
     if (!resp.ok) throw new Error('加载 JD 失败')
     const data = await resp.json()
     jds.value = Array.isArray(data) ? data : []
+    const hasSelectedJd = jds.value.some((jd) => jd.id === selectedJdId.value)
+    if (selectedJdId.value && !hasSelectedJd) {
+      if (jds.value.length) {
+        selectJd(jds.value[0])
+      } else {
+        clearSelectedJd()
+      }
+      return
+    }
     if (!selectedJdId.value && jds.value.length) {
       selectJd(jds.value[0])
     }
@@ -749,6 +771,11 @@ const loadCandidatesForJd = async (jdId) => {
     applySemanticTuningFromJd()
     await refreshSemanticRanking()
   } catch (err) {
+    resetSemanticState(false)
+    events.splice(0, events.length)
+    currentPage.value = 1
+    selectedCandidate.value = null
+    jdMessage.value = `候选人加载失败: ${err.message}`
     pushLog(`候选人加载失败: ${err.message}`)
   }
 }
@@ -808,6 +835,7 @@ const createJd = async () => {
     jdText.value = ''
     showCreateJd.value = false
     jdMessage.value = '已保存'
+    await loadCandidatesForJd(saved.id)
   } catch (err) {
     jdMessage.value = err.message
   } finally {
@@ -913,7 +941,11 @@ const onDrop = (e) => {
 }
 
 const openFilePicker = () => {
-  if (!fileInputRef.value) return
+  if (!selectedJdId.value) {
+    uploadMessage.value = '请先选择 JD'
+    return
+  }
+  if (uploading.value || !fileInputRef.value) return
   fileInputRef.value.value = ''
   fileInputRef.value.click()
 }
