@@ -35,6 +35,9 @@
         <strong>{{ skillWeightModel.toFixed(2) }}</strong>
       </label>
     </div>
+    <p class="muted semantic-note">
+      手动模式下两项权重会联动，始终保持总和为 1.00。
+    </p>
     <label class="semantic-auto-toggle">
       <input v-model="autoTuneModel" type="checkbox" />
       <span>自动根据 JD 文本调参（建议）</span>
@@ -74,6 +77,25 @@ const props = defineProps({
 
 const emit = defineEmits(['update:autoTune', 'update:experienceWeight', 'update:skillWeight'])
 
+const clampWeight = (value) => {
+  if (!Number.isFinite(value)) return 0.5
+  return Math.min(Math.max(0, value), 1)
+}
+
+const roundWeight = (value) => Number(clampWeight(value).toFixed(2))
+
+const emitLinkedWeights = (primary, source) => {
+  const nextPrimary = roundWeight(primary)
+  const nextSecondary = Number((1 - nextPrimary).toFixed(2))
+  if (source === 'experience') {
+    emit('update:experienceWeight', nextPrimary)
+    emit('update:skillWeight', nextSecondary)
+    return
+  }
+  emit('update:experienceWeight', nextSecondary)
+  emit('update:skillWeight', nextPrimary)
+}
+
 const autoTuneModel = computed({
   get: () => props.autoTune,
   set: (value) => emit('update:autoTune', value)
@@ -81,11 +103,11 @@ const autoTuneModel = computed({
 
 const experienceWeightModel = computed({
   get: () => props.experienceWeight,
-  set: (value) => emit('update:experienceWeight', value)
+  set: (value) => emitLinkedWeights(value, 'experience')
 })
 
 const skillWeightModel = computed({
   get: () => props.skillWeight,
-  set: (value) => emit('update:skillWeight', value)
+  set: (value) => emitLinkedWeights(value, 'skill')
 })
 </script>

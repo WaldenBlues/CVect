@@ -1,5 +1,10 @@
 import { reactive, ref, watch } from 'vue'
-import { buildSemanticSearchPayload, reconcileSemanticRankMaps, suggestSemanticWeights } from '../utils/semanticMatching'
+import {
+  buildSemanticSearchPayload,
+  normalizeSemanticWeights,
+  reconcileSemanticRankMaps,
+  suggestSemanticWeights
+} from '../utils/semanticMatching'
 
 export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
   const semanticScoreMap = ref({})
@@ -85,6 +90,11 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
     }, delayMs)
   }
 
+  const currentSemanticWeights = () => normalizeSemanticWeights(
+    semanticTuning.experienceWeight,
+    semanticTuning.skillWeight
+  )
+
   const resolvePersistedSemanticScore = (candidate) => {
     const overall = normalizeSemanticScore(candidate?.baselineMatchScore)
     const experience = normalizeSemanticScore(candidate?.baselineExperienceScore)
@@ -92,7 +102,8 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
     if (experience == null && skill == null) {
       return overall
     }
-    const weighted = (experience ?? 0) * semanticTuning.experienceWeight + (skill ?? 0) * semanticTuning.skillWeight
+    const { experienceWeight, skillWeight } = currentSemanticWeights()
+    const weighted = (experience ?? 0) * experienceWeight + (skill ?? 0) * skillWeight
     if (weighted > 0) {
       return normalizeSemanticScore(weighted)
     }
@@ -178,10 +189,11 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
     semanticLoading.value = true
     semanticMessage.value = ''
     try {
+      const { experienceWeight, skillWeight } = currentSemanticWeights()
       const payload = buildSemanticSearchPayload(jdContent, {
         topK: Math.max(events.length, 50),
-        experienceWeight: semanticTuning.experienceWeight,
-        skillWeight: semanticTuning.skillWeight
+        experienceWeight,
+        skillWeight
       })
       const resp = await fetch('/api/search', {
         method: 'POST',

@@ -12,6 +12,22 @@ const clampWeight = (weight) => {
   return Math.min(Math.max(0, weight), 1)
 }
 
+export const normalizeSemanticWeights = (experienceWeight, skillWeight) => {
+  const normalizedExperience = clampWeight(experienceWeight)
+  const normalizedSkill = clampWeight(skillWeight)
+  const sum = normalizedExperience + normalizedSkill
+  if (sum <= 0) {
+    return {
+      experienceWeight: 0.5,
+      skillWeight: 0.5
+    }
+  }
+  return {
+    experienceWeight: normalizedExperience / sum,
+    skillWeight: normalizedSkill / sum
+  }
+}
+
 export const DEFAULT_SEMANTIC_MAPPING = Object.freeze({
   filterByExperience: true,
   filterBySkill: true
@@ -19,8 +35,10 @@ export const DEFAULT_SEMANTIC_MAPPING = Object.freeze({
 
 export const buildSemanticSearchPayload = (jobDescription, options = {}) => {
   const text = typeof jobDescription === 'string' ? jobDescription.trim() : ''
-  const experienceWeight = clampWeight(options.experienceWeight)
-  const skillWeight = clampWeight(options.skillWeight)
+  const { experienceWeight, skillWeight } = normalizeSemanticWeights(
+    options.experienceWeight,
+    options.skillWeight
+  )
   return {
     jobDescription: text,
     topK: clampTopK(options.topK ?? DEFAULT_TOP_K),

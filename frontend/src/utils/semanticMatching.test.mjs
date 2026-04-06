@@ -4,6 +4,7 @@ import {
   buildSemanticRankMaps,
   buildSemanticSearchPayload,
   DEFAULT_SEMANTIC_MAPPING,
+  normalizeSemanticWeights,
   reconcileSemanticRankMaps,
   suggestSemanticWeights
 } from './semanticMatching.js'
@@ -42,6 +43,17 @@ describe('semanticMatching', () => {
     const payload = buildSemanticSearchPayload('JD', { experienceWeight: 1.4, skillWeight: -0.3 })
     assert.equal(payload.experienceWeight, 1)
     assert.equal(payload.skillWeight, 0)
+  })
+
+  it('normalizeSemanticWeights should keep totals normalized for edge inputs', () => {
+    assert.deepEqual(normalizeSemanticWeights(1, 1), {
+      experienceWeight: 0.5,
+      skillWeight: 0.5
+    })
+    assert.deepEqual(normalizeSemanticWeights(0, 0), {
+      experienceWeight: 0.5,
+      skillWeight: 0.5
+    })
   })
 
   it('buildSemanticRankMaps should build score and rank maps from search response', () => {
