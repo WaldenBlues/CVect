@@ -596,11 +596,15 @@ const refreshCandidateVectorFlags = async (jdId = selectedJdId.value) => {
     }
     if (!vectorStateById.size) return
 
+    let shouldRefreshSemanticRanking = false
     for (let i = 0; i < events.length; i += 1) {
       const item = events[i]
       if (!vectorStateById.has(item.id)) continue
       const next = vectorStateById.get(item.id)
       if (item.noVectorChunk !== next.noVectorChunk || item.vectorStatus !== next.vectorStatus) {
+        if (item.vectorStatus !== 'READY' && next.vectorStatus === 'READY') {
+          shouldRefreshSemanticRanking = true
+        }
         events[i] = {
           ...item,
           noVectorChunk: next.noVectorChunk,
@@ -615,6 +619,9 @@ const refreshCandidateVectorFlags = async (jdId = selectedJdId.value) => {
         noVectorChunk: next.noVectorChunk,
         vectorStatus: next.vectorStatus
       }
+    }
+    if (shouldRefreshSemanticRanking) {
+      scheduleSemanticRefresh(120)
     }
   } catch (_) {
     // Ignore transient polling failures.
