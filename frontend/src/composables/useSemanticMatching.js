@@ -1,5 +1,5 @@
 import { reactive, ref, watch } from 'vue'
-import { buildSemanticSearchPayload, suggestSemanticWeights } from '../utils/semanticMatching'
+import { buildSemanticRankMaps, buildSemanticSearchPayload, suggestSemanticWeights } from '../utils/semanticMatching'
 
 export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
   const semanticScoreMap = ref({})
@@ -85,24 +85,8 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
       semanticRankMap.value = {}
       return
     }
-    const ranked = candidates
-      .map((candidate, index) => {
-        const score = Number(candidate?.score)
-        return {
-          candidateId: candidate?.candidateId,
-          score: Number.isFinite(score) ? score : 0,
-          index
-        }
-      })
-      .filter((item) => item.candidateId && Number.isFinite(item.score))
-
-    const scoreByCandidateId = {}
-    const rankByCandidateId = {}
-    ranked.forEach((item, index) => {
-      scoreByCandidateId[item.candidateId] = item.score
-      rankByCandidateId[item.candidateId] = index
-    })
-    let nextRank = ranked.length
+    const { scoreByCandidateId, rankByCandidateId } = buildSemanticRankMaps({ candidates })
+    let nextRank = Object.keys(rankByCandidateId).length
     // /api/search 可能未覆盖全部已向量化候选人，给遗漏项补 0 分，避免卡片长期灰色。
     for (const item of events) {
       if (item?.vectorStatus !== 'READY') continue

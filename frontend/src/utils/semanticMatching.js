@@ -25,6 +25,19 @@ export const buildSemanticSearchPayload = (jobDescription, options = {}) => {
   }
 }
 
+const parseCandidateScore = (value) => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    const parsed = Number(trimmed)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
 export const buildSemanticRankMaps = (searchResponse) => {
   const candidates = Array.isArray(searchResponse?.candidates) ? searchResponse.candidates : []
   const scoreByCandidateId = {}
@@ -34,8 +47,8 @@ export const buildSemanticRankMaps = (searchResponse) => {
     const candidateId = candidate?.candidateId
     if (!candidateId) return
 
-    const score = Number(candidate?.score)
-    if (!Number.isFinite(score)) return
+    const score = parseCandidateScore(candidate?.score)
+    if (score == null) return
 
     if (!(candidateId in scoreByCandidateId) || score > scoreByCandidateId[candidateId]) {
       scoreByCandidateId[candidateId] = score

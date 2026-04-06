@@ -48,6 +48,27 @@ describe('semanticMatching', () => {
     })
   })
 
+  it('buildSemanticRankMaps should ignore nullish or blank scores', () => {
+    const resp = {
+      candidates: [
+        { candidateId: 'c1', score: null },
+        { candidateId: 'c2', score: '   ' },
+        { candidateId: 'c3', score: 0 },
+        { candidateId: 'c4', score: '0.35' }
+      ]
+    }
+    const result = buildSemanticRankMaps(resp)
+
+    assert.deepEqual(result.scoreByCandidateId, {
+      c3: 0,
+      c4: 0.35
+    })
+    assert.deepEqual(result.rankByCandidateId, {
+      c3: 2,
+      c4: 3
+    })
+  })
+
   it('suggestSemanticWeights should adapt to JD keywords', () => {
     const skillHeavy = suggestSemanticWeights('Java Spring Kubernetes Redis skill stack')
     const expHeavy = suggestSemanticWeights('10年架构经验，负责主导交付与团队协作')
