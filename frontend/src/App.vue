@@ -633,7 +633,9 @@ const connect = () => {
     try {
       const payload = JSON.parse(event.data)
       const candidate = normalizeCandidate(payload)
-      const belongsToSelectedJd = !selectedJdId.value || !candidate.jdId || candidate.jdId === selectedJdId.value
+      const existingCandidate = events.find((item) => item.id === candidate.id)
+      const effectiveJdId = candidate.jdId || existingCandidate?.jdId || ''
+      const belongsToSelectedJd = !selectedJdId.value || (effectiveJdId && effectiveJdId === selectedJdId.value)
       if (belongsToSelectedJd) {
         applyCandidateUpdate(candidate)
         recruitmentMessage.value = ''
