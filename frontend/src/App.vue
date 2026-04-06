@@ -329,6 +329,8 @@ const recruitmentFilter = ref('')
 
 let source = null
 let jdRefreshTimer = null
+let jdRefreshNeedsCandidateReload = false
+let jdRefreshCandidateReloadTarget = ''
 let vectorFlagPollTimer = null
 let candidateLoadSeq = 0
 
@@ -661,6 +663,7 @@ const connect = () => {
       const existingCandidate = events.find((item) => item.id === candidate.id)
       const effectiveJdId = candidate.jdId || existingCandidate?.jdId || ''
       const belongsToSelectedJd = !selectedJdId.value || (effectiveJdId && effectiveJdId === selectedJdId.value)
+      const shouldReloadCandidates = Boolean(selectedJdId.value && belongsToSelectedJd)
       if (belongsToSelectedJd) {
         applyCandidateUpdate(candidate)
         if (!selectedCandidate.value) {
@@ -669,7 +672,7 @@ const connect = () => {
         }
       }
       pushLog(`收到候选人: ${candidate.id}`)
-      scheduleJdRefresh()
+      scheduleJdRefresh({ reloadCandidates: shouldReloadCandidates })
     } catch (err) {
       pushLog(`解析失败: ${err}`)
     }
@@ -787,14 +790,22 @@ const refreshJds = async () => {
   }
 }
 
-const loadCandidatesForJd = async (jdId) => {
+const loadCandidatesForJd = async (jdId, options = {}) => {
+  const preserveSelection = Boolean(options.preserveSelection)
+  const preservePage = Boolean(options.preservePage)
+  const keepMessages = Boolean(options.keepMessages)
+  const background = Boolean(options.background)
   const requestSeq = ++candidateLoadSeq
+  const previousSelectedCandidateId = preserveSelection ? selectedCandidate.value?.id || '' : ''
+  const previousPage = preservePage ? currentPage.value : 1
   if (!jdId) {
     resetSemanticState(true)
     stopVectorFlagPolling()
     events.splice(0, events.length)
     currentPage.value = 1
-    recruitmentMessage.value = ''
+    if (!keepMessages) {
+      recruitmentMessage.value = ''
+    }
     selectedCandidate.value = null
     return
   }
@@ -803,33 +814,57 @@ const loadCandidatesForJd = async (jdId) => {
     if (!resp.ok) throw new Error('加载候选人失败')
     const data = await resp.json()
     if (requestSeq !== candidateLoadSeq) return
-    events.splice(0, events.length, ...(Array.isArray(data) ? data.map(normalizeCandidate) : []))
-    currentPage.value = 1
+    const nextCandidates = Array.isArray(data) ? data.map(normalizeCandidate) : []
+    events.splice(0, events.length, ...nextCandidates)
+    currentPage.value = preservePage ? previousPage : 1
     jdMessage.value = ''
-    recruitmentMessage.value = ''
-    selectedCandidate.value = events[0] || null
+    if (!keepMessages) {
+      recruitmentMessage.value = ''
+    }
+    selectedCandidate.value = preserveSelection && previousSelectedCandidateId
+      ? nextCandidates.find((item) => item.id === previousSelectedCandidateId) || nextCandidates[0] || null
+      : nextCandidates[0] || null
     startVectorFlagPolling()
     applySemanticTuningFromJd()
     await refreshSemanticRanking()
   } catch (err) {
     if (requestSeq !== candidateLoadSeq) return
+    if (background) {
+      pushLog(`候选人后台刷新失败: ${err.message}`)
+      return
+    }
     resetSemanticState(false)
     events.splice(0, events.length)
     currentPage.value = 1
-    recruitmentMessage.value = ''
+    if (!keepMessages) {
+      recruitmentMessage.value = ''
+    }
     selectedCandidate.value = null
     jdMessage.value = `候选人加载失败: ${err.message}`
     pushLog(`候选人加载失败: ${err.message}`)
   }
 }
 
-const scheduleJdRefresh = () => {
+const scheduleJdRefresh = ({ reloadCandidates = false } = {}) => {
+  jdRefreshNeedsCandidateReload = jdRefreshNeedsCandidateReload || reloadCandidates
+  if (reloadCandidates && selectedJdId.value) {
+    jdRefreshCandidateReloadTarget = selectedJdId.value
+  }
   if (jdRefreshTimer) return
   jdRefreshTimer = setTimeout(async () => {
+    const shouldReloadCandidates = jdRefreshNeedsCandidateReload
+    const reloadTargetJdId = jdRefreshCandidateReloadTarget
+    jdRefreshNeedsCandidateReload = false
+    jdRefreshCandidateReloadTarget = ''
     jdRefreshTimer = null
     await refreshJds()
-    if (selectedJdId.value) {
-      await loadCandidatesForJd(selectedJdId.value)
+    if (shouldReloadCandidates && reloadTargetJdId && selectedJdId.value === reloadTargetJdId) {
+      await loadCandidatesForJd(reloadTargetJdId, {
+        background: true,
+        preserveSelection: true,
+        preservePage: true,
+        keepMessages: true
+      })
     }
   }, 1200)
 }
