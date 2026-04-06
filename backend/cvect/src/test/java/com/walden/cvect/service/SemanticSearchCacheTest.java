@@ -60,6 +60,9 @@ class SemanticSearchCacheTest {
     @Autowired
     private SearchController searchController;
 
+    @Autowired
+    private SearchQueryEmbeddingCacheService searchQueryEmbeddingCacheService;
+
     @BeforeEach
     void setUp() {
         reset(embeddingService, vectorStoreService);
@@ -135,6 +138,15 @@ class SemanticSearchCacheTest {
                 .tag("cache", CacheConfig.SEARCH_QUERY_EMBEDDING_CACHE)
                 .gauge()
                 .value(), 0.0001d);
+    }
+
+    @Test
+    @DisplayName("whitespace-equivalent JD text should embed normalized text once")
+    void shouldEmbedNormalizedWhitespaceEquivalentText() {
+        searchQueryEmbeddingCacheService.get("  same \n   jd  ");
+        searchQueryEmbeddingCacheService.get("same jd");
+
+        verify(embeddingService, times(1)).embed("same jd");
     }
 
     @Test

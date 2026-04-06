@@ -19,6 +19,6 @@ public class SearchQueryEmbeddingCacheService {
             key = "T(com.walden.cvect.service.SearchCacheKeys).queryEmbedding(#jobDescription)",
             sync = true)
     public float[] get(String jobDescription) {
-        return embeddingService.embed(jobDescription);
+        return embeddingService.embed(SearchCacheKeys.normalizeText(jobDescription));
     }
 }
