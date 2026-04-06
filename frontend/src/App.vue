@@ -158,6 +158,13 @@
       <button v-if="hasActiveFilters" class="secondary small" @click="resetFilters">
         清空筛选
       </button>
+      <button
+        class="secondary small"
+        :disabled="manualRefreshing || !selectedJdId"
+        @click="refreshSelectedJdCandidates"
+      >
+        {{ manualRefreshing ? '刷新中...' : '刷新当前 JD' }}
+      </button>
       <span class="filter-stats">显示 {{ pageRangeText }} / {{ filteredCandidates.length }}（总计 {{ totalCandidatesCount }}）</span>
     </section>
 
@@ -351,6 +358,7 @@ const editTitle = ref('')
 const editContent = ref('')
 const recruitmentUpdatingId = ref('')
 const recruitmentMessage = ref('')
+const manualRefreshing = ref(false)
 const PAGE_SIZE = 20
 const currentPage = ref(1)
 
@@ -807,7 +815,7 @@ const loadCandidatesForJd = async (jdId, options = {}) => {
       recruitmentMessage.value = ''
     }
     selectedCandidate.value = null
-    return
+    return true
   }
   try {
     const resp = await fetch(`/api/candidates?jdId=${jdId}`)
@@ -827,11 +835,12 @@ const loadCandidatesForJd = async (jdId, options = {}) => {
     startVectorFlagPolling()
     applySemanticTuningFromJd()
     await refreshSemanticRanking()
+    return true
   } catch (err) {
-    if (requestSeq !== candidateLoadSeq) return
+    if (requestSeq !== candidateLoadSeq) return false
     if (background) {
       pushLog(`候选人后台刷新失败: ${err.message}`)
-      return
+      return false
     }
     resetSemanticState(false)
     events.splice(0, events.length)
@@ -842,6 +851,36 @@ const loadCandidatesForJd = async (jdId, options = {}) => {
     selectedCandidate.value = null
     jdMessage.value = `候选人加载失败: ${err.message}`
     pushLog(`候选人加载失败: ${err.message}`)
+    return false
+  }
+}
+
+const refreshSelectedJdCandidates = async () => {
+  if (manualRefreshing.value) return
+  if (!selectedJdId.value) {
+    jdMessage.value = '请先选择 JD'
+    return
+  }
+  manualRefreshing.value = true
+  jdMessage.value = ''
+  pushLog(`手动刷新当前 JD: ${selectedJd.value?.title || selectedJdId.value}`)
+  try {
+    await refreshJds()
+    if (!selectedJdId.value) {
+      jdMessage.value = '当前未选择 JD'
+      return
+    }
+    const loaded = await loadCandidatesForJd(selectedJdId.value, {
+      preserveSelection: true,
+      preservePage: true,
+      keepMessages: true
+    })
+    if (loaded) {
+      jdMessage.value = '已手动刷新当前 JD 候选人'
+      pushLog('已手动刷新当前 JD 候选人')
+    }
+  } finally {
+    manualRefreshing.value = false
   }
 }
 
