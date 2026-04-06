@@ -27,6 +27,12 @@ describe('semanticMatching', () => {
     assert.equal(payload.skillWeight, 0.8)
   })
 
+  it('buildSemanticSearchPayload should clamp tuning weights into range', () => {
+    const payload = buildSemanticSearchPayload('JD', { experienceWeight: 1.4, skillWeight: -0.3 })
+    assert.equal(payload.experienceWeight, 1)
+    assert.equal(payload.skillWeight, 0)
+  })
+
   it('buildSemanticRankMaps should build score and rank maps from search response', () => {
     const resp = {
       candidates: [

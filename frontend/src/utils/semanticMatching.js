@@ -5,6 +5,11 @@ const clampTopK = (topK) => {
   return Math.min(Math.floor(topK), 500)
 }
 
+const clampWeight = (weight) => {
+  if (!Number.isFinite(weight)) return 0.5
+  return Math.min(Math.max(0, weight), 1)
+}
+
 export const DEFAULT_SEMANTIC_MAPPING = Object.freeze({
   filterByExperience: true,
   filterBySkill: true
@@ -12,8 +17,8 @@ export const DEFAULT_SEMANTIC_MAPPING = Object.freeze({
 
 export const buildSemanticSearchPayload = (jobDescription, options = {}) => {
   const text = typeof jobDescription === 'string' ? jobDescription.trim() : ''
-  const experienceWeight = Number.isFinite(options.experienceWeight) ? Math.max(0, options.experienceWeight) : 0.5
-  const skillWeight = Number.isFinite(options.skillWeight) ? Math.max(0, options.skillWeight) : 0.5
+  const experienceWeight = clampWeight(options.experienceWeight)
+  const skillWeight = clampWeight(options.skillWeight)
   return {
     jobDescription: text,
     topK: clampTopK(options.topK ?? DEFAULT_TOP_K),

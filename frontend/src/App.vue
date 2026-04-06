@@ -319,6 +319,7 @@ const recruitmentFilter = ref('')
 let source = null
 let jdRefreshTimer = null
 let vectorFlagPollTimer = null
+let candidateLoadSeq = 0
 
 const jds = ref([])
 const selectedJdId = ref('')
@@ -513,28 +514,29 @@ const pushLog = (message) => {
 }
 
 const normalizeCandidate = (payload) => {
+  const safePayload = payload && typeof payload === 'object' ? payload : {}
   const normalized = {
-    id: payload.candidateId || payload.id || 'unknown',
-    jdId: payload.jdId || payload.jd_id || '',
-    status: payload.status || '',
-    recruitmentStatus: payload.recruitmentStatus || 'TO_CONTACT',
-    name: payload.name || '',
-    title: payload.name || payload.title || '新入库候选人',
-    summary: payload.summary || payload.note || '候选人已解析入库。',
-    sourceFileName: payload.sourceFileName || '',
-    contentType: payload.contentType || '',
-    createdAt: payload.createdAt || payload.ingestedAt || '',
-    emails: ensureStringArray(payload.emails),
-    phones: ensureStringArray(payload.phones),
-    educations: ensureStringArray(payload.educations),
-    honors: ensureStringArray(payload.honors),
-    links: ensureStringArray(payload.links)
+    id: safePayload.candidateId || safePayload.id || 'unknown',
+    jdId: safePayload.jdId || safePayload.jd_id || '',
+    status: safePayload.status || '',
+    recruitmentStatus: safePayload.recruitmentStatus || 'TO_CONTACT',
+    name: safePayload.name || '',
+    title: safePayload.name || safePayload.title || '新入库候选人',
+    summary: safePayload.summary || safePayload.note || '候选人已解析入库。',
+    sourceFileName: safePayload.sourceFileName || '',
+    contentType: safePayload.contentType || '',
+    createdAt: safePayload.createdAt || safePayload.ingestedAt || '',
+    emails: ensureStringArray(safePayload.emails),
+    phones: ensureStringArray(safePayload.phones),
+    educations: ensureStringArray(safePayload.educations),
+    honors: ensureStringArray(safePayload.honors),
+    links: ensureStringArray(safePayload.links)
   }
-  if (Object.prototype.hasOwnProperty.call(payload, 'noVectorChunk')) {
-    normalized.noVectorChunk = Boolean(payload.noVectorChunk)
+  if (Object.prototype.hasOwnProperty.call(safePayload, 'noVectorChunk')) {
+    normalized.noVectorChunk = Boolean(safePayload.noVectorChunk)
   }
-  if (Object.prototype.hasOwnProperty.call(payload, 'vectorStatus')) {
-    normalized.vectorStatus = payload.vectorStatus || 'NONE'
+  if (Object.prototype.hasOwnProperty.call(safePayload, 'vectorStatus')) {
+    normalized.vectorStatus = safePayload.vectorStatus || 'NONE'
   }
   return normalized
 }
@@ -752,6 +754,7 @@ const refreshJds = async () => {
 }
 
 const loadCandidatesForJd = async (jdId) => {
+  const requestSeq = ++candidateLoadSeq
   if (!jdId) {
     resetSemanticState(true)
     stopVectorFlagPolling()
@@ -764,6 +767,7 @@ const loadCandidatesForJd = async (jdId) => {
     const resp = await fetch(`/api/candidates?jdId=${jdId}`)
     if (!resp.ok) throw new Error('加载候选人失败')
     const data = await resp.json()
+    if (requestSeq !== candidateLoadSeq) return
     events.splice(0, events.length, ...(Array.isArray(data) ? data.map(normalizeCandidate) : []))
     currentPage.value = 1
     selectedCandidate.value = events[0] || null
@@ -771,6 +775,7 @@ const loadCandidatesForJd = async (jdId) => {
     applySemanticTuningFromJd()
     await refreshSemanticRanking()
   } catch (err) {
+    if (requestSeq !== candidateLoadSeq) return
     resetSemanticState(false)
     events.splice(0, events.length)
     currentPage.value = 1
@@ -829,8 +834,8 @@ const createJd = async () => {
     })
     if (!resp.ok) throw new Error('保存 JD 失败')
     const saved = await resp.json()
-    await refreshJds()
     selectedJdId.value = saved.id
+    await refreshJds()
     jdTitle.value = ''
     jdText.value = ''
     showCreateJd.value = false
@@ -911,6 +916,7 @@ const deleteJd = async (jd) => {
 }
 
 const onFileChange = (e) => {
+  if (uploading.value) return
   const files = Array.from(e.target.files || [])
   uploadFiles.value = files
   if (files.length) {
@@ -933,6 +939,7 @@ const onDrop = (e) => {
     uploadMessage.value = '请先选择 JD'
     return
   }
+  if (uploading.value) return
   const files = Array.from(e.dataTransfer?.files || [])
   if (files.length) {
     uploadFiles.value = files
@@ -951,7 +958,7 @@ const openFilePicker = () => {
 }
 
 const uploadResume = async () => {
-  if (!uploadFiles.value.length || !selectedJdId.value) return
+  if (uploading.value || !uploadFiles.value.length || !selectedJdId.value) return
   uploading.value = true
   uploadMessage.value = ''
   try {
@@ -976,7 +983,7 @@ const uploadResume = async () => {
     if (isZip) {
       uploadMessage.value = `上传成功: batch ${data.batchId}, 共 ${data.totalFiles} 份`
     } else {
-      const files = data.files || []
+      const files = Array.isArray(data?.files) ? data.files : []
       const duplicateCount = files.filter((f) => f.status === 'DUPLICATE').length
       const doneCount = files.filter((f) => f.status === 'DONE').length
       const failedCount = files.filter((f) => f.status === 'FAILED').length
