@@ -35,6 +35,15 @@ public class CandidateStreamService {
         emitter.onTimeout(() -> emitters.remove(emitter));
         emitter.onError(e -> emitters.remove(emitter));
 
+        try {
+            emitter.send(SseEmitter.event()
+                    .name("ping")
+                    .data("ok"));
+        } catch (IOException e) {
+            emitters.remove(emitter);
+            emitter.completeWithError(e);
+        }
+
         return emitter;
     }
 
