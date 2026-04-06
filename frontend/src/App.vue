@@ -158,7 +158,7 @@
       <button v-if="hasActiveFilters" class="secondary small" @click="resetFilters">
         清空筛选
       </button>
-      <span class="filter-stats">显示 {{ pageRangeText }} / {{ filteredCandidates.length }}（总计 {{ events.length }}）</span>
+      <span class="filter-stats">显示 {{ pageRangeText }} / {{ filteredCandidates.length }}（总计 {{ totalCandidatesCount }}）</span>
     </section>
 
     <SemanticPanel
@@ -456,6 +456,13 @@ const filteredCandidates = computed(() => {
 const totalPages = computed(() => {
   const total = Math.ceil(filteredCandidates.value.length / PAGE_SIZE)
   return Math.max(1, total)
+})
+
+const totalCandidatesCount = computed(() => {
+  if (selectedJd.value && Number.isFinite(Number(selectedJd.value.candidateCount))) {
+    return Number(selectedJd.value.candidateCount)
+  }
+  return events.length
 })
 
 const pagedCandidates = computed(() => {
