@@ -778,6 +778,7 @@ const loadCandidatesForJd = async (jdId) => {
     if (requestSeq !== candidateLoadSeq) return
     events.splice(0, events.length, ...(Array.isArray(data) ? data.map(normalizeCandidate) : []))
     currentPage.value = 1
+    jdMessage.value = ''
     recruitmentMessage.value = ''
     selectedCandidate.value = events[0] || null
     startVectorFlagPolling()
@@ -818,6 +819,7 @@ const resetUploadState = () => {
 const clearSelectedJd = () => {
   stopVectorFlagPolling()
   resetUploadState()
+  jdMessage.value = ''
   selectedJdId.value = ''
   jdTitle.value = ''
   jdText.value = ''
@@ -831,6 +833,7 @@ const selectJd = (jd) => {
     return
   }
   resetUploadState()
+  jdMessage.value = ''
   selectedJdId.value = jd.id
   jdTitle.value = jd.title || ''
   jdText.value = jd.content || ''
