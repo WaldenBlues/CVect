@@ -223,67 +223,78 @@
         </div>
       </section>
 
-      <aside class="detail" v-if="selectedCandidate">
-        <div class="detail-header">
-          <h2>候选人详情</h2>
-          <span class="detail-id">{{ selectedCandidate.id }}</span>
-        </div>
-        <div class="detail-section">
-          <h4>姓名</h4>
-          <p>{{ selectedCandidate.name || '未识别' }}</p>
-        </div>
-        <div class="detail-section">
-          <h4>来源</h4>
-          <p>{{ selectedCandidate.sourceFileName || '未知文件' }}</p>
-          <p class="muted">{{ selectedCandidate.contentType || '未知类型' }}</p>
-        </div>
-        <div class="detail-section">
-          <h4>招聘进度</h4>
-          <div class="recruitment-actions">
-            <button
-              v-for="option in recruitmentStatusOptions"
-              :key="option.value"
-              class="status-btn"
-              :class="{ active: selectedCandidate.recruitmentStatus === option.value }"
-              :disabled="recruitmentUpdatingId === selectedCandidate.id"
-              @click="setRecruitmentStatus(selectedCandidate, option.value)"
-            >
-              {{ option.label }}
-            </button>
+      <aside class="detail">
+        <template v-if="selectedCandidate">
+          <div class="detail-header">
+            <h2>候选人详情</h2>
+            <span class="detail-id">{{ selectedCandidate.id }}</span>
           </div>
-          <p class="muted" v-if="recruitmentMessage">{{ recruitmentMessage }}</p>
-        </div>
-        <div class="detail-section">
-          <h4>联系方式</h4>
-          <ul>
-            <li v-for="email in selectedCandidate.emails" :key="email">{{ email }}</li>
-            <li v-for="phone in selectedCandidate.phones" :key="phone">{{ phone }}</li>
-            <li v-if="!selectedCandidate.emails.length && !selectedCandidate.phones.length" class="muted">
-              暂无联系方式
-            </li>
-          </ul>
-        </div>
-        <div class="detail-section">
-          <h4>教育</h4>
-          <ul>
-            <li v-for="item in selectedCandidate.educations" :key="item">{{ item }}</li>
-            <li v-if="!selectedCandidate.educations.length" class="muted">暂无教育记录</li>
-          </ul>
-        </div>
-        <div class="detail-section">
-          <h4>荣誉</h4>
-          <ul>
-            <li v-for="item in selectedCandidate.honors" :key="item">{{ item }}</li>
-            <li v-if="!selectedCandidate.honors.length" class="muted">暂无荣誉记录</li>
-          </ul>
-        </div>
-        <div class="detail-section">
-          <h4>链接</h4>
-          <ul>
-            <li v-for="item in selectedCandidate.links" :key="item">{{ item }}</li>
-            <li v-if="!selectedCandidate.links.length" class="muted">暂无链接</li>
-          </ul>
-        </div>
+          <div class="detail-section">
+            <h4>姓名</h4>
+            <p>{{ selectedCandidate.name || '未识别' }}</p>
+          </div>
+          <div class="detail-section">
+            <h4>来源</h4>
+            <p>{{ selectedCandidate.sourceFileName || '未知文件' }}</p>
+            <p class="muted">{{ selectedCandidate.contentType || '未知类型' }}</p>
+          </div>
+          <div class="detail-section">
+            <h4>招聘进度</h4>
+            <div class="recruitment-actions">
+              <button
+                v-for="option in recruitmentStatusOptions"
+                :key="option.value"
+                class="status-btn"
+                :class="{ active: selectedCandidate.recruitmentStatus === option.value }"
+                :disabled="recruitmentUpdatingId === selectedCandidate.id"
+                @click="setRecruitmentStatus(selectedCandidate, option.value)"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+            <p class="muted" v-if="recruitmentMessage">{{ recruitmentMessage }}</p>
+          </div>
+          <div class="detail-section">
+            <h4>联系方式</h4>
+            <ul>
+              <li v-for="email in selectedCandidate.emails" :key="email">{{ email }}</li>
+              <li v-for="phone in selectedCandidate.phones" :key="phone">{{ phone }}</li>
+              <li v-if="!selectedCandidate.emails.length && !selectedCandidate.phones.length" class="muted">
+                暂无联系方式
+              </li>
+            </ul>
+          </div>
+          <div class="detail-section">
+            <h4>教育</h4>
+            <ul>
+              <li v-for="item in selectedCandidate.educations" :key="item">{{ item }}</li>
+              <li v-if="!selectedCandidate.educations.length" class="muted">暂无教育记录</li>
+            </ul>
+          </div>
+          <div class="detail-section">
+            <h4>荣誉</h4>
+            <ul>
+              <li v-for="item in selectedCandidate.honors" :key="item">{{ item }}</li>
+              <li v-if="!selectedCandidate.honors.length" class="muted">暂无荣誉记录</li>
+            </ul>
+          </div>
+          <div class="detail-section">
+            <h4>链接</h4>
+            <ul>
+              <li v-for="item in selectedCandidate.links" :key="item">{{ item }}</li>
+              <li v-if="!selectedCandidate.links.length" class="muted">暂无链接</li>
+            </ul>
+          </div>
+        </template>
+        <template v-else>
+          <div class="detail-header">
+            <h2>候选人详情</h2>
+            <span class="detail-id">待选择</span>
+          </div>
+          <div class="detail-section">
+            <p class="muted">从左侧候选人列表选择一位候选人，这里会展示详情与招聘进度。</p>
+          </div>
+        </template>
       </aside>
     </section>
 
