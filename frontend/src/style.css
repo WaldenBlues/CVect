@@ -815,6 +815,10 @@ button:hover {
   margin-top: 12px;
 }
 
+.detail.empty {
+  min-height: 320px;
+}
+
 .detail-header {
   display: flex;
   align-items: baseline;
@@ -843,6 +847,17 @@ button:hover {
 .detail-section ul {
   margin: 0;
   padding-left: 18px;
+}
+
+.detail-empty-state {
+  flex: 1;
+  border: 1px dashed rgba(16, 24, 32, 0.14);
+  border-radius: 14px;
+  background: rgba(16, 24, 32, 0.03);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 20px;
 }
 
 .recruitment-actions {

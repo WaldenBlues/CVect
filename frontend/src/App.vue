@@ -223,7 +223,7 @@
         </div>
       </section>
 
-      <aside class="detail">
+      <aside class="detail" :class="{ empty: !selectedCandidate }">
         <template v-if="selectedCandidate">
           <div class="detail-header">
             <h2>候选人详情</h2>
@@ -291,7 +291,7 @@
             <h2>候选人详情</h2>
             <span class="detail-id">待选择</span>
           </div>
-          <div class="detail-section">
+          <div class="detail-section detail-empty-state">
             <p class="muted">从左侧候选人列表选择一位候选人，这里会展示详情与招聘进度。</p>
           </div>
         </template>
