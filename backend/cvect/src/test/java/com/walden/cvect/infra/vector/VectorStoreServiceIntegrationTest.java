@@ -9,7 +9,7 @@ import com.walden.cvect.infra.parser.ResumeParser;
 import com.walden.cvect.infra.process.ResumeTextNormalizer;
 import com.walden.cvect.model.entity.Candidate;
 import com.walden.cvect.repository.CandidateJpaRepository;
-import com.walden.cvect.service.ChunkerService;
+import com.walden.cvect.service.resume.ChunkerService;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

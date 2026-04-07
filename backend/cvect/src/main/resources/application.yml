@@ -108,6 +108,28 @@ app:
         ttl: ${CVECT_CACHE_SEARCH_RESPONSE_TTL:10s}
         maximum-size: ${CVECT_CACHE_SEARCH_RESPONSE_MAX_SIZE:256}
 
+  logging:
+    web:
+      enabled: ${CVECT_WEB_LOGGING_ENABLED:true}
+      request-id-header: ${CVECT_WEB_LOG_REQUEST_ID_HEADER:X-Request-Id}
+      slow-threshold-ms: ${CVECT_WEB_LOG_SLOW_THRESHOLD_MS:500}
+      max-string-length: ${CVECT_WEB_LOG_MAX_STRING_LENGTH:120}
+      log-request-start: ${CVECT_WEB_LOG_REQUEST_START:true}
+      log-request-end: ${CVECT_WEB_LOG_REQUEST_END:true}
+      controller:
+        enabled: ${CVECT_WEB_LOG_CONTROLLER_ENABLED:true}
+        log-args: ${CVECT_WEB_LOG_CONTROLLER_ARGS:true}
+      service:
+        enabled: ${CVECT_WEB_LOG_SERVICE_ENABLED:true}
+        log-args: ${CVECT_WEB_LOG_SERVICE_ARGS:true}
+        log-result: ${CVECT_WEB_LOG_SERVICE_RESULT:false}
+      audit:
+        enabled: ${CVECT_WEB_LOG_AUDIT_ENABLED:true}
+        log-args: ${CVECT_WEB_LOG_AUDIT_ARGS:true}
+        log-result: ${CVECT_WEB_LOG_AUDIT_RESULT:false}
+      timing:
+        enabled: ${CVECT_WEB_LOG_TIMING_ENABLED:true}
+
 management:
   endpoints:
     web:

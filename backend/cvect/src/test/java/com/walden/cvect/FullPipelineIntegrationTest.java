@@ -1,6 +1,6 @@
 package com.walden.cvect;
 
-import com.walden.cvect.service.ResumeProcessService;
+import com.walden.cvect.service.resume.ResumeProcessService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
