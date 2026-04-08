@@ -1,0 +1,278 @@
+{
+    "metrics": {
+        "http_req_blocked": {
+            "med": 0.003608,
+            "p(95)": 0.005824,
+            "p(99)": 0.020155240000000043,
+            "max": 7.213917,
+            "avg": 0.005058164654407326,
+            "min": 0.000605
+        },
+        "jds_failures": {
+            "fails": 23294,
+            "passes": 0,
+            "value": 0
+        },
+        "iterations": {
+            "count": 48450,
+            "rate": 1201.3908462996278
+        },
+        "search_hit_failures": {
+            "fails": 24718,
+            "passes": 0,
+            "value": 0
+        },
+        "candidates_failures": {
+            "passes": 0,
+            "fails": 433,
+            "value": 0
+        },
+        "search_miss_duration": {
+            "avg": 7117.4100094000005,
+            "min": 5052.569805,
+            "med": 6964.368577,
+            "p(95)": 9156.3494378,
+            "p(99)": 9573.52594996,
+            "max": 9677.820078,
+            "thresholds": {
+                "p(95)<3000": true,
+                "p(99)<10000": false
+            }
+        },
+        "http_req_receiving": {
+            "avg": 0.38979972653912176,
+            "min": 0.010214,
+            "med": 0.147825,
+            "p(95)": 1.0337818,
+            "p(99)": 6.594031560000074,
+            "max": 35.888242
+        },
+        "http_req_failed": {
+            "fails": 48453,
+            "passes": 0,
+            "value": 0
+        },
+        "search_hit_requests": {
+            "count": 24718,
+            "rate": 612.9201019367224
+        },
+        "checks": {
+            "passes": 48453,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "vus": {
+            "value": 1,
+            "min": 1,
+            "max": 14
+        },
+        "http_req_tls_handshaking": {
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 0,
+            "avg": 0,
+            "min": 0,
+            "med": 0
+        },
+        "http_req_connecting": {
+            "avg": 0.0005850267475698099,
+            "min": 0,
+            "med": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 7.131828
+        },
+        "iteration_duration": {
+            "avg": 8.746650326990176,
+            "min": 0.862444,
+            "med": 4.323075,
+            "p(95)": 10.4195605,
+            "p(99)": 23.921860000000002,
+            "max": 7070.689265
+        },
+        "search_hit_duration": {
+            "p(95)": 6.0699334999999985,
+            "p(99)": 10.690742109999965,
+            "max": 4964.204823,
+            "avg": 3.941938102233187,
+            "min": 0.157655,
+            "med": 2.4277699999999998,
+            "thresholds": {
+                "p(95)<100": false,
+                "p(99)<300": false
+            }
+        },
+        "data_sent": {
+            "count": 41351006,
+            "rate": 1025360.5798489368
+        },
+        "vus_max": {
+            "min": 14,
+            "max": 14,
+            "value": 14
+        },
+        "http_reqs": {
+            "count": 48453,
+            "rate": 1201.4652358257144
+        },
+        "http_req_waiting": {
+            "p(99)": 23.361713160000114,
+            "max": 9677.497205,
+            "avg": 9.345825204156549,
+            "min": 0,
+            "med": 3.733589,
+            "p(95)": 9.651163000000002
+        },
+        "data_received": {
+            "count": 1119489160,
+            "rate": 27759422.690519284
+        },
+        "search_miss_requests": {
+            "count": 5,
+            "rate": 0.12398254347777377
+        },
+        "http_req_duration{expected_response:true}": {
+            "avg": 9.765589184219735,
+            "min": 0.094042,
+            "med": 4.063304,
+            "p(95)": 10.097096000000008,
+            "p(99)": 24.101903760000006,
+            "max": 9677.820078
+        },
+        "search_miss_failures": {
+            "passes": 0,
+            "fails": 5,
+            "value": 0
+        },
+        "http_req_sending": {
+            "med": 0.019396,
+            "p(95)": 0.07215239999999999,
+            "p(99)": 0.12255116000000117,
+            "max": 16.760875,
+            "avg": 0.02996425352403368,
+            "min": 0.003625
+        },
+        "candidates_requests": {
+            "count": 433,
+            "rate": 10.736888265175208
+        },
+        "jds_requests": {
+            "count": 23294,
+            "rate": 577.6098735542524
+        },
+        "candidates_duration": {
+            "avg": 393.59700490069275,
+            "min": 9.819445,
+            "med": 352.371612,
+            "p(95)": 411.5614849999999,
+            "p(99)": 2264.532116040018,
+            "max": 5358.13984,
+            "thresholds": {
+                "p(95)<500": false,
+                "p(99)<1000": true
+            }
+        },
+        "http_req_duration": {
+            "p(99)": 24.101903760000006,
+            "max": 9677.820078,
+            "avg": 9.765589184219735,
+            "min": 0.094042,
+            "med": 4.063304,
+            "p(95)": 10.097096000000008
+        },
+        "jds_duration": {
+            "med": 5.5861895,
+            "p(95)": 11.285951099999997,
+            "p(99)": 16.497964909999993,
+            "max": 4967.438133,
+            "avg": 7.2544565053232555,
+            "min": 0.094042,
+            "thresholds": {
+                "p(95)<100": false,
+                "p(99)<200": false
+            }
+        }
+    },
+    "setup_data": {
+        "jdId": "0fec25e7-731d-44df-8db8-2e5169de4c6c",
+        "jobDescription": "1. 本科以上学历，计算机相关专业，技术优秀； 2. 5年以上相关工作经验，或者自认能力优秀者，熟练使用html,css,js编写页面，精通HTML5特性，了解HTML5最新规范，能够熟练运用HTML5特性构建移动端的WebApp； 3. 熟悉当前流行的 JavaScript 类库,熟悉JavaScript面向对象编程方法； 4. 熟悉Web标准，对表现与数据分离，HTML语义化等有一定理解，精通 Vue3、Element-Plus、Vant等前端框架； 5. 具备移动端兼容问题处理经验，可以独立负责项目的开发及调试 ; 6. 具有前端架构分析与设计能力，一贯坚持编写易读、易维护、高质量、高效率的代码，习惯于OOP开发方式； 7. 对用户可用性，用户体验，用户研究等相关知识有深入的了解和实践经验； 8. 前端视野广阔，了解前端工程化、模块化、前后端分离、多端技术、安全、测试、函数式编程等； 9. 了解Css预编译语言如sass、less等； 10. 熟练应用及配置gulp,webpack构建工具，能够自己搭建前端构建环境； 11. 具有一定产品思维，能利用技术辅助产品做业务转化提升。",
+        "warmPayload": {
+            "experienceWeight": 0.5,
+            "filterByExperience": true,
+            "filterBySkill": true,
+            "jobDescription": "1. 本科以上学历，计算机相关专业，技术优秀； 2. 5年以上相关工作经验，或者自认能力优秀者，熟练使用html,css,js编写页面，精通HTML5特性，了解HTML5最新规范，能够熟练运用HTML5特性构建移动端的WebApp； 3. 熟悉当前流行的 JavaScript 类库,熟悉JavaScript面向对象编程方法； 4. 熟悉Web标准，对表现与数据分离，HTML语义化等有一定理解，精通 Vue3、Element-Plus、Vant等前端框架； 5. 具备移动端兼容问题处理经验，可以独立负责项目的开发及调试 ; 6. 具有前端架构分析与设计能力，一贯坚持编写易读、易维护、高质量、高效率的代码，习惯于OOP开发方式； 7. 对用户可用性，用户体验，用户研究等相关知识有深入的了解和实践经验； 8. 前端视野广阔，了解前端工程化、模块化、前后端分离、多端技术、安全、测试、函数式编程等； 9. 了解Css预编译语言如sass、less等； 10. 熟练应用及配置gulp,webpack构建工具，能够自己搭建前端构建环境； 11. 具有一定产品思维，能利用技术辅助产品做业务转化提升。",
+            "onlyVectorReadyCandidates": false,
+            "skillWeight": 0.5,
+            "topK": 20
+        }
+    },
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "setup": {
+                "name": "setup",
+                "path": "::setup",
+                "id": "5c0f8025f7e0b6654089e5b00e950f1a",
+                "groups": {},
+                "checks": {
+                        "setup_jds status is 200": {
+                            "name": "setup_jds status is 200",
+                            "path": "::setup::setup_jds status is 200",
+                            "id": "f9a2058b3ed57e138d653bf198cb6d2c",
+                            "passes": 1,
+                            "fails": 0
+                        },
+                        "setup_jd_detail status is 200": {
+                            "id": "68d143db8012887c084d405dbe31c788",
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "setup_jd_detail status is 200",
+                            "path": "::setup::setup_jd_detail status is 200"
+                        },
+                        "setup_search_warm status is 200": {
+                            "name": "setup_search_warm status is 200",
+                            "path": "::setup::setup_search_warm status is 200",
+                            "id": "d17654deeb1bff26f322d1c496963df2",
+                            "passes": 1,
+                            "fails": 0
+                        }
+                    }
+            }
+        },
+        "checks": {
+            "jds_read status is 200": {
+                "passes": 23294,
+                "fails": 0,
+                "name": "jds_read status is 200",
+                "path": "::jds_read status is 200",
+                "id": "4eb34fe8ed45fa70018e014b0ec88379"
+            },
+            "candidates_read status is 200": {
+                "id": "dfd83ce9c0cff01c6f0fac3f164b892c",
+                "passes": 433,
+                "fails": 0,
+                "name": "candidates_read status is 200",
+                "path": "::candidates_read status is 200"
+            },
+            "search_hit status is 200": {
+                "name": "search_hit status is 200",
+                "path": "::search_hit status is 200",
+                "id": "056b341b407b394027046cb6ecc8ef71",
+                "passes": 24718,
+                "fails": 0
+            },
+            "search_miss status is 200": {
+                "name": "search_miss status is 200",
+                "path": "::search_miss status is 200",
+                "id": "ee0bd1863275196f344a3c7ab8668083",
+                "passes": 5,
+                "fails": 0
+            }
+        }
+    }
+}

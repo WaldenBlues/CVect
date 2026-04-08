@@ -1,0 +1,230 @@
+{
+    "metrics": {
+        "vus_max": {
+            "value": 1,
+            "min": 1,
+            "max": 1
+        },
+        "vus": {
+            "value": 1,
+            "min": 0,
+            "max": 1
+        },
+        "data_received": {
+            "count": 277922,
+            "rate": 6305.8660858157755
+        },
+        "candidates_duration": {
+            "min": 0,
+            "med": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 0,
+            "avg": 0,
+            "thresholds": {
+                "p(99)<1000": false,
+                "p(95)<500": false
+            }
+        },
+        "http_req_connecting": {
+            "p(95)": 0.5744905,
+            "p(99)": 0.8729821000000003,
+            "max": 0.947605,
+            "avg": 0.10445281818181819,
+            "min": 0,
+            "med": 0
+        },
+        "http_req_sending": {
+            "avg": 0.12400954545454544,
+            "min": 0.024775,
+            "med": 0.030182,
+            "p(95)": 0.5514325,
+            "p(99)": 0.9594337000000004,
+            "max": 1.061434
+        },
+        "http_req_receiving": {
+            "p(99)": 0.28960210000000003,
+            "max": 0.29451,
+            "avg": 0.17893236363636367,
+            "min": 0.088519,
+            "med": 0.158762,
+            "p(95)": 0.2699705
+        },
+        "http_reqs": {
+            "count": 11,
+            "rate": 0.24958271365337587
+        },
+        "http_req_duration{expected_response:true}": {
+            "p(95)": 6849.0268115,
+            "p(99)": 7027.8989063,
+            "max": 7072.61693,
+            "avg": 3642.5224733636355,
+            "min": 3.625818,
+            "med": 4112.358559
+        },
+        "search_miss_requests": {
+            "count": 8,
+            "rate": 0.18151470083881882
+        },
+        "search_miss_failures": {
+            "passes": 0,
+            "fails": 8,
+            "value": 0
+        },
+        "http_req_duration": {
+            "p(99)": 7027.8989063,
+            "max": 7072.61693,
+            "avg": 3642.5224733636355,
+            "min": 3.625818,
+            "med": 4112.358559,
+            "p(95)": 6849.0268115
+        },
+        "iteration_duration": {
+            "p(95)": 4780.0833046,
+            "p(99)": 4935.69180092,
+            "max": 4974.593925,
+            "avg": 3846.897732222222,
+            "min": 739.432084,
+            "med": 4112.604707
+        },
+        "checks": {
+            "passes": 11,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "http_req_tls_handshaking": {
+            "min": 0,
+            "med": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 0,
+            "avg": 0
+        },
+        "search_miss_duration": {
+            "med": 4361.464051,
+            "p(95)": 6916.10384705,
+            "p(99)": 7041.31431341,
+            "max": 7072.61693,
+            "avg": 4916.165532625,
+            "min": 3738.164797,
+            "thresholds": {
+                "p(95)<3000": true,
+                "p(99)<10000": false
+            }
+        },
+        "http_req_failed": {
+            "fails": 11,
+            "passes": 0,
+            "value": 0
+        },
+        "http_req_blocked": {
+            "avg": 0.20111436363636362,
+            "min": 0.00245,
+            "med": 0.003163,
+            "p(95)": 1.087308,
+            "p(99)": 1.7452976000000004,
+            "max": 1.909795
+        },
+        "http_req_waiting": {
+            "max": 7071.365405,
+            "avg": 3642.2195314545456,
+            "min": 3.402895,
+            "med": 4112.211359,
+            "p(95)": 6848.3424845,
+            "p(99)": 7026.7608209
+        },
+        "search_hit_duration": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 0,
+            "thresholds": {
+                "p(95)<100": false,
+                "p(99)<300": false
+            }
+        },
+        "jds_duration": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 0,
+            "thresholds": {
+                "p(95)<100": false,
+                "p(99)<200": false
+            }
+        },
+        "data_sent": {
+            "count": 14177,
+            "rate": 321.6667392239918
+        },
+        "iterations": {
+            "count": 8,
+            "rate": 0.18151470083881882
+        }
+    },
+    "setup_data": {
+        "jdId": "0fec25e7-731d-44df-8db8-2e5169de4c6c",
+        "jobDescription": "1. 本科以上学历，计算机相关专业，技术优秀； 2. 5年以上相关工作经验，或者自认能力优秀者，熟练使用html,css,js编写页面，精通HTML5特性，了解HTML5最新规范，能够熟练运用HTML5特性构建移动端的WebApp； 3. 熟悉当前流行的 JavaScript 类库,熟悉JavaScript面向对象编程方法； 4. 熟悉Web标准，对表现与数据分离，HTML语义化等有一定理解，精通 Vue3、Element-Plus、Vant等前端框架； 5. 具备移动端兼容问题处理经验，可以独立负责项目的开发及调试 ; 6. 具有前端架构分析与设计能力，一贯坚持编写易读、易维护、高质量、高效率的代码，习惯于OOP开发方式； 7. 对用户可用性，用户体验，用户研究等相关知识有深入的了解和实践经验； 8. 前端视野广阔，了解前端工程化、模块化、前后端分离、多端技术、安全、测试、函数式编程等； 9. 了解Css预编译语言如sass、less等； 10. 熟练应用及配置gulp,webpack构建工具，能够自己搭建前端构建环境； 11. 具有一定产品思维，能利用技术辅助产品做业务转化提升。",
+        "warmPayload": {
+            "topK": 20,
+            "experienceWeight": 0.5,
+            "filterByExperience": true,
+            "filterBySkill": true,
+            "jobDescription": "1. 本科以上学历，计算机相关专业，技术优秀； 2. 5年以上相关工作经验，或者自认能力优秀者，熟练使用html,css,js编写页面，精通HTML5特性，了解HTML5最新规范，能够熟练运用HTML5特性构建移动端的WebApp； 3. 熟悉当前流行的 JavaScript 类库,熟悉JavaScript面向对象编程方法； 4. 熟悉Web标准，对表现与数据分离，HTML语义化等有一定理解，精通 Vue3、Element-Plus、Vant等前端框架； 5. 具备移动端兼容问题处理经验，可以独立负责项目的开发及调试 ; 6. 具有前端架构分析与设计能力，一贯坚持编写易读、易维护、高质量、高效率的代码，习惯于OOP开发方式； 7. 对用户可用性，用户体验，用户研究等相关知识有深入的了解和实践经验； 8. 前端视野广阔，了解前端工程化、模块化、前后端分离、多端技术、安全、测试、函数式编程等； 9. 了解Css预编译语言如sass、less等； 10. 熟练应用及配置gulp,webpack构建工具，能够自己搭建前端构建环境； 11. 具有一定产品思维，能利用技术辅助产品做业务转化提升。",
+            "onlyVectorReadyCandidates": false,
+            "skillWeight": 0.5
+        }
+    },
+    "root_group": {
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "setup": {
+                "name": "setup",
+                "path": "::setup",
+                "id": "5c0f8025f7e0b6654089e5b00e950f1a",
+                "groups": {},
+                "checks": {
+                        "setup_jds status is 200": {
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "setup_jds status is 200",
+                            "path": "::setup::setup_jds status is 200",
+                            "id": "f9a2058b3ed57e138d653bf198cb6d2c"
+                        },
+                        "setup_jd_detail status is 200": {
+                            "name": "setup_jd_detail status is 200",
+                            "path": "::setup::setup_jd_detail status is 200",
+                            "id": "68d143db8012887c084d405dbe31c788",
+                            "passes": 1,
+                            "fails": 0
+                        },
+                        "setup_search_warm status is 200": {
+                            "name": "setup_search_warm status is 200",
+                            "path": "::setup::setup_search_warm status is 200",
+                            "id": "d17654deeb1bff26f322d1c496963df2",
+                            "passes": 1,
+                            "fails": 0
+                        }
+                    }
+            }
+        },
+        "checks": {
+            "search_miss status is 200": {
+                "name": "search_miss status is 200",
+                "path": "::search_miss status is 200",
+                "id": "ee0bd1863275196f344a3c7ab8668083",
+                "passes": 8,
+                "fails": 0
+            }
+        },
+        "name": ""
+    }
+}
