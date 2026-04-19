@@ -1,5 +1,34 @@
 <template>
-  <main>
+  <main v-if="!authReady" class="auth-shell">
+    <div class="auth-panel">
+      <h1>CVect</h1>
+      <p>正在验证登录状态...</p>
+    </div>
+  </main>
+
+  <main v-else-if="!currentUser" class="auth-shell">
+    <form class="auth-panel" @submit.prevent="submitLogin">
+      <h1>CVect</h1>
+      <label class="field">
+        <span>租户 ID</span>
+        <input v-model="loginTenantId" type="text" placeholder="默认租户可留空" autocomplete="organization" />
+      </label>
+      <label class="field">
+        <span>用户名</span>
+        <input v-model="loginUsername" type="text" autocomplete="username" />
+      </label>
+      <label class="field">
+        <span>密码</span>
+        <input v-model="loginPassword" type="password" autocomplete="current-password" />
+      </label>
+      <button type="submit" :disabled="authLoading || !loginUsername.trim() || !loginPassword">
+        {{ authLoading ? '登录中...' : '登录' }}
+      </button>
+      <p class="muted" v-if="loginMessage">{{ loginMessage }}</p>
+    </form>
+  </main>
+
+  <main v-else>
     <section class="header">
       <div>
         <h1 class="title">CVect 实时候选人入库</h1>
@@ -8,6 +37,10 @@
         </p>
       </div>
       <div class="status-panel">
+        <div class="status-row">
+          <span>{{ currentUser.displayName || currentUser.username }}</span>
+          <button class="secondary small" @click="logout">退出</button>
+        </div>
         <div class="status-row">
           <span>连接状态</span>
           <span class="badge" :class="isConnected ? 'live' : 'offline'">
@@ -318,10 +351,18 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import SemanticPanel from './components/SemanticPanel.vue'
 import { useSemanticMatching } from './composables/useSemanticMatching'
+import { apiFetch, authLogin, authLogout, authMe, getAccessToken } from './api/http'
 
 const sseUrl = import.meta.env.VITE_SSE_URL || '/api/candidates/stream'
 
 const isConnected = ref(false)
+const authReady = ref(false)
+const authLoading = ref(false)
+const currentUser = ref(null)
+const loginTenantId = ref('')
+const loginUsername = ref('demo')
+const loginPassword = ref('')
+const loginMessage = ref('')
 const events = reactive([])
 const log = reactive([])
 const selectedCandidate = ref(null)
@@ -605,7 +646,7 @@ const applyCandidateUpdate = (candidate) => {
 const refreshCandidateVectorFlags = async (jdId = selectedJdId.value) => {
   if (!jdId) return
   try {
-    const resp = await fetch(`/api/candidates?jdId=${jdId}`)
+    const resp = await apiFetch(`/api/candidates?jdId=${jdId}`)
     if (!resp.ok) return
     const data = await resp.json()
     if (!Array.isArray(data)) return
@@ -673,9 +714,15 @@ const startVectorFlagPolling = () => {
 }
 
 const connect = () => {
+  if (!currentUser.value) return
   if (isConnected.value) return
   isManualDisconnect.value = false
-  const url = `${sseUrl}${sseUrl.includes('?') ? '&' : '?'}ts=${Date.now()}`
+  const params = new URLSearchParams({ ts: String(Date.now()) })
+  const token = getAccessToken()
+  if (token) {
+    params.set('access_token', token)
+  }
+  const url = `${sseUrl}${sseUrl.includes('?') ? '&' : '?'}${params.toString()}`
   source = new EventSource(url)
 
   source.onopen = () => {
@@ -776,7 +823,7 @@ const setRecruitmentStatus = async (candidate, recruitmentStatus) => {
   recruitmentUpdatingId.value = candidate.id
   recruitmentMessage.value = ''
   try {
-    const resp = await fetch(`/api/candidates/${candidate.id}/recruitment-status`, {
+    const resp = await apiFetch(`/api/candidates/${candidate.id}/recruitment-status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ recruitmentStatus })
@@ -796,7 +843,7 @@ const setRecruitmentStatus = async (candidate, recruitmentStatus) => {
 const refreshJds = async () => {
   jdMessage.value = ''
   try {
-    const resp = await fetch('/api/jds')
+    const resp = await apiFetch('/api/jds')
     if (!resp.ok) throw new Error('加载 JD 失败')
     const data = await resp.json()
     jds.value = Array.isArray(data) ? data : []
@@ -838,7 +885,7 @@ const loadCandidatesForJd = async (jdId, options = {}) => {
     return true
   }
   try {
-    const resp = await fetch(`/api/candidates?jdId=${jdId}`)
+    const resp = await apiFetch(`/api/candidates?jdId=${jdId}`)
     if (!resp.ok) throw new Error('加载候选人失败')
     const data = await resp.json()
     if (requestSeq !== candidateLoadSeq) return
@@ -990,7 +1037,7 @@ const createJd = async () => {
     }
     const url = '/api/jds'
     const method = 'POST'
-    const resp = await fetch(url, {
+    const resp = await apiFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -1042,7 +1089,7 @@ const saveEditJd = async (jd) => {
       title: editTitle.value.trim(),
       content: editContent.value.trim()
     }
-    const resp = await fetch(`/api/jds/${jd.id}`, {
+    const resp = await apiFetch(`/api/jds/${jd.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -1062,7 +1109,7 @@ const deleteJd = async (jd) => {
   jdSaving.value = true
   jdMessage.value = ''
   try {
-    const resp = await fetch(`/api/jds/${jd.id}`, { method: 'DELETE' })
+    const resp = await apiFetch(`/api/jds/${jd.id}`, { method: 'DELETE' })
     if (!resp.ok && resp.status !== 204) throw new Error('删除 JD 失败')
     jds.value = jds.value.filter((item) => item.id !== jd.id)
     if (selectedJdId.value === jd.id) {
@@ -1137,7 +1184,7 @@ const uploadResume = async () => {
         formData.append('files', file)
       })
     }
-    const resp = await fetch(url, {
+    const resp = await apiFetch(url, {
       method: 'POST',
       body: formData
     })
@@ -1167,12 +1214,75 @@ const uploadResume = async () => {
   }
 }
 
-onMounted(() => {
-  refreshJds()
+const resetWorkspace = () => {
+  disconnect()
+  stopVectorFlagPolling()
+  stopSemanticRefreshTimer()
+  events.splice(0, events.length)
+  jds.value = []
+  selectedCandidate.value = null
+  selectedJdId.value = ''
+  jdMessage.value = ''
+  uploadMessage.value = ''
+}
+
+const bootstrapWorkspace = async () => {
+  await refreshJds()
   connect()
+}
+
+const initAuth = async () => {
+  authReady.value = false
+  try {
+    const user = await authMe()
+    currentUser.value = user
+    if (user) {
+      await bootstrapWorkspace()
+    }
+  } finally {
+    authReady.value = true
+  }
+}
+
+const submitLogin = async () => {
+  if (authLoading.value) return
+  authLoading.value = true
+  loginMessage.value = ''
+  try {
+    const user = await authLogin({
+      tenantId: loginTenantId.value.trim(),
+      username: loginUsername.value.trim(),
+      password: loginPassword.value
+    })
+    currentUser.value = user
+    loginPassword.value = ''
+    await bootstrapWorkspace()
+  } catch (err) {
+    loginMessage.value = err.message || '登录失败'
+  } finally {
+    authLoading.value = false
+  }
+}
+
+const logout = async () => {
+  await authLogout()
+  currentUser.value = null
+  resetWorkspace()
+}
+
+const handleAuthExpired = () => {
+  currentUser.value = null
+  loginMessage.value = '登录已过期，请重新登录。'
+  resetWorkspace()
+}
+
+onMounted(() => {
+  window.addEventListener('cvect-auth-expired', handleAuthExpired)
+  initAuth()
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('cvect-auth-expired', handleAuthExpired)
   if (reconnectTimer) {
     clearTimeout(reconnectTimer)
     reconnectTimer = null

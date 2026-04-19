@@ -3,10 +3,12 @@ package com.walden.cvect.web.controller.candidate;
 import com.walden.cvect.model.entity.Candidate;
 import com.walden.cvect.model.entity.CandidateRecruitmentStatus;
 import com.walden.cvect.model.entity.JobDescription;
+import com.walden.cvect.model.TenantConstants;
 import com.walden.cvect.repository.CandidateMatchScoreJpaRepository;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.ResumeChunkVectorJpaRepository;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
+import com.walden.cvect.security.CurrentUserService;
 import com.walden.cvect.service.candidate.CandidateSnapshotService;
 import com.walden.cvect.service.matching.PersistedMatchScoreService;
 import com.walden.cvect.web.controller.candidate.CandidateController;
@@ -48,21 +50,21 @@ class CandidateControllerTest {
     private VectorIngestTaskJpaRepository vectorIngestTaskRepository;
     @Mock
     private PersistedMatchScoreService persistedMatchScoreService;
+    @Mock
+    private CurrentUserService currentUserService;
 
     @Test
     @DisplayName("listByJd should not query vector ids when candidate list is empty")
     void listByJdShouldSkipVectorQueryWhenNoCandidates() {
         UUID jdId = UUID.randomUUID();
-        when(candidateRepository.findByJobDescriptionIdOrderByCreatedAtDesc(jdId)).thenReturn(List.<Candidate>of());
-        when(snapshotService.listByJd(jdId)).thenReturn(List.<CandidateStreamEvent>of());
+        when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
+                TenantConstants.DEFAULT_TENANT_ID,
+                jdId)).thenReturn(List.<Candidate>of());
+        when(snapshotService.listByTenantAndJd(TenantConstants.DEFAULT_TENANT_ID, jdId))
+                .thenReturn(List.<CandidateStreamEvent>of());
 
-        CandidateController controller = new CandidateController(
-                candidateRepository,
-                candidateMatchScoreRepository,
-                snapshotService,
-                resumeChunkVectorRepository,
-                vectorIngestTaskRepository,
-                persistedMatchScoreService);
+        CandidateController controller = controller();
 
         ResponseEntity<List<CandidateController.CandidateListItem>> response = controller.listByJd(jdId);
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -81,6 +83,7 @@ class CandidateControllerTest {
         JobDescription jd = mock(JobDescription.class);
         when(jd.getId()).thenReturn(jdId);
         when(candidate.getId()).thenReturn(candidateId);
+        when(candidate.getTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
         when(candidate.getJobDescription()).thenReturn(jd);
         when(candidate.getRecruitmentStatus()).thenReturn(CandidateRecruitmentStatus.TO_INTERVIEW);
         when(candidate.getName()).thenReturn("Alice");
@@ -90,17 +93,13 @@ class CandidateControllerTest {
         when(candidate.getParsedCharCount()).thenReturn(42);
         when(candidate.getTruncated()).thenReturn(false);
 
-        when(candidateRepository.findById(candidateId)).thenReturn(Optional.of(candidate));
+        when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(candidateRepository.findByIdAndTenantId(candidateId, TenantConstants.DEFAULT_TENANT_ID))
+                .thenReturn(Optional.of(candidate));
         when(candidateRepository.save(any(Candidate.class))).thenReturn(candidate);
         when(snapshotService.build(candidateId, "UPDATED")).thenReturn(null);
 
-        CandidateController controller = new CandidateController(
-                candidateRepository,
-                candidateMatchScoreRepository,
-                snapshotService,
-                resumeChunkVectorRepository,
-                vectorIngestTaskRepository,
-                persistedMatchScoreService);
+        CandidateController controller = controller();
 
         ResponseEntity<CandidateStreamEvent> response = controller.updateRecruitmentStatus(
                 candidateId,
@@ -120,6 +119,7 @@ class CandidateControllerTest {
 
         Candidate candidate = mock(Candidate.class);
         when(candidate.getId()).thenReturn(candidateId);
+        when(candidate.getTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
         when(candidate.getRecruitmentStatus()).thenReturn(CandidateRecruitmentStatus.REJECTED);
         when(candidate.getName()).thenReturn("Eve");
         when(candidate.getSourceFileName()).thenReturn("eve.pdf");
@@ -128,17 +128,13 @@ class CandidateControllerTest {
         when(candidate.getParsedCharCount()).thenReturn(7);
         when(candidate.getTruncated()).thenReturn(false);
 
-        when(candidateRepository.findById(candidateId)).thenReturn(Optional.of(candidate));
+        when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(candidateRepository.findByIdAndTenantId(candidateId, TenantConstants.DEFAULT_TENANT_ID))
+                .thenReturn(Optional.of(candidate));
         when(candidateRepository.save(any(Candidate.class))).thenReturn(candidate);
         when(snapshotService.build(candidateId, "UPDATED")).thenThrow(new RuntimeException("boom"));
 
-        CandidateController controller = new CandidateController(
-                candidateRepository,
-                candidateMatchScoreRepository,
-                snapshotService,
-                resumeChunkVectorRepository,
-                vectorIngestTaskRepository,
-                persistedMatchScoreService);
+        CandidateController controller = controller();
 
         ResponseEntity<CandidateStreamEvent> response = controller.updateRecruitmentStatus(
                 candidateId,
@@ -149,5 +145,16 @@ class CandidateControllerTest {
         assertEquals("UPDATED", response.getBody().status());
         assertEquals("REJECTED", response.getBody().recruitmentStatus());
         assertEquals(candidateId, response.getBody().candidateId());
+    }
+
+    private CandidateController controller() {
+        return new CandidateController(
+                candidateRepository,
+                candidateMatchScoreRepository,
+                snapshotService,
+                resumeChunkVectorRepository,
+                vectorIngestTaskRepository,
+                persistedMatchScoreService,
+                currentUserService);
     }
 }

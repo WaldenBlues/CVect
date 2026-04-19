@@ -6,6 +6,7 @@ import com.walden.cvect.service.matching.SemanticSearchService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -37,6 +38,7 @@ public class SearchController {
      * @return 按相似度排序的候选人列表
      */
     @PostMapping
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).SEARCH_RUN)")
     @TimedAction(
             metric = "cvect.search.request",
             description = "End-to-end semantic search request latency",
@@ -49,6 +51,7 @@ public class SearchController {
      * 创建 HNSW 索引 (管理接口)
      */
     @PostMapping("/admin/create-index")
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).SYSTEM_ADMIN)")
     public ResponseEntity<String> createIndex() {
         vectorStore.createHnswIndex();
         return ResponseEntity.ok("HNSW index created successfully");

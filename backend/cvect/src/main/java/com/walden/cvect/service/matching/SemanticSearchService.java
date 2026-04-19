@@ -17,7 +17,7 @@ public class SemanticSearchService {
 
     @Cacheable(
             cacheNames = CacheConfig.SEARCH_RESPONSE_CACHE,
-            key = "T(com.walden.cvect.service.matching.SearchCacheKeys).searchRequest(#request)",
+            key = "T(com.walden.cvect.service.matching.SearchCacheKeys).searchRequest(#request, @currentUserService.currentTenantId())",
             sync = true)
     public SearchController.SearchResponse search(SearchController.SearchRequest request) {
         return executionService.search(request);

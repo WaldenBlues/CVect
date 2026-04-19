@@ -5,6 +5,7 @@ import {
   reconcileSemanticRankMaps,
   suggestSemanticWeights
 } from '../utils/semanticMatching'
+import { apiFetch } from '../api/http'
 
 export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
   const semanticScoreMap = ref({})
@@ -195,7 +196,7 @@ export const useSemanticMatching = ({ events, selectedJdId, selectedJd }) => {
         experienceWeight,
         skillWeight
       })
-      const resp = await fetch('/api/search', {
+      const resp = await apiFetch('/api/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

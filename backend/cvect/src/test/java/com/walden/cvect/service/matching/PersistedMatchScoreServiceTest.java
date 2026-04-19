@@ -2,8 +2,11 @@ package com.walden.cvect.service.matching;
 
 import com.walden.cvect.infra.embedding.EmbeddingService;
 import com.walden.cvect.infra.vector.VectorStoreService;
+import com.walden.cvect.model.TenantConstants;
+import com.walden.cvect.model.entity.Candidate;
 import com.walden.cvect.model.entity.CandidateMatchScore;
 import com.walden.cvect.model.entity.JobDescription;
+import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.CandidateMatchScoreJpaRepository;
 import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import com.walden.cvect.service.matching.PersistedMatchScoreService;
@@ -31,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("PersistedMatchScoreService unit tests")
@@ -38,6 +42,8 @@ class PersistedMatchScoreServiceTest {
 
     @Mock
     private CandidateMatchScoreJpaRepository candidateMatchScoreRepository;
+    @Mock
+    private CandidateJpaRepository candidateRepository;
     @Mock
     private JobDescriptionJpaRepository jobDescriptionRepository;
     @Mock
@@ -59,6 +65,7 @@ class PersistedMatchScoreServiceTest {
 
         PersistedMatchScoreService service = new PersistedMatchScoreService(
                 candidateMatchScoreRepository,
+                candidateRepository,
                 jobDescriptionRepository,
                 embeddingService,
                 vectorStoreService,
@@ -80,11 +87,14 @@ class PersistedMatchScoreServiceTest {
         UUID candidateId = UUID.randomUUID();
         UUID jdId1 = UUID.randomUUID();
         UUID jdId2 = UUID.randomUUID();
+        Candidate candidate = mock(Candidate.class);
         JobDescription jd1 = jobDescription(jdId1, "Java Engineer", "Spring Boot");
         JobDescription jd2 = jobDescription(jdId2, "Frontend Engineer", "Vue TypeScript");
         float[] jdEmbedding1 = new float[] {0.1f, 0.2f};
         float[] jdEmbedding2 = new float[] {0.3f, 0.4f};
-        when(jobDescriptionRepository.findAll()).thenReturn(List.of(jd1, jd2));
+        when(candidateRepository.findById(candidateId)).thenReturn(Optional.of(candidate));
+        when(candidate.getTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(jobDescriptionRepository.findByTenantId(TenantConstants.DEFAULT_TENANT_ID)).thenReturn(List.of(jd1, jd2));
         when(jobDescriptionRepository.findById(jdId1)).thenReturn(Optional.of(jd1));
         when(jobDescriptionRepository.findById(jdId2)).thenReturn(Optional.of(jd2));
         when(embeddingService.embed("Spring Boot")).thenReturn(jdEmbedding1);
@@ -98,6 +108,7 @@ class PersistedMatchScoreServiceTest {
 
         PersistedMatchScoreService service = new PersistedMatchScoreService(
                 candidateMatchScoreRepository,
+                candidateRepository,
                 jobDescriptionRepository,
                 embeddingService,
                 vectorStoreService,

@@ -2,8 +2,10 @@ package com.walden.cvect.service.matching;
 
 import com.walden.cvect.infra.embedding.EmbeddingService;
 import com.walden.cvect.infra.vector.VectorStoreService;
+import com.walden.cvect.model.entity.Candidate;
 import com.walden.cvect.model.entity.CandidateMatchScore;
 import com.walden.cvect.model.entity.JobDescription;
+import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.CandidateMatchScoreJpaRepository;
 import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import jakarta.annotation.PreDestroy;
@@ -34,6 +36,7 @@ public class PersistedMatchScoreService {
     private static final float DEFAULT_SKILL_WEIGHT = 0.5f;
 
     private final CandidateMatchScoreJpaRepository candidateMatchScoreRepository;
+    private final CandidateJpaRepository candidateRepository;
     private final JobDescriptionJpaRepository jobDescriptionRepository;
     private final EmbeddingService embeddingService;
     private final VectorStoreService vectorStoreService;
@@ -45,12 +48,14 @@ public class PersistedMatchScoreService {
 
     public PersistedMatchScoreService(
             CandidateMatchScoreJpaRepository candidateMatchScoreRepository,
+            CandidateJpaRepository candidateRepository,
             JobDescriptionJpaRepository jobDescriptionRepository,
             EmbeddingService embeddingService,
             VectorStoreService vectorStoreService,
             PlatformTransactionManager transactionManager,
             @Value("${app.match-scores.enabled:true}") boolean enabled) {
         this.candidateMatchScoreRepository = candidateMatchScoreRepository;
+        this.candidateRepository = candidateRepository;
         this.jobDescriptionRepository = jobDescriptionRepository;
         this.embeddingService = embeddingService;
         this.vectorStoreService = vectorStoreService;
@@ -100,7 +105,13 @@ public class PersistedMatchScoreService {
         if (!enabled || candidateId == null) {
             return;
         }
-        List<JobDescription> jobDescriptions = jobDescriptionRepository.findAll();
+        Candidate candidate = candidateRepository.findById(candidateId).orElse(null);
+        if (candidate == null) {
+            transactionTemplate.executeWithoutResult(status ->
+                    candidateMatchScoreRepository.deleteByCandidateId(candidateId));
+            return;
+        }
+        List<JobDescription> jobDescriptions = jobDescriptionRepository.findByTenantId(candidate.getTenantId());
         if (jobDescriptions.isEmpty()) {
             transactionTemplate.executeWithoutResult(status ->
                     candidateMatchScoreRepository.deleteByCandidateId(candidateId));
@@ -120,7 +131,7 @@ public class PersistedMatchScoreService {
             if (breakdown == null) {
                 continue;
             }
-            nextScores.add(toEntity(candidateId, jd.getId(), breakdown, scoredAt));
+            nextScores.add(toEntity(candidate.getTenantId(), candidateId, jd.getId(), breakdown, scoredAt));
         }
         transactionTemplate.executeWithoutResult(status -> {
             candidateMatchScoreRepository.deleteByCandidateId(candidateId);
@@ -159,10 +170,18 @@ public class PersistedMatchScoreService {
                     candidateMatchScoreRepository.deleteByJobDescriptionId(jobDescriptionId));
             return;
         }
-        Map<UUID, VectorStoreService.CandidateScoreBreakdown> rawScores = vectorStoreService.scoreCandidates(embedding, null);
+        List<UUID> candidateIds = candidateRepository.findIdsByTenantId(jd.getTenantId());
+        if (candidateIds.isEmpty()) {
+            transactionTemplate.executeWithoutResult(status ->
+                    candidateMatchScoreRepository.deleteByJobDescriptionId(jobDescriptionId));
+            return;
+        }
+        Map<UUID, VectorStoreService.CandidateScoreBreakdown> rawScores = vectorStoreService.scoreCandidates(
+                embedding,
+                candidateIds);
         LocalDateTime scoredAt = LocalDateTime.now();
         List<CandidateMatchScore> nextScores = rawScores.entrySet().stream()
-                .map(entry -> toEntity(entry.getKey(), jobDescriptionId, entry.getValue(), scoredAt))
+                .map(entry -> toEntity(jd.getTenantId(), entry.getKey(), jobDescriptionId, entry.getValue(), scoredAt))
                 .toList();
         transactionTemplate.executeWithoutResult(status -> {
             candidateMatchScoreRepository.deleteByJobDescriptionId(jobDescriptionId);
@@ -209,6 +228,7 @@ public class PersistedMatchScoreService {
     }
 
     private CandidateMatchScore toEntity(
+            UUID tenantId,
             UUID candidateId,
             UUID jobDescriptionId,
             VectorStoreService.CandidateScoreBreakdown breakdown,
@@ -218,6 +238,7 @@ public class PersistedMatchScoreService {
         float weighted = experienceScore * DEFAULT_EXPERIENCE_WEIGHT + skillScore * DEFAULT_SKILL_WEIGHT;
         float overallScore = weighted > 0.0f ? weighted : Math.max(experienceScore, skillScore);
         return new CandidateMatchScore(
+                tenantId,
                 candidateId,
                 jobDescriptionId,
                 overallScore,

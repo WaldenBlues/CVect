@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,6 +27,7 @@ public class UploadBatchController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).RESUME_UPLOAD)")
     public ResponseEntity<UploadBatchService.BatchOverview> getBatch(@PathVariable("id") UUID id) {
         return uploadBatchService.getBatchOverview(id)
                 .map(ResponseEntity::ok)
@@ -33,6 +35,7 @@ public class UploadBatchController {
     }
 
     @GetMapping("/{id}/items")
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).RESUME_UPLOAD)")
     public ResponseEntity<UploadItemPageResponse> getBatchItems(
             @PathVariable("id") UUID id,
             @RequestParam(name = "page", defaultValue = "0") int page,
@@ -50,6 +53,7 @@ public class UploadBatchController {
     }
 
     @PostMapping("/{id}/retry-failed")
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).RESUME_UPLOAD)")
     public ResponseEntity<UploadBatchService.RetryFailedResult> retryFailed(@PathVariable("id") UUID id) {
         return uploadBatchService.retryFailed(id)
                 .map(ResponseEntity::ok)

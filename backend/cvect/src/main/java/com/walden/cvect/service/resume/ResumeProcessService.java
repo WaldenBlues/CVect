@@ -23,6 +23,7 @@ import com.walden.cvect.infra.parser.ResumeParser;
 import com.walden.cvect.infra.process.NameExtractor;
 import com.walden.cvect.infra.process.ResumeTextNormalizer;
 import com.walden.cvect.model.ParseResult;
+import com.walden.cvect.model.TenantConstants;
 import com.walden.cvect.model.entity.Candidate;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.repository.CandidateJpaRepository;
@@ -112,7 +113,8 @@ public class ResumeProcessService {
         Path normalizedPath = sourcePath.toAbsolutePath().normalize();
         String fileHash = sha256Hex(normalizedPath);
         JobDescription jobDescription = resolveJobDescription(jdId);
-        Candidate existing = findExistingCandidate(fileHash, jdId);
+        UUID tenantId = jobDescription == null ? TenantConstants.DEFAULT_TENANT_ID : jobDescription.getTenantId();
+        Candidate existing = findExistingCandidate(tenantId, fileHash, jdId);
 
         ParseResult parsed = parse(normalizedPath, contentType);
         String normalized = normalizer.normalize(Objects.requireNonNullElse(parsed.getContent(), ""));
@@ -131,7 +133,7 @@ public class ResumeProcessService {
             }
             candidateRepository.save(existing);
         } else {
-            candidateId = persistCandidate(parsed, sourceFileName, fileSizeBytes, fileHash, extractedName, jobDescription);
+            candidateId = persistCandidate(parsed, sourceFileName, fileSizeBytes, fileHash, extractedName, jobDescription, tenantId);
         }
 
         if (existing == null) {
@@ -152,11 +154,11 @@ public class ResumeProcessService {
         }
     }
 
-    private Candidate findExistingCandidate(String fileHash, UUID jdId) {
+    private Candidate findExistingCandidate(UUID tenantId, String fileHash, UUID jdId) {
         if (jdId != null) {
-            return candidateRepository.findByFileHashAndJobDescriptionId(fileHash, jdId).orElse(null);
+            return candidateRepository.findByTenantIdAndFileHashAndJobDescriptionId(tenantId, fileHash, jdId).orElse(null);
         }
-        return candidateRepository.findByFileHashAndJobDescriptionIsNull(fileHash).orElse(null);
+        return candidateRepository.findByTenantIdAndFileHashAndJobDescriptionIsNull(tenantId, fileHash).orElse(null);
     }
 
     /**
@@ -167,8 +169,10 @@ public class ResumeProcessService {
             Long fileSizeBytes,
             String fileHash,
             String name,
-            JobDescription jobDescription) {
+            JobDescription jobDescription,
+            UUID tenantId) {
         Candidate candidate = new Candidate(
+                tenantId,
                 sourceFileName,
                 fileHash,
                 name,

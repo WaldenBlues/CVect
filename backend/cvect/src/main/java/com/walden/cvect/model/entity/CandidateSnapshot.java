@@ -1,5 +1,6 @@
 package com.walden.cvect.model.entity;
 
+import com.walden.cvect.model.TenantConstants;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.ForeignKey;
@@ -16,13 +17,17 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "candidate_snapshots", indexes = {
-        @Index(name = "idx_candidate_snapshots_jd", columnList = "jd_id")
+        @Index(name = "idx_candidate_snapshots_jd", columnList = "jd_id"),
+        @Index(name = "idx_candidate_snapshots_tenant_jd", columnList = "tenant_id,jd_id")
 })
 public class CandidateSnapshot {
 
     @Id
     @Column(name = "candidate_id", nullable = false)
     private UUID candidateId;
+
+    @Column(name = "tenant_id", nullable = false)
+    private UUID tenantId;
 
     @ManyToOne(optional = false)
     @JoinColumn(
@@ -82,11 +87,19 @@ public class CandidateSnapshot {
     }
 
     public CandidateSnapshot(UUID candidateId) {
+        this(TenantConstants.DEFAULT_TENANT_ID, candidateId);
+    }
+
+    public CandidateSnapshot(UUID tenantId, UUID candidateId) {
+        this.tenantId = tenantId == null ? TenantConstants.DEFAULT_TENANT_ID : tenantId;
         this.candidateId = candidateId;
     }
 
     @PrePersist
     void onCreate() {
+        if (this.tenantId == null) {
+            this.tenantId = TenantConstants.DEFAULT_TENANT_ID;
+        }
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -97,6 +110,14 @@ public class CandidateSnapshot {
 
     public UUID getCandidateId() {
         return candidateId;
+    }
+
+    public UUID getTenantId() {
+        return tenantId;
+    }
+
+    public void setTenantId(UUID tenantId) {
+        this.tenantId = tenantId == null ? TenantConstants.DEFAULT_TENANT_ID : tenantId;
     }
 
     public void setJdId(UUID jdId) {

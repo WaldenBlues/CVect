@@ -1,7 +1,10 @@
 package com.walden.cvect.web.controller.resume;
 
+import com.walden.cvect.repository.JobDescriptionJpaRepository;
+import com.walden.cvect.security.CurrentUserService;
 import com.walden.cvect.service.resume.ResumeProcessService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -16,15 +19,23 @@ public class ResumeController {
     private static final String DEFAULT_CONTENT_TYPE = "application/octet-stream";
 
     private final ResumeProcessService processService;
+    private final JobDescriptionJpaRepository jobDescriptionRepository;
+    private final CurrentUserService currentUserService;
 
-    public ResumeController(ResumeProcessService processService) {
+    public ResumeController(
+            ResumeProcessService processService,
+            JobDescriptionJpaRepository jobDescriptionRepository,
+            CurrentUserService currentUserService) {
         this.processService = processService;
+        this.jobDescriptionRepository = jobDescriptionRepository;
+        this.currentUserService = currentUserService;
     }
 
     /**
      * 解析简历并返回所有 Chunk
      */
     @PostMapping("/parse")
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).RESUME_UPLOAD)")
     public ResponseEntity<Map<String, Object>> parseResume(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "contentType", required = false) String contentType,
@@ -47,6 +58,9 @@ public class ResumeController {
         try {
             jobId = java.util.UUID.fromString(jdId);
         } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "jdId is invalid"));
+        }
+        if (jobDescriptionRepository.findByIdAndTenantId(jobId, currentUserService.currentTenantId()).isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "jdId is invalid"));
         }
 

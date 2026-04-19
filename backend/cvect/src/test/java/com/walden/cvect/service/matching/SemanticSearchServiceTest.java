@@ -2,8 +2,11 @@ package com.walden.cvect.service.matching;
 
 import com.walden.cvect.infra.vector.VectorStoreService;
 import com.walden.cvect.model.ChunkType;
+import com.walden.cvect.model.TenantConstants;
 import com.walden.cvect.model.entity.vector.VectorIngestTaskStatus;
+import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
+import com.walden.cvect.security.CurrentUserService;
 import com.walden.cvect.service.matching.SearchQueryEmbeddingCacheService;
 import com.walden.cvect.service.matching.SemanticSearchExecutionService;
 import com.walden.cvect.service.matching.SemanticSearchService;
@@ -25,6 +28,7 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -44,14 +48,27 @@ class SemanticSearchServiceTest {
     @Mock
     private VectorIngestTaskJpaRepository vectorIngestTaskRepository;
 
+    @Mock
+    private CandidateJpaRepository candidateRepository;
+
+    @Mock
+    private CurrentUserService currentUserService;
+
     private SemanticSearchService service;
 
     @BeforeEach
     void setUp() {
+        when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(candidateRepository.findIdsByTenantId(TenantConstants.DEFAULT_TENANT_ID)).thenReturn(List.of(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID()));
         SemanticSearchExecutionService executionService = new SemanticSearchExecutionService(
                 vectorStore,
                 queryEmbeddingCache,
-                vectorIngestTaskRepository);
+                vectorIngestTaskRepository,
+                candidateRepository,
+                currentUserService);
         service = new SemanticSearchService(executionService);
     }
 
@@ -62,7 +79,7 @@ class SemanticSearchServiceTest {
         UUID candidateB = UUID.randomUUID();
         float[] embedding = new float[1024];
         when(queryEmbeddingCache.get("Java backend role")).thenReturn(embedding);
-        when(vectorStore.search(any(float[].class), eq(40), any(ChunkType[].class))).thenReturn(List.of(
+        when(vectorStore.search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class))).thenReturn(List.of(
                 new VectorStoreService.SearchResult(UUID.randomUUID(), candidateA, ChunkType.EXPERIENCE, "A-exp", 0.9f),
                 new VectorStoreService.SearchResult(UUID.randomUUID(), candidateA, ChunkType.SKILL, "A-skill", 0.3f),
                 new VectorStoreService.SearchResult(UUID.randomUUID(), candidateB, ChunkType.EXPERIENCE, "B-exp", 0.5f),
@@ -97,7 +114,7 @@ class SemanticSearchServiceTest {
         UUID candidateB = UUID.randomUUID();
         float[] embedding = new float[1024];
         when(queryEmbeddingCache.get("experience only")).thenReturn(embedding);
-        when(vectorStore.search(any(float[].class), eq(20), any(ChunkType[].class))).thenReturn(List.of(
+        when(vectorStore.search(any(float[].class), eq(20), anyCollection(), any(ChunkType[].class))).thenReturn(List.of(
                 new VectorStoreService.SearchResult(UUID.randomUUID(), candidateA, ChunkType.EXPERIENCE, "A-exp", 0.2f),
                 new VectorStoreService.SearchResult(UUID.randomUUID(), candidateB, ChunkType.EXPERIENCE, "B-exp", 0.9f)
         ));
@@ -128,7 +145,11 @@ class SemanticSearchServiceTest {
         UUID candidateB = UUID.randomUUID();
         float[] embedding = new float[1024];
         when(queryEmbeddingCache.get("all types")).thenReturn(embedding);
-        when(vectorStore.search(any(float[].class), eq(40), org.mockito.ArgumentMatchers.<ChunkType[]>isNull())).thenReturn(List.of(
+        when(vectorStore.search(
+                any(float[].class),
+                eq(40),
+                anyCollection(),
+                org.mockito.ArgumentMatchers.<ChunkType[]>isNull())).thenReturn(List.of(
                 new VectorStoreService.SearchResult(UUID.randomUUID(), candidateA, ChunkType.OTHER, "A-other", 0.2f),
                 new VectorStoreService.SearchResult(UUID.randomUUID(), candidateB, ChunkType.OTHER, "B-other", 0.8f)
         ));
@@ -160,7 +181,7 @@ class SemanticSearchServiceTest {
         UUID notReadyCandidate = UUID.randomUUID();
         float[] embedding = new float[1024];
         when(queryEmbeddingCache.get("ready only")).thenReturn(embedding);
-        when(vectorStore.search(any(float[].class), eq(40), any(ChunkType[].class))).thenReturn(List.of(
+        when(vectorStore.search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class))).thenReturn(List.of(
                 new VectorStoreService.SearchResult(UUID.randomUUID(), pendingCandidate, ChunkType.EXPERIENCE, "pending", 0.9f),
                 new VectorStoreService.SearchResult(UUID.randomUUID(), readyCandidate, ChunkType.EXPERIENCE, "ready", 0.8f),
                 new VectorStoreService.SearchResult(UUID.randomUUID(), notReadyCandidate, ChunkType.EXPERIENCE, "not-ready", 0.7f)
@@ -198,7 +219,7 @@ class SemanticSearchServiceTest {
         UUID candidate = UUID.randomUUID();
         float[] embedding = new float[1024];
         when(queryEmbeddingCache.get("normal search")).thenReturn(embedding);
-        when(vectorStore.search(any(float[].class), eq(40), any(ChunkType[].class))).thenReturn(List.of(
+        when(vectorStore.search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class))).thenReturn(List.of(
                 new VectorStoreService.SearchResult(UUID.randomUUID(), candidate, ChunkType.EXPERIENCE, "normal", 0.7f)
         ));
 

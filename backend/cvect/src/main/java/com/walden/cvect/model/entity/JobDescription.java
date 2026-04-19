@@ -1,5 +1,6 @@
 package com.walden.cvect.model.entity;
 
+import com.walden.cvect.model.TenantConstants;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -9,12 +10,15 @@ import java.util.UUID;
  * JD 组（岗位描述）
  */
 @Entity
-@Table(name = "job_descriptions")
+@Table(name = "job_descriptions", indexes = @Index(name = "idx_job_descriptions_tenant_id", columnList = "tenant_id"))
 public class JobDescription {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @Column(name = "tenant_id", nullable = false)
+    private UUID tenantId;
 
     @Column(name = "title", length = 200, nullable = false)
     private String title;
@@ -36,6 +40,11 @@ public class JobDescription {
     }
 
     public JobDescription(String title, String content) {
+        this(TenantConstants.DEFAULT_TENANT_ID, title, content);
+    }
+
+    public JobDescription(UUID tenantId, String title, String content) {
+        this.tenantId = tenantId == null ? TenantConstants.DEFAULT_TENANT_ID : tenantId;
         this.title = title;
         this.content = content;
     }
@@ -43,10 +52,17 @@ public class JobDescription {
     @PrePersist
     void onCreate() {
         this.createdAt = LocalDateTime.now();
+        if (this.tenantId == null) {
+            this.tenantId = TenantConstants.DEFAULT_TENANT_ID;
+        }
     }
 
     public UUID getId() {
         return id;
+    }
+
+    public UUID getTenantId() {
+        return tenantId;
     }
 
     public String getTitle() {

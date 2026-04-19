@@ -34,6 +34,12 @@ server:
   port: ${CVECT_SERVER_PORT:8080}
 
 app:
+  security:
+    enabled: ${CVECT_SECURITY_ENABLED:true}
+    jwt:
+      secret: ${CVECT_JWT_SECRET:cvect-dev-secret-change-me}
+      ttl-seconds: ${CVECT_JWT_TTL_SECONDS:86400}
+
   sse:
     timeout-ms: ${CVECT_SSE_TIMEOUT_MS:600000}
 

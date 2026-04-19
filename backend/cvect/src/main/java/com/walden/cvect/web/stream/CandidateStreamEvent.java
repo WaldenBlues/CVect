@@ -9,6 +9,7 @@ import java.util.UUID;
  */
 public record CandidateStreamEvent(
         UUID candidateId,
+        UUID tenantId,
         UUID jdId,
         String status,
         String recruitmentStatus,

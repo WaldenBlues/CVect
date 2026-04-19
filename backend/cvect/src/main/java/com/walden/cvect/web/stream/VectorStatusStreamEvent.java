@@ -8,6 +8,7 @@ import java.util.UUID;
  */
 public record VectorStatusStreamEvent(
         UUID candidateId,
+        UUID tenantId,
         UUID jdId,
         String status,
         boolean noVectorChunk,

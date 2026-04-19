@@ -242,6 +242,7 @@ public class VectorIngestQueueWorkerService {
 
         streamService.publishVectorStatus(new VectorStatusStreamEvent(
                 snapshot.candidateId(),
+                snapshot.tenantId(),
                 snapshot.jdId(),
                 "VECTOR_DONE",
                 false,

@@ -1,8 +1,10 @@
 package com.walden.cvect.web.controller.job;
 
+import com.walden.cvect.model.TenantConstants;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.JobDescriptionJpaRepository;
+import com.walden.cvect.security.CurrentUserService;
 import com.walden.cvect.service.job.JobDescriptionApplicationService;
 import com.walden.cvect.web.controller.job.JobDescriptionController;
 import org.junit.jupiter.api.DisplayName;
@@ -33,22 +35,28 @@ class JobDescriptionControllerTest {
     private CandidateJpaRepository candidateRepository;
     @Mock
     private JobDescriptionApplicationService jobDescriptionApplicationService;
+    @Mock
+    private CurrentUserService currentUserService;
 
     @Test
     @DisplayName("list should return empty array when no JD exists")
     void listShouldReturnEmptyArrayWhenNoJdExists() {
-        when(jdRepository.findAll()).thenReturn(List.of());
+        when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(jdRepository.findByTenantIdOrderByCreatedAtDesc(TenantConstants.DEFAULT_TENANT_ID)).thenReturn(List.of());
 
         JobDescriptionController controller = new JobDescriptionController(
                 jdRepository,
                 candidateRepository,
-                jobDescriptionApplicationService);
+                jobDescriptionApplicationService,
+                currentUserService);
 
         ResponseEntity<List<JobDescriptionController.JobDescriptionSummary>> response = controller.list();
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertTrue(response.getBody().isEmpty());
-        verify(candidateRepository, never()).countGroupedByJobDescriptionIds(org.mockito.ArgumentMatchers.any());
+        verify(candidateRepository, never()).countGroupedByTenantIdAndJobDescriptionIds(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -60,7 +68,8 @@ class JobDescriptionControllerTest {
         JobDescriptionController controller = new JobDescriptionController(
                 jdRepository,
                 candidateRepository,
-                jobDescriptionApplicationService);
+                jobDescriptionApplicationService,
+                currentUserService);
 
         ResponseEntity<Void> response = controller.delete(jdId);
 

@@ -1,5 +1,6 @@
 package com.walden.cvect.model.entity;
 
+import com.walden.cvect.model.TenantConstants;
 import jakarta.persistence.*;
 import org.hibernate.annotations.Check;
 import java.time.LocalDateTime;
@@ -12,7 +13,10 @@ import java.util.UUID;
 @Entity
 @Table(
         name = "upload_batches",
-        indexes = @Index(name = "idx_upload_batches_jd_id", columnList = "jd_id")
+        indexes = {
+                @Index(name = "idx_upload_batches_jd_id", columnList = "jd_id"),
+                @Index(name = "idx_upload_batches_tenant_jd", columnList = "tenant_id,jd_id")
+        }
 )
 @Check(constraints = "status in ('PROCESSING','DONE')")
 public class UploadBatch {
@@ -20,6 +24,9 @@ public class UploadBatch {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @Column(name = "tenant_id", nullable = false)
+    private UUID tenantId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "jd_id", foreignKey = @ForeignKey(name = "fk_upload_batches_jd"))
@@ -45,6 +52,7 @@ public class UploadBatch {
     }
 
     public UploadBatch(JobDescription jobDescription, int totalFiles) {
+        this.tenantId = jobDescription == null ? TenantConstants.DEFAULT_TENANT_ID : jobDescription.getTenantId();
         this.jobDescription = jobDescription;
         this.totalFiles = totalFiles;
         this.processedFiles = 0;
@@ -54,6 +62,9 @@ public class UploadBatch {
     @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
+        if (this.tenantId == null) {
+            this.tenantId = jobDescription == null ? TenantConstants.DEFAULT_TENANT_ID : jobDescription.getTenantId();
+        }
         this.createdAt = now;
         this.updatedAt = now;
     }
@@ -65,6 +76,10 @@ public class UploadBatch {
 
     public UUID getId() {
         return id;
+    }
+
+    public UUID getTenantId() {
+        return tenantId;
     }
 
     public JobDescription getJobDescription() {

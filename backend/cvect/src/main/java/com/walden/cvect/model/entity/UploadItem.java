@@ -1,5 +1,6 @@
 package com.walden.cvect.model.entity;
 
+import com.walden.cvect.model.TenantConstants;
 import jakarta.persistence.*;
 import org.hibernate.annotations.Check;
 import java.time.LocalDateTime;
@@ -15,7 +16,8 @@ import java.util.UUID;
         uniqueConstraints = @UniqueConstraint(name = "uk_upload_items_queue_job_key", columnNames = "queue_job_key"),
         indexes = {
                 @Index(name = "idx_upload_items_batch_id", columnList = "batch_id"),
-                @Index(name = "idx_upload_items_status_updated_at", columnList = "status,updated_at")
+                @Index(name = "idx_upload_items_status_updated_at", columnList = "status,updated_at"),
+                @Index(name = "idx_upload_items_tenant_batch", columnList = "tenant_id,batch_id")
         }
 )
 @Check(constraints = "status in ('QUEUED','PROCESSING','DONE','DUPLICATE','FAILED')")
@@ -23,6 +25,9 @@ public class UploadItem {
 
     @Id
     private UUID id;
+
+    @Column(name = "tenant_id", nullable = false)
+    private UUID tenantId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "batch_id", foreignKey = @ForeignKey(name = "fk_upload_items_batch"))
@@ -64,6 +69,7 @@ public class UploadItem {
 
     public UploadItem(UploadBatch batch, String fileName) {
         this.id = UUID.randomUUID();
+        this.tenantId = batch == null ? TenantConstants.DEFAULT_TENANT_ID : batch.getTenantId();
         this.batch = batch;
         this.fileName = fileName;
         this.status = UploadItemStatus.QUEUED;
@@ -73,6 +79,9 @@ public class UploadItem {
     @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
+        if (this.tenantId == null) {
+            this.tenantId = batch == null ? TenantConstants.DEFAULT_TENANT_ID : batch.getTenantId();
+        }
         this.createdAt = now;
         this.updatedAt = now;
     }
@@ -84,6 +93,10 @@ public class UploadItem {
 
     public UUID getId() {
         return id;
+    }
+
+    public UUID getTenantId() {
+        return tenantId;
     }
 
     public UploadBatch getBatch() {

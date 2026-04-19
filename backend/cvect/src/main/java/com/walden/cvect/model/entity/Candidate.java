@@ -1,5 +1,6 @@
 package com.walden.cvect.model.entity;
 
+import com.walden.cvect.model.TenantConstants;
 import jakarta.persistence.*;
 import org.hibernate.annotations.Check;
 import java.time.LocalDateTime;
@@ -13,8 +14,13 @@ import java.util.UUID;
 @Entity
 @Table(
         name = "candidates",
-        uniqueConstraints = @UniqueConstraint(name = "uk_candidates_file_hash_jd", columnNames = { "file_hash", "jd_id" }),
-        indexes = @Index(name = "idx_candidates_jd_id", columnList = "jd_id")
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_candidates_tenant_file_hash_jd",
+                columnNames = { "tenant_id", "file_hash", "jd_id" }),
+        indexes = {
+                @Index(name = "idx_candidates_jd_id", columnList = "jd_id"),
+                @Index(name = "idx_candidates_tenant_jd_created", columnList = "tenant_id,jd_id,created_at")
+        }
 )
 @Check(constraints = "recruitment_status in ('TO_CONTACT','TO_INTERVIEW','REJECTED')")
 public class Candidate {
@@ -22,6 +28,9 @@ public class Candidate {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @Column(name = "tenant_id", nullable = false)
+    private UUID tenantId;
 
     @Column(name = "source_file_name", columnDefinition = "TEXT")
     private String sourceFileName;
@@ -66,6 +75,27 @@ public class Candidate {
             Long fileSizeBytes,
             Integer parsedCharCount,
             Boolean truncated) {
+        this(jobDescription == null ? TenantConstants.DEFAULT_TENANT_ID : jobDescription.getTenantId(),
+                sourceFileName,
+                fileHash,
+                name,
+                jobDescription,
+                contentType,
+                fileSizeBytes,
+                parsedCharCount,
+                truncated);
+    }
+
+    public Candidate(UUID tenantId,
+            String sourceFileName,
+            String fileHash,
+            String name,
+            JobDescription jobDescription,
+            String contentType,
+            Long fileSizeBytes,
+            Integer parsedCharCount,
+            Boolean truncated) {
+        this.tenantId = tenantId == null ? TenantConstants.DEFAULT_TENANT_ID : tenantId;
         this.sourceFileName = sourceFileName;
         this.fileHash = fileHash;
         this.name = name;
@@ -80,6 +110,9 @@ public class Candidate {
     @PrePersist
     void onCreate() {
         this.createdAt = LocalDateTime.now();
+        if (this.tenantId == null) {
+            this.tenantId = jobDescription == null ? TenantConstants.DEFAULT_TENANT_ID : jobDescription.getTenantId();
+        }
         if (this.recruitmentStatus == null) {
             this.recruitmentStatus = CandidateRecruitmentStatus.TO_CONTACT;
         }
@@ -87,6 +120,10 @@ public class Candidate {
 
     public UUID getId() {
         return id;
+    }
+
+    public UUID getTenantId() {
+        return tenantId;
     }
 
     public String getSourceFileName() {
@@ -139,6 +176,9 @@ public class Candidate {
 
     public void setJobDescription(JobDescription jobDescription) {
         this.jobDescription = jobDescription;
+        if (jobDescription != null) {
+            this.tenantId = jobDescription.getTenantId();
+        }
     }
 
     @Override

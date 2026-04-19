@@ -9,6 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -20,27 +21,28 @@ public class CandidateStreamService {
     private static final Logger log = LoggerFactory.getLogger(CandidateStreamService.class);
     private static final long DEFAULT_TIMEOUT_MS = 10 * 60 * 1000L;
 
-    private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
+    private final List<Subscription> subscriptions = new CopyOnWriteArrayList<>();
     private final long emitterTimeoutMs;
 
     public CandidateStreamService(@Value("${app.sse.timeout-ms:600000}") long emitterTimeoutMs) {
         this.emitterTimeoutMs = emitterTimeoutMs > 0 ? emitterTimeoutMs : DEFAULT_TIMEOUT_MS;
     }
 
-    public SseEmitter register() {
+    public SseEmitter register(UUID tenantId) {
         SseEmitter emitter = new SseEmitter(emitterTimeoutMs);
-        emitters.add(emitter);
+        Subscription subscription = new Subscription(tenantId, emitter);
+        subscriptions.add(subscription);
 
-        emitter.onCompletion(() -> emitters.remove(emitter));
-        emitter.onTimeout(() -> emitters.remove(emitter));
-        emitter.onError(e -> emitters.remove(emitter));
+        emitter.onCompletion(() -> subscriptions.remove(subscription));
+        emitter.onTimeout(() -> subscriptions.remove(subscription));
+        emitter.onError(e -> subscriptions.remove(subscription));
 
         try {
             emitter.send(SseEmitter.event()
                     .name("ping")
                     .data("ok"));
         } catch (IOException e) {
-            emitters.remove(emitter);
+            subscriptions.remove(subscription);
             emitter.completeWithError(e);
         }
 
@@ -66,7 +68,7 @@ public class CandidateStreamService {
     }
 
     public int activeEmitterCount() {
-        return emitters.size();
+        return subscriptions.size();
     }
 
     /**
@@ -74,23 +76,39 @@ public class CandidateStreamService {
      */
     @Scheduled(fixedRate = 20000)
     public void heartbeat() {
-        if (emitters.isEmpty()) {
+        if (subscriptions.isEmpty()) {
             return;
         }
         sendEvent("ping", "ok");
     }
 
     private void sendEvent(String name, Object data) {
-        for (SseEmitter emitter : emitters) {
+        for (Subscription subscription : subscriptions) {
+            if (!canReceive(subscription, data)) {
+                continue;
+            }
             try {
-                emitter.send(SseEmitter.event()
+                subscription.emitter().send(SseEmitter.event()
                         .name(name)
                         .data(data));
             } catch (IOException e) {
                 log.debug("Failed to send SSE event, removing emitter", e);
-                emitters.remove(emitter);
-                emitter.completeWithError(e);
+                subscriptions.remove(subscription);
+                subscription.emitter().completeWithError(e);
             }
         }
+    }
+
+    private boolean canReceive(Subscription subscription, Object data) {
+        if (data instanceof CandidateStreamEvent event) {
+            return event.tenantId() == null || event.tenantId().equals(subscription.tenantId());
+        }
+        if (data instanceof VectorStatusStreamEvent event) {
+            return event.tenantId() == null || event.tenantId().equals(subscription.tenantId());
+        }
+        return true;
+    }
+
+    private record Subscription(UUID tenantId, SseEmitter emitter) {
     }
 }

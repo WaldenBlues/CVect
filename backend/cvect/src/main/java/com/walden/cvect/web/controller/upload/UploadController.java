@@ -2,6 +2,7 @@ package com.walden.cvect.web.controller.upload;
 
 import com.walden.cvect.service.upload.UploadApplicationService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -20,6 +21,7 @@ public class UploadController {
     }
 
     @PostMapping("/resumes")
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).RESUME_UPLOAD)")
     public ResponseEntity<UploadApplicationService.BatchUploadResponse> uploadResumes(
             @RequestParam("jdId") String jdId,
             @RequestParam("files") MultipartFile[] files) throws IOException {
@@ -27,6 +29,7 @@ public class UploadController {
     }
 
     @PostMapping("/zip")
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).RESUME_UPLOAD)")
     public ResponseEntity<UploadApplicationService.ZipUploadResponse> uploadZip(
             @RequestParam("jdId") String jdId,
             @RequestParam("zipFile") MultipartFile zipFile) throws IOException {

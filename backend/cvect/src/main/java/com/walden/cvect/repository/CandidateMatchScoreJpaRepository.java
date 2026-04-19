@@ -15,17 +15,45 @@ public interface CandidateMatchScoreJpaRepository extends JpaRepository<Candidat
 
     Optional<CandidateMatchScore> findByCandidateIdAndJobDescriptionId(UUID candidateId, UUID jobDescriptionId);
 
+    Optional<CandidateMatchScore> findByTenantIdAndCandidateIdAndJobDescriptionId(
+            UUID tenantId,
+            UUID candidateId,
+            UUID jobDescriptionId);
+
     List<CandidateMatchScore> findByJobDescriptionIdAndCandidateIdIn(UUID jobDescriptionId, Collection<UUID> candidateIds);
+
+    List<CandidateMatchScore> findByTenantIdAndJobDescriptionIdAndCandidateIdIn(
+            UUID tenantId,
+            UUID jobDescriptionId,
+            Collection<UUID> candidateIds);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from CandidateMatchScore c where c.jobDescriptionId = :jobDescriptionId")
     int deleteByJobDescriptionId(@Param("jobDescriptionId") UUID jobDescriptionId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from CandidateMatchScore c where c.tenantId = :tenantId and c.jobDescriptionId = :jobDescriptionId")
+    int deleteByTenantIdAndJobDescriptionId(
+            @Param("tenantId") UUID tenantId,
+            @Param("jobDescriptionId") UUID jobDescriptionId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from CandidateMatchScore c where c.candidateId = :candidateId")
     int deleteByCandidateId(@Param("candidateId") UUID candidateId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from CandidateMatchScore c where c.tenantId = :tenantId and c.candidateId = :candidateId")
+    int deleteByTenantIdAndCandidateId(
+            @Param("tenantId") UUID tenantId,
+            @Param("candidateId") UUID candidateId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from CandidateMatchScore c where c.candidateId in :candidateIds")
     int deleteByCandidateIds(@Param("candidateIds") Collection<UUID> candidateIds);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from CandidateMatchScore c where c.tenantId = :tenantId and c.candidateId in :candidateIds")
+    int deleteByTenantIdAndCandidateIds(
+            @Param("tenantId") UUID tenantId,
+            @Param("candidateIds") Collection<UUID> candidateIds);
 }

@@ -13,7 +13,15 @@ public interface CandidateSnapshotJpaRepository extends JpaRepository<CandidateS
 
     List<CandidateSnapshot> findByJdIdOrderByCandidateCreatedAtDesc(UUID jdId);
 
+    List<CandidateSnapshot> findByTenantIdAndJdIdOrderByCandidateCreatedAtDesc(UUID tenantId, UUID jdId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from CandidateSnapshot s where s.jdId = :jobDescriptionId")
     int deleteByJdId(@Param("jobDescriptionId") UUID jobDescriptionId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from CandidateSnapshot s where s.tenantId = :tenantId and s.jdId = :jobDescriptionId")
+    int deleteByTenantIdAndJdId(
+            @Param("tenantId") UUID tenantId,
+            @Param("jobDescriptionId") UUID jobDescriptionId);
 }

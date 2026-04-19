@@ -8,6 +8,7 @@ import com.walden.cvect.model.entity.UploadItem;
 import com.walden.cvect.model.entity.UploadItemStatus;
 import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
+import com.walden.cvect.security.CurrentUserService;
 import com.walden.cvect.service.upload.queue.UploadQueueJobKeyGenerator;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -36,25 +37,31 @@ public class UploadBatchService {
     private final UploadBatchJpaRepository batchRepository;
     private final UploadItemJpaRepository itemRepository;
     private final MeterRegistry meterRegistry;
+    private final CurrentUserService currentUserService;
 
     public UploadBatchService(UploadBatchJpaRepository batchRepository,
             UploadItemJpaRepository itemRepository,
-            ObjectProvider<MeterRegistry> meterRegistryProvider) {
+            ObjectProvider<MeterRegistry> meterRegistryProvider,
+            CurrentUserService currentUserService) {
         this.batchRepository = batchRepository;
         this.itemRepository = itemRepository;
         this.meterRegistry = meterRegistryProvider.getIfAvailable();
+        this.currentUserService = currentUserService;
     }
 
     @AppLog(action = "get_upload_batch_overview")
     @Transactional(readOnly = true)
     public Optional<BatchOverview> getBatchOverview(UUID batchId) {
-        UploadBatch batch = batchRepository.findById(batchId).orElse(null);
+        UUID tenantId = currentUserService.currentTenantId();
+        UploadBatch batch = batchRepository.findByIdAndTenantId(batchId, tenantId).orElse(null);
         if (batch == null) {
             return Optional.empty();
         }
 
         Map<UploadItemStatus, Long> countsByStatus = new EnumMap<>(UploadItemStatus.class);
-        for (UploadItemJpaRepository.UploadItemStatusCount count : itemRepository.countGroupedByStatus(batchId)) {
+        for (UploadItemJpaRepository.UploadItemStatusCount count : itemRepository.countGroupedByTenantIdAndStatus(
+                tenantId,
+                batchId)) {
             countsByStatus.put(count.getStatus(), count.getCount());
         }
 
@@ -65,7 +72,10 @@ public class UploadBatchService {
         long processing = get(countsByStatus, UploadItemStatus.PROCESSING);
         long pending = get(countsByStatus, UploadItemStatus.QUEUED);
 
-        String lastError = itemRepository.findFirstByBatch_IdAndStatusOrderByUpdatedAtDesc(batchId, UploadItemStatus.FAILED)
+        String lastError = itemRepository.findFirstByTenantIdAndBatch_IdAndStatusOrderByUpdatedAtDesc(
+                        tenantId,
+                        batchId,
+                        UploadItemStatus.FAILED)
                 .map(UploadItem::getErrorMessage)
                 .orElse(null);
 
@@ -84,19 +94,20 @@ public class UploadBatchService {
     @AppLog(action = "list_upload_batch_items")
     @Transactional(readOnly = true)
     public Optional<Page<UploadItemView>> getBatchItems(UUID batchId, String status, Pageable pageable) {
-        if (!batchRepository.existsById(batchId)) {
+        UUID tenantId = currentUserService.currentTenantId();
+        if (!batchRepository.existsByIdAndTenantId(batchId, tenantId)) {
             return Optional.empty();
         }
         Page<UploadItem> page;
         if (status == null || status.isBlank()) {
-            page = itemRepository.findByBatch_Id(batchId, pageable);
+            page = itemRepository.findByTenantIdAndBatch_Id(tenantId, batchId, pageable);
         } else {
             recordLegacyStatusUsage(status);
             UploadItemStatus parsedStatus = UploadItemStatus.parseOrNull(status);
             if (parsedStatus == null) {
                 return Optional.of(Page.empty(pageable));
             }
-            page = itemRepository.findByBatch_IdAndStatus(batchId, parsedStatus, pageable);
+            page = itemRepository.findByTenantIdAndBatch_IdAndStatus(tenantId, batchId, parsedStatus, pageable);
         }
         return Optional.of(page.map(item -> new UploadItemView(
                 item.getId(),
@@ -113,13 +124,17 @@ public class UploadBatchService {
     @AuditAction(action = "retry_failed_upload_items", target = "upload_batch", logResult = true)
     @Transactional
     public Optional<RetryFailedResult> retryFailed(UUID batchId) {
-        UploadBatch batch = batchRepository.findById(batchId).orElse(null);
+        UUID tenantId = currentUserService.currentTenantId();
+        UploadBatch batch = batchRepository.findByIdAndTenantId(batchId, tenantId).orElse(null);
         if (batch == null) {
             return Optional.empty();
         }
 
         int retriedCount = 0;
-        for (UUID itemId : itemRepository.findRetryableFailedItemIds(batchId, UploadItemStatus.FAILED)) {
+        for (UUID itemId : itemRepository.findRetryableFailedItemIdsByTenantId(
+                tenantId,
+                batchId,
+                UploadItemStatus.FAILED)) {
             String jobKey = UploadQueueJobKeyGenerator.nextKey(itemId);
             retriedCount += itemRepository.markFailedAsQueuedById(
                     itemId,

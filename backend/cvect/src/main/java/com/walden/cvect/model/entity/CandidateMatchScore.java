@@ -1,5 +1,6 @@
 package com.walden.cvect.model.entity;
 
+import com.walden.cvect.model.TenantConstants;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
@@ -10,17 +11,21 @@ import java.util.UUID;
 @Table(
         name = "candidate_match_scores",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_candidate_match_scores_candidate_jd",
-                columnNames = {"candidate_id", "jd_id"}),
+                name = "uk_candidate_match_scores_tenant_candidate_jd",
+                columnNames = {"tenant_id", "candidate_id", "jd_id"}),
         indexes = {
                 @Index(name = "idx_candidate_match_scores_candidate_id", columnList = "candidate_id"),
-                @Index(name = "idx_candidate_match_scores_jd_id", columnList = "jd_id")
+                @Index(name = "idx_candidate_match_scores_jd_id", columnList = "jd_id"),
+                @Index(name = "idx_candidate_match_scores_tenant_jd", columnList = "tenant_id,jd_id")
         })
 public class CandidateMatchScore {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    @Column(name = "tenant_id", nullable = false)
+    private UUID tenantId;
 
     @Column(name = "candidate_id", nullable = false)
     private UUID candidateId;
@@ -68,6 +73,24 @@ public class CandidateMatchScore {
             float experienceScore,
             float skillScore,
             LocalDateTime scoredAt) {
+        this(TenantConstants.DEFAULT_TENANT_ID,
+                candidateId,
+                jobDescriptionId,
+                overallScore,
+                experienceScore,
+                skillScore,
+                scoredAt);
+    }
+
+    public CandidateMatchScore(
+            UUID tenantId,
+            UUID candidateId,
+            UUID jobDescriptionId,
+            float overallScore,
+            float experienceScore,
+            float skillScore,
+            LocalDateTime scoredAt) {
+        this.tenantId = tenantId == null ? TenantConstants.DEFAULT_TENANT_ID : tenantId;
         this.candidateId = candidateId;
         this.jobDescriptionId = jobDescriptionId;
         this.overallScore = overallScore;
@@ -78,6 +101,10 @@ public class CandidateMatchScore {
 
     public UUID getId() {
         return id;
+    }
+
+    public UUID getTenantId() {
+        return tenantId;
     }
 
     public UUID getCandidateId() {

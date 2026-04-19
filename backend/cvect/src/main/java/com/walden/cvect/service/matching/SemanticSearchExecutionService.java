@@ -4,7 +4,9 @@ import com.walden.cvect.infra.vector.VectorStoreService;
 import com.walden.cvect.logging.aop.TimedAction;
 import com.walden.cvect.model.ChunkType;
 import com.walden.cvect.model.entity.vector.VectorIngestTaskStatus;
+import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
+import com.walden.cvect.security.CurrentUserService;
 import com.walden.cvect.web.controller.search.SearchController;
 import org.springframework.stereotype.Service;
 
@@ -26,14 +28,20 @@ public class SemanticSearchExecutionService {
     private final VectorStoreService vectorStore;
     private final SearchQueryEmbeddingCacheService queryEmbeddingCache;
     private final VectorIngestTaskJpaRepository vectorIngestTaskRepository;
+    private final CandidateJpaRepository candidateRepository;
+    private final CurrentUserService currentUserService;
 
     public SemanticSearchExecutionService(
             VectorStoreService vectorStore,
             SearchQueryEmbeddingCacheService queryEmbeddingCache,
-            VectorIngestTaskJpaRepository vectorIngestTaskRepository) {
+            VectorIngestTaskJpaRepository vectorIngestTaskRepository,
+            CandidateJpaRepository candidateRepository,
+            CurrentUserService currentUserService) {
         this.vectorStore = vectorStore;
         this.queryEmbeddingCache = queryEmbeddingCache;
         this.vectorIngestTaskRepository = vectorIngestTaskRepository;
+        this.candidateRepository = candidateRepository;
+        this.currentUserService = currentUserService;
     }
 
     @TimedAction(
@@ -44,9 +52,13 @@ public class SemanticSearchExecutionService {
         float[] queryEmbedding = queryEmbeddingCache.get(request.jobDescription());
         ChunkType[] types = resolveChunkTypes(request);
         SearchWeightNormalizer.Weights weightConfig = SearchWeightNormalizer.resolve(request);
+        List<UUID> tenantCandidateIds = candidateRepository.findIdsByTenantId(currentUserService.currentTenantId());
+        if (tenantCandidateIds.isEmpty()) {
+            return new SearchController.SearchResponse(0, request.topK(), List.of());
+        }
 
         int chunkTopK = resolveChunkTopK(request.topK());
-        List<VectorStoreService.SearchResult> results = vectorStore.search(queryEmbedding, chunkTopK, types);
+        List<VectorStoreService.SearchResult> results = vectorStore.search(queryEmbedding, chunkTopK, tenantCandidateIds, types);
 
         List<SearchController.CandidateMatch> sortedCandidates = aggregateAndSort(results, weightConfig);
         if (request.onlyVectorReadyCandidates()) {

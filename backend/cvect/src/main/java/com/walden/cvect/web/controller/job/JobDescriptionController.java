@@ -3,10 +3,13 @@ package com.walden.cvect.web.controller.job;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.JobDescriptionJpaRepository;
+import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.PermissionCodes;
 import com.walden.cvect.service.job.JobDescriptionApplicationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,22 +27,28 @@ public class JobDescriptionController {
     private final JobDescriptionJpaRepository jdRepository;
     private final CandidateJpaRepository candidateRepository;
     private final JobDescriptionApplicationService jobDescriptionApplicationService;
+    private final CurrentUserService currentUserService;
 
     public JobDescriptionController(JobDescriptionJpaRepository jdRepository,
             CandidateJpaRepository candidateRepository,
-            JobDescriptionApplicationService jobDescriptionApplicationService) {
+            JobDescriptionApplicationService jobDescriptionApplicationService,
+            CurrentUserService currentUserService) {
         this.jdRepository = jdRepository;
         this.candidateRepository = candidateRepository;
         this.jobDescriptionApplicationService = jobDescriptionApplicationService;
+        this.currentUserService = currentUserService;
     }
 
     @GetMapping
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).JD_READ)")
     public ResponseEntity<List<JobDescriptionSummary>> list() {
-        List<JobDescription> jds = jdRepository.findAll();
+        UUID tenantId = currentUserService.currentTenantId();
+        List<JobDescription> jds = jdRepository.findByTenantIdOrderByCreatedAtDesc(tenantId);
         if (jds.isEmpty()) {
             return ResponseEntity.ok(List.of());
         }
-        Map<UUID, Long> countsByJdId = candidateRepository.countGroupedByJobDescriptionIds(
+        Map<UUID, Long> countsByJdId = candidateRepository.countGroupedByTenantIdAndJobDescriptionIds(
+                        tenantId,
                         jds.stream().map(JobDescription::getId).toList())
                 .stream()
                 .collect(Collectors.toMap(
@@ -53,19 +62,23 @@ public class JobDescriptionController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).JD_READ)")
     public ResponseEntity<JobDescriptionSummary> detail(@PathVariable UUID id) {
-        return jdRepository.findById(id)
+        UUID tenantId = currentUserService.currentTenantId();
+        return jdRepository.findByIdAndTenantId(id, tenantId)
                 .map(jd -> ResponseEntity.ok(toSummary(jd)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).JD_WRITE)")
     public ResponseEntity<JobDescriptionSummary> create(@Valid @RequestBody JobDescriptionRequest request) {
         JobDescription saved = jobDescriptionApplicationService.create(request.title(), request.content());
         return ResponseEntity.ok(toSummary(saved));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).JD_WRITE)")
     public ResponseEntity<JobDescriptionSummary> update(
             @PathVariable UUID id,
             @Valid @RequestBody JobDescriptionRequest request) {
@@ -75,6 +88,7 @@ public class JobDescriptionController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).JD_DELETE)")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         return jobDescriptionApplicationService.delete(id)
                 ? ResponseEntity.noContent().build()
@@ -82,7 +96,9 @@ public class JobDescriptionController {
     }
 
     private JobDescriptionSummary toSummary(JobDescription jd) {
-        return toSummary(jd, candidateRepository.countByJobDescriptionId(jd.getId()));
+        return toSummary(jd, candidateRepository.countByTenantIdAndJobDescriptionId(
+                currentUserService.currentTenantId(),
+                jd.getId()));
     }
 
     private JobDescriptionSummary toSummary(JobDescription jd, long candidateCount) {

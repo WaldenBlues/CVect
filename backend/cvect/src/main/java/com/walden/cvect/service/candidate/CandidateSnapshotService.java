@@ -64,10 +64,18 @@ public class CandidateSnapshotService {
 
     @Transactional(readOnly = true)
     public List<CandidateStreamEvent> listByJd(UUID jdId) {
+        return listByTenantAndJd(null, jdId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CandidateStreamEvent> listByTenantAndJd(UUID tenantId, UUID jdId) {
         if (jdId == null) {
             return List.of();
         }
-        return snapshotRepository.findByJdIdOrderByCandidateCreatedAtDesc(jdId).stream()
+        var snapshots = tenantId == null
+                ? snapshotRepository.findByJdIdOrderByCandidateCreatedAtDesc(jdId)
+                : snapshotRepository.findByTenantIdAndJdIdOrderByCandidateCreatedAtDesc(tenantId, jdId);
+        return snapshots.stream()
                 .map(snapshot -> toEvent(snapshot, DEFAULT_EVENT_STATUS))
                 .toList();
     }
@@ -115,6 +123,7 @@ public class CandidateSnapshotService {
 
         CandidateStreamEvent event = new CandidateStreamEvent(
                 candidate.getId(),
+                candidate.getTenantId(),
                 candidate.getJobDescription() == null ? null : candidate.getJobDescription().getId(),
                 status,
                 candidate.getRecruitmentStatus() == null
@@ -142,7 +151,8 @@ public class CandidateSnapshotService {
             return;
         }
         CandidateSnapshot snapshot = snapshotRepository.findById(event.candidateId())
-                .orElseGet(() -> new CandidateSnapshot(event.candidateId()));
+                .orElseGet(() -> new CandidateSnapshot(event.tenantId(), event.candidateId()));
+        snapshot.setTenantId(event.tenantId());
         snapshot.setJdId(event.jdId());
         snapshot.setRecruitmentStatus(event.recruitmentStatus());
         snapshot.setName(event.name());
@@ -163,6 +173,7 @@ public class CandidateSnapshotService {
     private CandidateStreamEvent toEvent(CandidateSnapshot snapshot, String status) {
         return new CandidateStreamEvent(
                 snapshot.getCandidateId(),
+                snapshot.getTenantId(),
                 snapshot.getJdId(),
                 status,
                 snapshot.getRecruitmentStatus(),

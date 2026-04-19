@@ -1,11 +1,14 @@
 package com.walden.cvect.web.controller.upload;
 
+import com.walden.cvect.repository.UploadBatchJpaRepository;
+import com.walden.cvect.security.CurrentUserService;
 import com.walden.cvect.web.sse.BatchStreamService;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,19 +28,31 @@ public class BatchSseController {
 
     private final BatchStreamService batchStreamService;
     private final MeterRegistry meterRegistry;
+    private final UploadBatchJpaRepository batchRepository;
+    private final CurrentUserService currentUserService;
 
     public BatchSseController(BatchStreamService batchStreamService,
-            ObjectProvider<MeterRegistry> meterRegistryProvider) {
+            ObjectProvider<MeterRegistry> meterRegistryProvider,
+            UploadBatchJpaRepository batchRepository,
+            CurrentUserService currentUserService) {
         this.batchStreamService = batchStreamService;
         this.meterRegistry = meterRegistryProvider.getIfAvailable();
+        this.batchRepository = batchRepository;
+        this.currentUserService = currentUserService;
     }
 
     @GetMapping({
             "/api/sse/batches/{batchId}",
             "/api/uploads/batches/{batchId}/stream"
     })
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).RESUME_UPLOAD)")
     public SseEmitter stream(@PathVariable UUID batchId, HttpServletRequest request) {
         recordLegacyPathUsage(request);
+        if (!batchRepository.existsByIdAndTenantId(batchId, currentUserService.currentTenantId())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.NOT_FOUND,
+                    "Batch not found");
+        }
         return batchStreamService.subscribe(batchId);
     }
 

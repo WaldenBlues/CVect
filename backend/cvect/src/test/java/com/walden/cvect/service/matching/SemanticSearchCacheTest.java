@@ -7,7 +7,10 @@ import com.walden.cvect.infra.vector.VectorStoreService;
 import com.walden.cvect.logging.aop.TimedActionAspect;
 import com.walden.cvect.logging.config.LogProperties;
 import com.walden.cvect.model.ChunkType;
+import com.walden.cvect.model.TenantConstants;
+import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
+import com.walden.cvect.security.CurrentUserService;
 import com.walden.cvect.service.matching.SearchQueryEmbeddingCacheService;
 import com.walden.cvect.service.matching.SemanticSearchExecutionService;
 import com.walden.cvect.service.matching.SemanticSearchService;
@@ -34,6 +37,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -58,6 +62,12 @@ class SemanticSearchCacheTest {
     private VectorStoreService vectorStoreService;
 
     @Autowired
+    private CandidateJpaRepository candidateRepository;
+
+    @Autowired
+    private CurrentUserService currentUserService;
+
+    @Autowired
     private CacheManager cacheManager;
 
     @Autowired
@@ -71,15 +81,17 @@ class SemanticSearchCacheTest {
 
     @BeforeEach
     void setUp() {
-        reset(embeddingService, vectorStoreService);
+        reset(embeddingService, vectorStoreService, candidateRepository, currentUserService);
         cacheManager.getCacheNames().forEach(name -> {
             if (cacheManager.getCache(name) != null) {
                 cacheManager.getCache(name).clear();
             }
         });
         float[] embedding = new float[1024];
+        when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(candidateRepository.findIdsByTenantId(TenantConstants.DEFAULT_TENANT_ID)).thenReturn(List.of(UUID.randomUUID()));
         when(embeddingService.embed("same jd")).thenReturn(embedding);
-        when(vectorStoreService.search(any(float[].class), eq(40), any(ChunkType[].class))).thenReturn(List.of(
+        when(vectorStoreService.search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class))).thenReturn(List.of(
                 new VectorStoreService.SearchResult(
                         UUID.randomUUID(),
                         UUID.randomUUID(),
@@ -106,7 +118,7 @@ class SemanticSearchCacheTest {
         searchController.search(request);
 
         verify(embeddingService, times(1)).embed("same jd");
-        verify(vectorStoreService, times(1)).search(any(float[].class), eq(40), any(ChunkType[].class));
+        verify(vectorStoreService, times(1)).search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class));
         assertEquals(initialRequestCount + 2.0d, timerCount("cvect.search.request"), 0.0001d);
         assertEquals(initialComputeCount + 1.0d, timerCount("cvect.search.compute"), 0.0001d);
         assertEquals(0.5d, meterRegistry.get("cvect.cache.hit.rate")
@@ -139,7 +151,7 @@ class SemanticSearchCacheTest {
         searchController.search(second);
 
         verify(embeddingService, times(1)).embed("same jd");
-        verify(vectorStoreService, times(2)).search(any(float[].class), eq(40), any(ChunkType[].class));
+        verify(vectorStoreService, times(2)).search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class));
         assertEquals(0.5d, meterRegistry.get("cvect.cache.hit.rate")
                 .tag("cache", CacheConfig.SEARCH_QUERY_EMBEDDING_CACHE)
                 .gauge()
@@ -179,7 +191,7 @@ class SemanticSearchCacheTest {
         searchController.search(second);
 
         verify(embeddingService, times(1)).embed("same jd");
-        verify(vectorStoreService, times(1)).search(any(float[].class), eq(40), any(ChunkType[].class));
+        verify(vectorStoreService, times(1)).search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class));
         assertEquals(0.5d, meterRegistry.get("cvect.cache.hit.rate")
                 .tag("cache", CacheConfig.SEARCH_RESPONSE_CACHE)
                 .gauge()
@@ -243,6 +255,16 @@ class SemanticSearchCacheTest {
         }
 
         @Bean
+        CandidateJpaRepository candidateJpaRepository() {
+            return mock(CandidateJpaRepository.class);
+        }
+
+        @Bean
+        CurrentUserService currentUserService() {
+            return mock(CurrentUserService.class);
+        }
+
+        @Bean
         SearchQueryEmbeddingCacheService searchQueryEmbeddingCacheService(EmbeddingService embeddingService) {
             return new SearchQueryEmbeddingCacheService(embeddingService);
         }
@@ -251,11 +273,15 @@ class SemanticSearchCacheTest {
         SemanticSearchExecutionService semanticSearchExecutionService(
                 VectorStoreService vectorStoreService,
                 SearchQueryEmbeddingCacheService searchQueryEmbeddingCacheService,
-                VectorIngestTaskJpaRepository vectorIngestTaskJpaRepository) {
+                VectorIngestTaskJpaRepository vectorIngestTaskJpaRepository,
+                CandidateJpaRepository candidateJpaRepository,
+                CurrentUserService currentUserService) {
             return new SemanticSearchExecutionService(
                     vectorStoreService,
                     searchQueryEmbeddingCacheService,
-                    vectorIngestTaskJpaRepository);
+                    vectorIngestTaskJpaRepository,
+                    candidateJpaRepository,
+                    currentUserService);
         }
 
         @Bean

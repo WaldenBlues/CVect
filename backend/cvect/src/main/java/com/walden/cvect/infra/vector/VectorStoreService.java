@@ -110,6 +110,14 @@ public class VectorStoreService {
      * @return 按相似度排序的搜索结果
      */
     public List<SearchResult> search(float[] queryEmbedding, int topK, ChunkType... chunkTypes) {
+        return search(queryEmbedding, topK, null, chunkTypes);
+    }
+
+    public List<SearchResult> search(
+            float[] queryEmbedding,
+            int topK,
+            Collection<UUID> candidateIds,
+            ChunkType... chunkTypes) {
         if (!config.isEnabled()) {
             throw new IllegalStateException("Vector store is disabled");
         }
@@ -127,6 +135,16 @@ public class VectorStoreService {
         sql.append(normalizedEmbeddingExpression()).append(" <=> ?::").append(queryVectorType).append(" AS distance ");
         sql.append("FROM ").append(tableName).append(" ");
         sql.append("WHERE embedding IS NOT NULL ");
+
+        List<Object> args = new ArrayList<>();
+        args.add(vectorToString(queryEmbedding));
+
+        if (candidateIds != null && !candidateIds.isEmpty()) {
+            sql.append("AND candidate_id IN (");
+            appendPlaceholders(sql, candidateIds.size());
+            sql.append(") ");
+            args.addAll(candidateIds);
+        }
 
         // 类型过滤 - 使用验证后的枚举值拼接，确保安全
         if (chunkTypes != null && chunkTypes.length > 0) {
@@ -147,12 +165,11 @@ public class VectorStoreService {
         sql.append("LIMIT ?");
 
         String sqlString = sql.toString();
-        String vectorString = vectorToString(queryEmbedding);
+        args.add(topK);
 
         List<Map<String, Object>> results = jdbcTemplate.queryForList(
                 sqlString,
-                vectorString,
-                topK);
+                args.toArray());
 
         List<SearchResult> searchResults = new ArrayList<>();
         for (Map<String, Object> row : results) {

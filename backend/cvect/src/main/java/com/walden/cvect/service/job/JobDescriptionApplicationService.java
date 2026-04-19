@@ -14,6 +14,7 @@ import com.walden.cvect.repository.LinkJpaRepository;
 import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
 import com.walden.cvect.infra.vector.VectorStoreService;
+import com.walden.cvect.security.CurrentUserService;
 import com.walden.cvect.service.matching.PersistedMatchScoreService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,7 @@ public class JobDescriptionApplicationService {
     private final UploadItemJpaRepository itemRepository;
     private final VectorStoreService vectorStoreService;
     private final PersistedMatchScoreService persistedMatchScoreService;
+    private final CurrentUserService currentUserService;
 
     public JobDescriptionApplicationService(
             JobDescriptionJpaRepository jdRepository,
@@ -50,7 +52,8 @@ public class JobDescriptionApplicationService {
             UploadBatchJpaRepository batchRepository,
             UploadItemJpaRepository itemRepository,
             VectorStoreService vectorStoreService,
-            PersistedMatchScoreService persistedMatchScoreService) {
+            PersistedMatchScoreService persistedMatchScoreService,
+            CurrentUserService currentUserService) {
         this.jdRepository = jdRepository;
         this.candidateRepository = candidateRepository;
         this.snapshotRepository = snapshotRepository;
@@ -63,12 +66,14 @@ public class JobDescriptionApplicationService {
         this.itemRepository = itemRepository;
         this.vectorStoreService = vectorStoreService;
         this.persistedMatchScoreService = persistedMatchScoreService;
+        this.currentUserService = currentUserService;
     }
 
     @AppLog(action = "create_job_description")
     @AuditAction(action = "create_job_description", target = "job_description")
     public JobDescription create(String title, String content) {
-        JobDescription saved = jdRepository.save(new JobDescription(title, content));
+        UUID tenantId = currentUserService.currentTenantId();
+        JobDescription saved = jdRepository.save(new JobDescription(tenantId, title, content));
         persistedMatchScoreService.markJobDescriptionDirty(saved.getId());
         persistedMatchScoreService.scheduleRefreshForJobDescription(saved.getId());
         return saved;
@@ -77,7 +82,8 @@ public class JobDescriptionApplicationService {
     @AppLog(action = "update_job_description")
     @AuditAction(action = "update_job_description", target = "job_description", logResult = true)
     public Optional<JobDescription> update(UUID id, String title, String content) {
-        return jdRepository.findById(id)
+        UUID tenantId = currentUserService.currentTenantId();
+        return jdRepository.findByIdAndTenantId(id, tenantId)
                 .map(jd -> {
                     jd.setTitle(title);
                     jd.setContent(content);
@@ -92,23 +98,24 @@ public class JobDescriptionApplicationService {
     @AuditAction(action = "delete_job_description", target = "job_description", logResult = true)
     @Transactional
     public boolean delete(UUID id) {
-        JobDescription jd = jdRepository.findById(id).orElse(null);
+        UUID tenantId = currentUserService.currentTenantId();
+        JobDescription jd = jdRepository.findByIdAndTenantId(id, tenantId).orElse(null);
         if (jd == null) {
             return false;
         }
-        List<UUID> candidateIds = candidateRepository.findIdsByJobDescriptionId(id);
+        List<UUID> candidateIds = candidateRepository.findIdsByTenantIdAndJobDescriptionId(tenantId, id);
         persistedMatchScoreService.deleteByJobDescriptionId(id);
         persistedMatchScoreService.deleteByCandidateIds(candidateIds);
         vectorStoreService.deleteByJobDescription(id);
-        snapshotRepository.deleteByJdId(id);
+        snapshotRepository.deleteByTenantIdAndJdId(tenantId, id);
         contactRepository.deleteByJobDescriptionId(id);
         linkRepository.deleteByJobDescriptionId(id);
         honorRepository.deleteByJobDescriptionId(id);
         educationRepository.deleteByJobDescriptionId(id);
         experienceRepository.deleteByJobDescriptionId(id);
-        candidateRepository.deleteByJobDescriptionId(id);
-        itemRepository.deleteByJobDescriptionId(id);
-        batchRepository.deleteByJobDescriptionId(id);
+        candidateRepository.deleteByTenantIdAndJobDescriptionId(tenantId, id);
+        itemRepository.deleteByTenantIdAndJobDescriptionId(tenantId, id);
+        batchRepository.deleteByTenantIdAndJobDescriptionId(tenantId, id);
         jdRepository.delete(jd);
         return true;
     }

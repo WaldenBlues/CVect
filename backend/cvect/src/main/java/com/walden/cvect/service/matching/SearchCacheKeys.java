@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
+import java.util.UUID;
 
 public final class SearchCacheKeys {
 
@@ -17,11 +18,16 @@ public final class SearchCacheKeys {
     }
 
     public static String searchRequest(SearchController.SearchRequest request) {
+        return searchRequest(request, null);
+    }
+
+    public static String searchRequest(SearchController.SearchRequest request, UUID tenantId) {
         if (request == null) {
-            return "search:null";
+            return "search:%s:null".formatted(tenantId);
         }
         SearchWeightNormalizer.Weights weights = SearchWeightNormalizer.resolve(request);
-        return "search:%s:%d:%s:%s:%s:%s:%s".formatted(
+        return "search:%s:%s:%d:%s:%s:%s:%s:%s".formatted(
+                tenantId == null ? "default" : tenantId,
                 sha256(normalizeText(request.jobDescription())),
                 request.topK(),
                 request.filterByExperience(),

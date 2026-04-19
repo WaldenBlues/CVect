@@ -68,7 +68,7 @@ public class RequestTraceFilter extends OncePerRequestFilter {
 
         request.setAttribute(WebLogConstants.REQUEST_ID_ATTRIBUTE, requestId);
         response.setHeader(properties.getRequestIdHeader(), requestId);
-        putRequestContext(requestId, requestMethod, requestPath);
+        putRequestContext(requestId, requestMethod, requestPath, resolveClientIp(request));
 
         if (properties.isLogRequestStart()) {
             log.info(formatter.format("http_request_start", requestStartFields(request)));
@@ -162,16 +162,18 @@ public class RequestTraceFilter extends OncePerRequestFilter {
         return Math.max(0L, (System.nanoTime() - startNanos) / 1_000_000L);
     }
 
-    private void putRequestContext(String requestId, String method, String path) {
+    private void putRequestContext(String requestId, String method, String path, String clientIp) {
         MDC.put("requestId", requestId);
         MDC.put("httpMethod", method);
         MDC.put("requestPath", path);
+        MDC.put("clientIp", clientIp);
     }
 
     private void clearRequestContext() {
         MDC.remove("requestId");
         MDC.remove("httpMethod");
         MDC.remove("requestPath");
+        MDC.remove("clientIp");
     }
 
     private void rethrow(Throwable throwable) throws ServletException, IOException {

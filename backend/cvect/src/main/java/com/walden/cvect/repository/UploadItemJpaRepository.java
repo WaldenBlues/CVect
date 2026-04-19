@@ -19,7 +19,11 @@ public interface UploadItemJpaRepository extends JpaRepository<UploadItem, UUID>
 
     Page<UploadItem> findByBatch_Id(UUID batchId, Pageable pageable);
 
+    Page<UploadItem> findByTenantIdAndBatch_Id(UUID tenantId, UUID batchId, Pageable pageable);
+
     Page<UploadItem> findByBatch_IdAndStatus(UUID batchId, UploadItemStatus status, Pageable pageable);
+
+    Page<UploadItem> findByTenantIdAndBatch_IdAndStatus(UUID tenantId, UUID batchId, UploadItemStatus status, Pageable pageable);
 
     List<UploadItem> findTop20ByStatusAndStoragePathIsNotNullOrderByUpdatedAtAsc(UploadItemStatus status);
 
@@ -42,7 +46,24 @@ public interface UploadItemJpaRepository extends JpaRepository<UploadItem, UUID>
             """, nativeQuery = true)
     int deleteByJobDescriptionId(@Param("jobDescriptionId") UUID jobDescriptionId);
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM upload_items
+            WHERE tenant_id = :tenantId
+              AND batch_id IN (
+                SELECT id FROM upload_batches WHERE tenant_id = :tenantId AND jd_id = :jobDescriptionId
+              )
+            """, nativeQuery = true)
+    int deleteByTenantIdAndJobDescriptionId(
+            @Param("tenantId") UUID tenantId,
+            @Param("jobDescriptionId") UUID jobDescriptionId);
+
     Optional<UploadItem> findFirstByBatch_IdAndStatusOrderByUpdatedAtDesc(UUID batchId, UploadItemStatus status);
+
+    Optional<UploadItem> findFirstByTenantIdAndBatch_IdAndStatusOrderByUpdatedAtDesc(
+            UUID tenantId,
+            UUID batchId,
+            UploadItemStatus status);
 
     long countByBatch_Id(UUID batchId);
 
@@ -59,6 +80,17 @@ public interface UploadItemJpaRepository extends JpaRepository<UploadItem, UUID>
     List<UploadItemStatusCount> countGroupedByStatus(@Param("batchId") UUID batchId);
 
     @Query("""
+            select i.status as status, count(i) as count
+            from UploadItem i
+            where i.tenantId = :tenantId
+              and i.batch.id = :batchId
+            group by i.status
+            """)
+    List<UploadItemStatusCount> countGroupedByTenantIdAndStatus(
+            @Param("tenantId") UUID tenantId,
+            @Param("batchId") UUID batchId);
+
+    @Query("""
             select i.id
             from UploadItem i
             where i.batch.id = :batchId
@@ -66,6 +98,19 @@ public interface UploadItemJpaRepository extends JpaRepository<UploadItem, UUID>
               and i.storagePath is not null
             """)
     List<UUID> findRetryableFailedItemIds(@Param("batchId") UUID batchId, @Param("failedStatus") UploadItemStatus failedStatus);
+
+    @Query("""
+            select i.id
+            from UploadItem i
+            where i.tenantId = :tenantId
+              and i.batch.id = :batchId
+              and i.status = :failedStatus
+              and i.storagePath is not null
+            """)
+    List<UUID> findRetryableFailedItemIdsByTenantId(
+            @Param("tenantId") UUID tenantId,
+            @Param("batchId") UUID batchId,
+            @Param("failedStatus") UploadItemStatus failedStatus);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

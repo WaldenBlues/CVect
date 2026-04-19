@@ -9,6 +9,7 @@ import com.walden.cvect.repository.CandidateMatchScoreJpaRepository;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.ResumeChunkVectorJpaRepository;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
+import com.walden.cvect.security.CurrentUserService;
 import com.walden.cvect.service.candidate.CandidateSnapshotService;
 import com.walden.cvect.service.matching.PersistedMatchScoreService;
 import com.walden.cvect.web.stream.CandidateStreamEvent;
@@ -17,6 +18,7 @@ import jakarta.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -41,25 +43,32 @@ public class CandidateController {
     private final ResumeChunkVectorJpaRepository resumeChunkVectorRepository;
     private final VectorIngestTaskJpaRepository vectorIngestTaskRepository;
     private final PersistedMatchScoreService persistedMatchScoreService;
+    private final CurrentUserService currentUserService;
 
     public CandidateController(CandidateJpaRepository candidateRepository,
             CandidateMatchScoreJpaRepository candidateMatchScoreRepository,
             CandidateSnapshotService snapshotService,
             ResumeChunkVectorJpaRepository resumeChunkVectorRepository,
             VectorIngestTaskJpaRepository vectorIngestTaskRepository,
-            PersistedMatchScoreService persistedMatchScoreService) {
+            PersistedMatchScoreService persistedMatchScoreService,
+            CurrentUserService currentUserService) {
         this.candidateRepository = candidateRepository;
         this.candidateMatchScoreRepository = candidateMatchScoreRepository;
         this.snapshotService = snapshotService;
         this.resumeChunkVectorRepository = resumeChunkVectorRepository;
         this.vectorIngestTaskRepository = vectorIngestTaskRepository;
         this.persistedMatchScoreService = persistedMatchScoreService;
+        this.currentUserService = currentUserService;
     }
 
     @GetMapping
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).CANDIDATE_READ)")
     public ResponseEntity<List<CandidateListItem>> listByJd(@RequestParam("jdId") UUID jdId) {
-        List<Candidate> candidates = candidateRepository.findByJobDescriptionIdOrderByCreatedAtDesc(jdId);
-        List<CandidateStreamEvent> snapshotEvents = snapshotService.listByJd(jdId);
+        UUID tenantId = currentUserService.currentTenantId();
+        List<Candidate> candidates = candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
+                tenantId,
+                jdId);
+        List<CandidateStreamEvent> snapshotEvents = snapshotService.listByTenantAndJd(tenantId, jdId);
         Map<UUID, CandidateStreamEvent> byCandidateId = new HashMap<>();
         for (CandidateStreamEvent event : snapshotEvents) {
             byCandidateId.put(event.candidateId(), event);
@@ -70,7 +79,10 @@ public class CandidateController {
                 .collect(java.util.stream.Collectors.toSet());
         Map<UUID, CandidateMatchScore> scoreByCandidateId = candidateIds.isEmpty()
                 ? Map.of()
-                : candidateMatchScoreRepository.findByJobDescriptionIdAndCandidateIdIn(jdId, candidateIds).stream()
+                : candidateMatchScoreRepository.findByTenantIdAndJobDescriptionIdAndCandidateIdIn(
+                                tenantId,
+                                jdId,
+                                candidateIds).stream()
                         .collect(java.util.stream.Collectors.toMap(
                                 CandidateMatchScore::getCandidateId,
                                 score -> score,
@@ -154,11 +166,13 @@ public class CandidateController {
     }
 
     @PatchMapping("/{id}/recruitment-status")
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).CANDIDATE_UPDATE_STATUS)")
     @AuditAction(action = "update_candidate_recruitment_status", target = "candidate", logResult = true)
     public ResponseEntity<CandidateStreamEvent> updateRecruitmentStatus(
             @PathVariable("id") UUID id,
             @Valid @RequestBody UpdateRecruitmentStatusRequest request) {
-        Candidate candidate = candidateRepository.findById(id).orElse(null);
+        UUID tenantId = currentUserService.currentTenantId();
+        Candidate candidate = candidateRepository.findByIdAndTenantId(id, tenantId).orElse(null);
         if (candidate == null) {
             return ResponseEntity.notFound().build();
         }
@@ -185,6 +199,7 @@ public class CandidateController {
         }
         return new CandidateStreamEvent(
                 candidate.getId(),
+                candidate.getTenantId(),
                 candidate.getJobDescription() == null ? null : candidate.getJobDescription().getId(),
                 "UPDATED",
                 candidate.getRecruitmentStatus() == null

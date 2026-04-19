@@ -13,7 +13,15 @@ public interface UploadBatchJpaRepository extends JpaRepository<UploadBatch, UUI
 
     long countByJobDescriptionId(UUID jobDescriptionId);
 
+    long countByTenantIdAndJobDescriptionId(UUID tenantId, UUID jobDescriptionId);
+
+    boolean existsByIdAndTenantId(UUID id, UUID tenantId);
+
+    java.util.Optional<UploadBatch> findByIdAndTenantId(UUID id, UUID tenantId);
+
     long deleteByJobDescriptionId(UUID jobDescriptionId);
+
+    long deleteByTenantIdAndJobDescriptionId(UUID tenantId, UUID jobDescriptionId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional

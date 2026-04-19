@@ -19,14 +19,32 @@ import java.util.Collection;
 public interface CandidateJpaRepository extends JpaRepository<Candidate, UUID> {
     Optional<Candidate> findByFileHashAndJobDescriptionId(String fileHash, UUID jobDescriptionId);
 
+    Optional<Candidate> findByTenantIdAndFileHashAndJobDescriptionId(UUID tenantId, String fileHash, UUID jobDescriptionId);
+
     Optional<Candidate> findByFileHashAndJobDescriptionIsNull(String fileHash);
+
+    Optional<Candidate> findByTenantIdAndFileHashAndJobDescriptionIsNull(UUID tenantId, String fileHash);
 
     long countByJobDescriptionId(UUID jobDescriptionId);
 
+    long countByTenantIdAndJobDescriptionId(UUID tenantId, UUID jobDescriptionId);
+
     List<Candidate> findByJobDescriptionIdOrderByCreatedAtDesc(UUID jobDescriptionId);
+
+    List<Candidate> findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(UUID tenantId, UUID jobDescriptionId);
+
+    Optional<Candidate> findByIdAndTenantId(UUID id, UUID tenantId);
 
     @Query("select c.id from Candidate c where c.jobDescription.id = :jobDescriptionId")
     List<UUID> findIdsByJobDescriptionId(@Param("jobDescriptionId") UUID jobDescriptionId);
+
+    @Query("select c.id from Candidate c where c.tenantId = :tenantId")
+    List<UUID> findIdsByTenantId(@Param("tenantId") UUID tenantId);
+
+    @Query("select c.id from Candidate c where c.tenantId = :tenantId and c.jobDescription.id = :jobDescriptionId")
+    List<UUID> findIdsByTenantIdAndJobDescriptionId(
+            @Param("tenantId") UUID tenantId,
+            @Param("jobDescriptionId") UUID jobDescriptionId);
 
     @Query("""
             select c.jobDescription.id as jdId, count(c) as count
@@ -37,9 +55,26 @@ public interface CandidateJpaRepository extends JpaRepository<Candidate, UUID> {
     List<JobDescriptionCandidateCount> countGroupedByJobDescriptionIds(
             @Param("jobDescriptionIds") Collection<UUID> jobDescriptionIds);
 
+    @Query("""
+            select c.jobDescription.id as jdId, count(c) as count
+            from Candidate c
+            where c.tenantId = :tenantId
+              and c.jobDescription.id in :jobDescriptionIds
+            group by c.jobDescription.id
+            """)
+    List<JobDescriptionCandidateCount> countGroupedByTenantIdAndJobDescriptionIds(
+            @Param("tenantId") UUID tenantId,
+            @Param("jobDescriptionIds") Collection<UUID> jobDescriptionIds);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from Candidate c where c.jobDescription.id = :jobDescriptionId")
     int deleteByJobDescriptionId(@Param("jobDescriptionId") UUID jobDescriptionId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from Candidate c where c.tenantId = :tenantId and c.jobDescription.id = :jobDescriptionId")
+    int deleteByTenantIdAndJobDescriptionId(
+            @Param("tenantId") UUID tenantId,
+            @Param("jobDescriptionId") UUID jobDescriptionId);
 
     interface JobDescriptionCandidateCount {
         UUID getJdId();

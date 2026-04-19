@@ -3,6 +3,7 @@ package com.walden.cvect.service.upload;
 import com.walden.cvect.exception.InvalidUploadRequestException;
 import com.walden.cvect.exception.UploadQueueBusyException;
 import com.walden.cvect.logging.aop.AppLog;
+import com.walden.cvect.logging.aop.AuditAction;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.model.entity.UploadBatch;
 import com.walden.cvect.model.entity.UploadBatchStatus;
@@ -11,6 +12,7 @@ import com.walden.cvect.model.entity.UploadItemStatus;
 import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
+import com.walden.cvect.security.CurrentUserService;
 import com.walden.cvect.service.upload.queue.UploadQueueJobKeyGenerator;
 import com.walden.cvect.web.sse.BatchStreamEvent;
 import com.walden.cvect.web.sse.BatchStreamService;
@@ -53,6 +55,7 @@ public class UploadApplicationService {
     private final UploadBatchJpaRepository batchRepository;
     private final UploadItemJpaRepository itemRepository;
     private final BatchStreamService batchStreamService;
+    private final CurrentUserService currentUserService;
     private final Path storageDir;
     private final int maxInflightItems;
     private final int maxFilesPerZip;
@@ -64,6 +67,7 @@ public class UploadApplicationService {
             UploadBatchJpaRepository batchRepository,
             UploadItemJpaRepository itemRepository,
             BatchStreamService batchStreamService,
+            CurrentUserService currentUserService,
             @Value("${app.upload.storage-dir:storage}") String storageDir,
             @Value("${app.upload.max-inflight-items:2000}") int maxInflightItems,
             @Value("${app.upload.max-files-per-zip:2000}") int maxFilesPerZip) {
@@ -71,6 +75,7 @@ public class UploadApplicationService {
         this.batchRepository = batchRepository;
         this.itemRepository = itemRepository;
         this.batchStreamService = batchStreamService;
+        this.currentUserService = currentUserService;
         this.storageDir = resolveStorageDir(storageDir);
         this.maxInflightItems = Math.max(1, maxInflightItems);
         this.maxFilesPerZip = Math.max(1, maxFilesPerZip);
@@ -86,6 +91,7 @@ public class UploadApplicationService {
     }
 
     @AppLog(action = "upload_resumes", slowThresholdMs = 1000L)
+    @AuditAction(action = "upload_resumes", target = "upload_batch", logResult = true)
     public BatchUploadResponse uploadResumes(String jdId, MultipartFile[] files) throws IOException {
         JobDescription jd = resolveRequiredJobDescription(jdId);
         if (files == null || files.length == 0) {
@@ -109,6 +115,7 @@ public class UploadApplicationService {
     }
 
     @AppLog(action = "upload_zip", slowThresholdMs = 1500L)
+    @AuditAction(action = "upload_zip", target = "upload_batch", logResult = true)
     public ZipUploadResponse uploadZip(String jdId, MultipartFile zipFile) throws IOException {
         JobDescription jd = resolveRequiredJobDescription(jdId);
         if (zipFile == null || zipFile.isEmpty()) {
@@ -182,7 +189,9 @@ public class UploadApplicationService {
         }
         try {
             UUID id = UUID.fromString(jdId);
-            JobDescription jd = jobDescriptionRepository.findById(id).orElse(null);
+            JobDescription jd = jobDescriptionRepository.findByIdAndTenantId(
+                    id,
+                    currentUserService.currentTenantId()).orElse(null);
             if (jd == null) {
                 throw new InvalidUploadRequestException("jdId is invalid");
             }
