@@ -270,10 +270,10 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
 
         // Then
         Assumptions.assumeTrue(status == HttpStatus.OK,
-                "跳过：当前数据库不支持 HNSW 索引，状态码=" + status);
+                "跳过：当前数据库不支持配置的向量索引，状态码=" + status);
         assertEquals(HttpStatus.OK, status);
         assertNotNull(body);
-        assertTrue(body.contains("HNSW"));
+        assertTrue(body.contains(vectorStore.getResolvedIndexType().toUpperCase()));
     }
 
     @Test

@@ -210,6 +210,11 @@ class SemanticSearchServiceTest {
                 .collect(Collectors.toMap(SearchController.CandidateMatch::candidateId, SearchController.CandidateMatch::score));
         assertEquals(0.8f, scoreByCandidate.get(candidateA), 0.0001f);
         assertEquals(0.2f, scoreByCandidate.get(candidateB), 0.0001f);
+        verify(vectorStore).search(
+                any(float[].class),
+                eq(40),
+                anyCollection(),
+                org.mockito.ArgumentMatchers.<ChunkType[]>isNull());
     }
 
     @Test

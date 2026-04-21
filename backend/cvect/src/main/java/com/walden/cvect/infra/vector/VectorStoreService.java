@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
  *
  * 功能:
  * 1. 保存向量化后的 chunk 到 pgvector
- * 2. 基于向量相似度的候选人检索 (HNSW 索引)
+ * 2. 基于向量相似度的候选人检索 (可配置向量索引)
  * 3. 批量操作优化
  */
 @Service
@@ -62,6 +62,9 @@ public class VectorStoreService {
      */
     @Transactional
     public boolean save(UUID candidateId, ChunkType chunkType, String content) {
+        if (content == null) {
+            throw new IllegalArgumentException("content must not be null");
+        }
         if (!config.isEnabled()) {
             log.info("Vector store disabled, skipping save for candidateId={}, chunkType={}", candidateId, chunkType);
             return false;
@@ -69,9 +72,6 @@ public class VectorStoreService {
         if (!vectorAvailable) {
             logVectorUnavailableOnce("save");
             return false;
-        }
-        if (content == null) {
-            throw new IllegalArgumentException("content must not be null");
         }
         boolean permitAcquired = false;
         try {
@@ -105,7 +105,7 @@ public class VectorStoreService {
     }
 
     /**
-     * 相似度搜索 - 基于余弦相似度的 HNSW 检索
+     * 相似度搜索 - 基于 pgvector 的向量检索
      *
      * @param queryEmbedding 查询向量
      * @param topK           返回前 K 个结果
@@ -227,15 +227,25 @@ public class VectorStoreService {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql.toString(), args.toArray());
         Map<UUID, MutableCandidateScoreBreakdown> rawScores = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
-            UUID candidateId = (UUID) row.get("candidate_id");
-            if (candidateId == null) {
+            Object rawCandidateId = row.get("candidate_id");
+            if (!(rawCandidateId instanceof UUID candidateId)) {
+                log.warn("Skip invalid vector score row with invalid candidate_id: {}", rawCandidateId);
                 continue;
             }
             ChunkType chunkType = parseChunkType(row.get("chunk_type"));
             if (chunkType == null) {
                 continue;
             }
-            float score = ((Number) row.get("score")).floatValue();
+            Object rawScore = row.get("score");
+            if (!(rawScore instanceof Number scoreValue)) {
+                log.warn("Skip invalid vector score row with non-numeric score: {}", rawScore);
+                continue;
+            }
+            float score = scoreValue.floatValue();
+            if (!Float.isFinite(score)) {
+                log.warn("Skip invalid vector score row with non-finite score: {}", rawScore);
+                continue;
+            }
             MutableCandidateScoreBreakdown current = rawScores.computeIfAbsent(
                     candidateId,
                     ignored -> new MutableCandidateScoreBreakdown());
@@ -307,15 +317,15 @@ public class VectorStoreService {
     }
 
     /**
-     * 创建 HNSW 索引 (首次运行或数据大量变化后调用)
+     * 创建配置的向量索引 (首次运行或数据大量变化后调用)
      */
     @Transactional
-    public void createHnswIndex() {
+    public void createVectorIndex() {
         if (!config.isEnabled()) {
             return;
         }
         if (!vectorAvailable) {
-            logVectorUnavailableOnce("createHnswIndex");
+            logVectorUnavailableOnce("createVectorIndex");
             return;
         }
         String indexName = "idx_" + tableName + "_embedding";
@@ -381,6 +391,10 @@ public class VectorStoreService {
         return config.isEnabled() && vectorAvailable;
     }
 
+    public String getResolvedIndexType() {
+        return resolveIndexType(config.getIndexType());
+    }
+
     public String getAvailabilityMessage() {
         if (!config.isEnabled()) {
             return "Vector store disabled by configuration";
@@ -400,7 +414,10 @@ public class VectorStoreService {
         }
 
         String indexName = "idx_" + tableName + "_embedding";
-        String expectedVectorType = "vector(" + positiveDimension() + ")";
+        int expectedDimension = positiveDimension();
+        String expectedIndexType = getResolvedIndexType();
+        String expectedVectorType = "vector(" + expectedDimension + ")";
+        String expectedOpClass = resolveVectorOpClass(config.getMetric());
         try {
             String indexDef = jdbcTemplate.query(
                     "SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() AND tablename = ? AND indexname = ?",
@@ -410,13 +427,16 @@ public class VectorStoreService {
             if (indexDef == null) {
                 return;
             }
-            if (indexDef.toLowerCase(Locale.ROOT).contains(expectedVectorType)) {
+            String normalizedIndexDef = indexDef.toLowerCase(Locale.ROOT);
+            if (normalizedIndexDef.contains("using " + expectedIndexType)
+                    && normalizedIndexDef.contains(expectedOpClass)
+                    && normalizedIndexDef.contains(expectedVectorType)) {
                 return;
             }
-            log.warn("Detected incompatible vector index '{}': {}. Rebuilding with {}.",
-                    indexName, indexDef, expectedVectorType);
+            log.warn("Detected incompatible vector index '{}': {}. Rebuilding with type={}, opclass={}, dimension={}.",
+                    indexName, indexDef, expectedIndexType, expectedOpClass, expectedDimension);
             jdbcTemplate.execute("DROP INDEX IF EXISTS " + indexName);
-            createHnswIndex();
+            createVectorIndex();
         } catch (Exception e) {
             log.warn("Failed to verify/rebuild vector index compatibility: {}", e.getMessage());
         }

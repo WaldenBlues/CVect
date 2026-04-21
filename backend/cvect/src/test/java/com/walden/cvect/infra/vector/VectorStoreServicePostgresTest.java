@@ -175,11 +175,11 @@ class VectorStoreServicePostgresTest {
     }
 
     @Test
-    @DisplayName("应能创建 HNSW 索引")
-    void should_create_hnsw_index() {
+    @DisplayName("应能创建向量索引")
+    void should_create_vector_index() {
         // When & Then
         Assertions.assertDoesNotThrow(() -> {
-            vectorStore.createHnswIndex();
+            vectorStore.createVectorIndex();
         });
     }
 

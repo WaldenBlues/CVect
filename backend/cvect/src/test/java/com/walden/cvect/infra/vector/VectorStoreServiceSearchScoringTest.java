@@ -17,6 +17,8 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @DisplayName("VectorStoreService search scoring regression tests")
@@ -134,8 +136,94 @@ class VectorStoreServiceSearchScoringTest {
     }
 
     @Test
-    @DisplayName("scoreCandidates should keep the best score per chunk type and skip invalid rows")
+    @DisplayName("scoreCandidates should keep the best score per chunk type for each candidate and skip invalid rows")
     void scoreCandidatesShouldKeepBestScoresAndSkipInvalidRows() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        EntityManager entityManager = mock(EntityManager.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+
+        VectorStoreConfig config = new VectorStoreConfig();
+        config.setEnabled(true);
+        config.setDimension(3);
+        config.setTableName("resume_chunks");
+
+        when(jdbcTemplate.queryForObject(anyString(), any(Class.class))).thenReturn(true);
+        UUID candidateId = UUID.randomUUID();
+        UUID otherCandidateId = UUID.randomUUID();
+        when(jdbcTemplate.queryForList(anyString(), anyString())).thenReturn(List.of(
+                Map.of(
+                        "candidate_id", candidateId,
+                        "chunk_type", ChunkType.EXPERIENCE.name(),
+                        "score", 0.35f),
+                Map.of(
+                        "candidate_id", otherCandidateId,
+                        "chunk_type", ChunkType.EXPERIENCE.name(),
+                        "score", 0.6f),
+                Map.of(
+                        "candidate_id", candidateId,
+                        "chunk_type", ChunkType.EXPERIENCE.name(),
+                        "score", 0.9f),
+                Map.of(
+                        "candidate_id", otherCandidateId,
+                        "chunk_type", ChunkType.SKILL.name(),
+                        "score", 0.4d),
+                Map.of(
+                        "candidate_id", "not-a-uuid",
+                        "chunk_type", ChunkType.EXPERIENCE.name(),
+                        "score", 0.7f),
+                Map.of(
+                        "candidate_id", UUID.randomUUID(),
+                        "chunk_type", "UNKNOWN",
+                        "score", 1.0f)));
+
+        VectorStoreService service = new VectorStoreService(jdbcTemplate, entityManager, embeddingService, config);
+        Map<UUID, VectorStoreService.CandidateScoreBreakdown> scores =
+                service.scoreCandidates(new float[] {0.1f, 0.2f, 0.3f}, List.of());
+
+        assertEquals(2, scores.size());
+        assertEquals(0.9f, scores.get(candidateId).experienceScore(), 0.0001f);
+        assertEquals(0.0f, scores.get(candidateId).skillScore(), 0.0001f);
+        assertEquals(0.6f, scores.get(otherCandidateId).experienceScore(), 0.0001f);
+        assertEquals(0.4f, scores.get(otherCandidateId).skillScore(), 0.0001f);
+    }
+
+    @Test
+    @DisplayName("scoreCandidates should skip rows with missing score values")
+    void scoreCandidatesShouldSkipRowsWithMissingScoreValues() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        EntityManager entityManager = mock(EntityManager.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+
+        VectorStoreConfig config = new VectorStoreConfig();
+        config.setEnabled(true);
+        config.setDimension(3);
+        config.setTableName("resume_chunks");
+
+        when(jdbcTemplate.queryForObject(anyString(), any(Class.class))).thenReturn(true);
+        UUID candidateId = UUID.randomUUID();
+        Map<String, Object> invalidRow = new java.util.HashMap<>();
+        invalidRow.put("candidate_id", candidateId);
+        invalidRow.put("chunk_type", ChunkType.SKILL.name());
+        invalidRow.put("score", null);
+        when(jdbcTemplate.queryForList(anyString(), anyString())).thenReturn(List.of(
+                Map.of(
+                        "candidate_id", candidateId,
+                        "chunk_type", ChunkType.EXPERIENCE.name(),
+                        "score", 0.8f),
+                invalidRow));
+
+        VectorStoreService service = new VectorStoreService(jdbcTemplate, entityManager, embeddingService, config);
+        Map<UUID, VectorStoreService.CandidateScoreBreakdown> scores =
+                service.scoreCandidates(new float[] {0.1f, 0.2f, 0.3f}, List.of());
+
+        assertEquals(1, scores.size());
+        assertEquals(0.8f, scores.get(candidateId).experienceScore(), 0.0001f);
+        assertEquals(0.0f, scores.get(candidateId).skillScore(), 0.0001f);
+    }
+
+    @Test
+    @DisplayName("scoreCandidates should skip rows with non-finite score values")
+    void scoreCandidatesShouldSkipRowsWithNonFiniteScoreValues() {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
         EntityManager entityManager = mock(EntityManager.class);
         EmbeddingService embeddingService = mock(EmbeddingService.class);
@@ -151,29 +239,19 @@ class VectorStoreServiceSearchScoringTest {
                 Map.of(
                         "candidate_id", candidateId,
                         "chunk_type", ChunkType.EXPERIENCE.name(),
-                        "score", 0.35f),
-                Map.of(
-                        "candidate_id", candidateId,
-                        "chunk_type", ChunkType.EXPERIENCE.name(),
-                        "score", 0.9f),
+                        "score", 0.8f),
                 Map.of(
                         "candidate_id", candidateId,
                         "chunk_type", ChunkType.SKILL.name(),
-                        "score", 0.4d),
-                Map.of(
-                        "candidate_id", UUID.randomUUID(),
-                        "chunk_type", "UNKNOWN",
-                        "score", 1.0f)));
+                        "score", Double.POSITIVE_INFINITY)));
 
         VectorStoreService service = new VectorStoreService(jdbcTemplate, entityManager, embeddingService, config);
         Map<UUID, VectorStoreService.CandidateScoreBreakdown> scores =
                 service.scoreCandidates(new float[] {0.1f, 0.2f, 0.3f}, List.of());
 
         assertEquals(1, scores.size());
-        assertEquals(candidateId, scores.keySet().iterator().next());
-        VectorStoreService.CandidateScoreBreakdown breakdown = scores.values().iterator().next();
-        assertEquals(0.9f, breakdown.experienceScore(), 0.0001f);
-        assertEquals(0.4f, breakdown.skillScore(), 0.0001f);
+        assertEquals(0.8f, scores.get(candidateId).experienceScore(), 0.0001f);
+        assertEquals(0.0f, scores.get(candidateId).skillScore(), 0.0001f);
     }
 
     @Test
@@ -188,11 +266,37 @@ class VectorStoreServiceSearchScoringTest {
         config.setDimension(3);
         config.setTableName("resume_chunks");
 
-        when(jdbcTemplate.queryForObject(anyString(), any(Class.class))).thenReturn(true);
+        when(jdbcTemplate.queryForObject(anyString(), any(Class.class))).thenReturn(false);
 
         VectorStoreService service = new VectorStoreService(jdbcTemplate, entityManager, embeddingService, config);
 
-        assertThrows(IllegalArgumentException.class,
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.save(UUID.randomUUID(), ChunkType.EXPERIENCE, null));
+        assertEquals("content must not be null", exception.getMessage());
+        verify(embeddingService, never()).embed(anyString());
+        verify(entityManager, never()).persist(any());
+    }
+
+    @Test
+    @DisplayName("save should reject embedding dimension mismatch before persisting")
+    void saveShouldRejectEmbeddingDimensionMismatch() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        EntityManager entityManager = mock(EntityManager.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+
+        VectorStoreConfig config = new VectorStoreConfig();
+        config.setEnabled(true);
+        config.setDimension(3);
+        config.setTableName("resume_chunks");
+
+        when(jdbcTemplate.queryForObject(anyString(), any(Class.class))).thenReturn(true);
+        when(embeddingService.embed(anyString())).thenReturn(new float[] {0.1f, 0.2f});
+
+        VectorStoreService service = new VectorStoreService(jdbcTemplate, entityManager, embeddingService, config);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.save(UUID.randomUUID(), ChunkType.EXPERIENCE, "backend java"));
+        assertEquals("embedding dimension mismatch: expected=3, actual=2", exception.getMessage());
+        verify(entityManager, never()).persist(any());
     }
 }

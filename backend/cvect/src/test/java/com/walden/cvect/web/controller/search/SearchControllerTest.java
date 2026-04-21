@@ -66,4 +66,16 @@ class SearchControllerTest {
         assertEquals(expected, response.getBody());
         verify(semanticSearchService).search(request);
     }
+
+    @Test
+    @DisplayName("admin create-index should report the configured index type")
+    void shouldReportConfiguredIndexTypeWhenCreatingIndex() {
+        when(vectorStore.getResolvedIndexType()).thenReturn("ivfflat");
+
+        ResponseEntity<String> response = controller.createIndex();
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("IVFFLAT index created successfully", response.getBody());
+        verify(vectorStore).createVectorIndex();
+    }
 }

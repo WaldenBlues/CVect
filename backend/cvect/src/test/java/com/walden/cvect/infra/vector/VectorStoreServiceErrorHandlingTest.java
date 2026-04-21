@@ -111,15 +111,15 @@ class VectorStoreServiceErrorHandlingTest {
     }
 
     @Test
-    @DisplayName("创建 HNSW 索引时数据库错误应抛出异常")
+    @DisplayName("创建向量索引时数据库错误应受控")
     void should_throw_exception_on_database_error_during_index_creation() {
-        // Given: 使用 H2 内存数据库，可能不支持 pgvector 的 HNSW 索引
+        // Given: 使用 H2 内存数据库，可能不支持 pgvector 的向量索引
         
         // When & Then
-        // 在 H2 上创建 HNSW 索引应该失败（因为 H2 不支持 pgvector 扩展）
+        // 在 H2 上创建向量索引可能失败（因为 H2 不支持 pgvector 扩展）
         // 我们验证方法调用不导致崩溃
         try {
-            vectorStore.createHnswIndex();
+            vectorStore.createVectorIndex();
         } catch (Exception e) {
             // 预期可能抛出异常，因为 H2 不支持 pgvector
             // 这是可接受的

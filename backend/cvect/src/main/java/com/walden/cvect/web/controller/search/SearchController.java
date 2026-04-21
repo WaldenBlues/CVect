@@ -10,6 +10,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -48,13 +49,14 @@ public class SearchController {
     }
 
     /**
-     * 创建 HNSW 索引 (管理接口)
+     * 创建配置的向量索引 (管理接口)
      */
     @PostMapping("/admin/create-index")
     @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).SYSTEM_ADMIN)")
     public ResponseEntity<String> createIndex() {
-        vectorStore.createHnswIndex();
-        return ResponseEntity.ok("HNSW index created successfully");
+        vectorStore.createVectorIndex();
+        String indexType = vectorStore.getResolvedIndexType();
+        return ResponseEntity.ok(indexType.toUpperCase(Locale.ROOT) + " index created successfully");
     }
 
     // 请求/响应 DTOs

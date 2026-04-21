@@ -197,13 +197,13 @@ class VectorStoreServiceIntegrationTest extends PostgresIntegrationTestBase {
     }
 
     @Test
-    @DisplayName("HNSW 索引应能成功创建（Docker 模式）")
-    void should_create_hnsw_index() throws Exception {
+    @DisplayName("向量索引应能成功创建（Docker 模式）")
+    void should_create_vector_index() throws Exception {
         Assumptions.assumeTrue(vectorStore != null,
             "跳过：需要 PostgreSQL + pgvector");
 
         try {
-            vectorStore.createHnswIndex();
+            vectorStore.createVectorIndex();
         } catch (Exception e) {
             String message = e.getMessage() == null ? "" : e.getMessage();
             Assumptions.assumeTrue(
