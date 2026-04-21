@@ -134,6 +134,49 @@ class VectorStoreServiceSearchScoringTest {
     }
 
     @Test
+    @DisplayName("scoreCandidates should keep the best score per chunk type and skip invalid rows")
+    void scoreCandidatesShouldKeepBestScoresAndSkipInvalidRows() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        EntityManager entityManager = mock(EntityManager.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+
+        VectorStoreConfig config = new VectorStoreConfig();
+        config.setEnabled(true);
+        config.setDimension(3);
+        config.setTableName("resume_chunks");
+
+        when(jdbcTemplate.queryForObject(anyString(), any(Class.class))).thenReturn(true);
+        UUID candidateId = UUID.randomUUID();
+        when(jdbcTemplate.queryForList(anyString(), anyString())).thenReturn(List.of(
+                Map.of(
+                        "candidate_id", candidateId,
+                        "chunk_type", ChunkType.EXPERIENCE.name(),
+                        "score", 0.35f),
+                Map.of(
+                        "candidate_id", candidateId,
+                        "chunk_type", ChunkType.EXPERIENCE.name(),
+                        "score", 0.9f),
+                Map.of(
+                        "candidate_id", candidateId,
+                        "chunk_type", ChunkType.SKILL.name(),
+                        "score", 0.4d),
+                Map.of(
+                        "candidate_id", UUID.randomUUID(),
+                        "chunk_type", "UNKNOWN",
+                        "score", 1.0f)));
+
+        VectorStoreService service = new VectorStoreService(jdbcTemplate, entityManager, embeddingService, config);
+        Map<UUID, VectorStoreService.CandidateScoreBreakdown> scores =
+                service.scoreCandidates(new float[] {0.1f, 0.2f, 0.3f}, List.of());
+
+        assertEquals(1, scores.size());
+        assertEquals(candidateId, scores.keySet().iterator().next());
+        VectorStoreService.CandidateScoreBreakdown breakdown = scores.values().iterator().next();
+        assertEquals(0.9f, breakdown.experienceScore(), 0.0001f);
+        assertEquals(0.4f, breakdown.skillScore(), 0.0001f);
+    }
+
+    @Test
     @DisplayName("save should reject null content with a validation error")
     void saveShouldRejectNullContent() {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
