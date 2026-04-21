@@ -70,6 +70,9 @@ public class VectorStoreService {
             logVectorUnavailableOnce("save");
             return false;
         }
+        if (content == null) {
+            throw new IllegalArgumentException("content must not be null");
+        }
         boolean permitAcquired = false;
         try {
             permitAcquired = writeSemaphore.tryAcquire(writeAcquireTimeoutMs, TimeUnit.MILLISECONDS);
@@ -317,19 +320,31 @@ public class VectorStoreService {
         }
         String indexName = "idx_" + tableName + "_embedding";
         jdbcTemplate.execute("DROP INDEX IF EXISTS " + indexName);
+        String indexType = resolveIndexType(config.getIndexType());
         String opClass = resolveVectorOpClass(config.getMetric());
-        String sql = String.format(
-                "CREATE INDEX %s " +
-                        "ON %s USING hnsw ((%s) %s) " +
-                        "WITH (m = %d, ef_construction = %d)",
-                indexName,
-                tableName,
-                normalizedEmbeddingExpression(),
-                opClass,
-                config.getM(),
-                config.getEfConstruction());
+        String sql;
+        if ("hnsw".equals(indexType)) {
+            sql = String.format(
+                    "CREATE INDEX %s " +
+                            "ON %s USING hnsw ((%s) %s) " +
+                            "WITH (m = %d, ef_construction = %d)",
+                    indexName,
+                    tableName,
+                    normalizedEmbeddingExpression(),
+                    opClass,
+                    config.getM(),
+                    config.getEfConstruction());
+        } else {
+            sql = String.format(
+                    "CREATE INDEX %s " +
+                            "ON %s USING ivfflat ((%s) %s)",
+                    indexName,
+                    tableName,
+                    normalizedEmbeddingExpression(),
+                    opClass);
+        }
         jdbcTemplate.execute(sql);
-        log.info("Created HNSW index on {}.embedding with dimension={}", tableName, positiveDimension());
+        log.info("Created {} index on {}.embedding with dimension={}", indexType.toUpperCase(Locale.ROOT), tableName, positiveDimension());
     }
 
     private boolean initializeVectorSupport() {
@@ -421,6 +436,17 @@ public class VectorStoreService {
             case "ip", "inner_product" -> "vector_ip_ops";
             case "cosine" -> "vector_cosine_ops";
             default -> throw new IllegalArgumentException("Unsupported vector metric: " + metric);
+        };
+    }
+
+    private static String resolveIndexType(String indexType) {
+        if (indexType == null) {
+            return "hnsw";
+        }
+        return switch (indexType.toLowerCase(Locale.ROOT)) {
+            case "hnsw" -> "hnsw";
+            case "ivfflat" -> "ivfflat";
+            default -> throw new IllegalArgumentException("Unsupported vector index type: " + indexType);
         };
     }
 

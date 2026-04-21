@@ -8,6 +8,10 @@ final class SearchWeightNormalizer {
     }
 
     static Weights resolve(SearchController.SearchRequest request) {
+        if (!request.filterByExperience() && !request.filterBySkill()) {
+            return new Weights(0.5f, 0.5f);
+        }
+
         boolean includeExperience = request.filterByExperience() || !request.filterBySkill();
         boolean includeSkill = request.filterBySkill() || !request.filterByExperience();
 

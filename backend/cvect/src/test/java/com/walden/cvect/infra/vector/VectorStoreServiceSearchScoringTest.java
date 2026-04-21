@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.any;
@@ -130,5 +131,25 @@ class VectorStoreServiceSearchScoringTest {
 
         assertEquals(1, results.size());
         assertEquals(ChunkType.EXPERIENCE, results.get(0).chunkType());
+    }
+
+    @Test
+    @DisplayName("save should reject null content with a validation error")
+    void saveShouldRejectNullContent() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        EntityManager entityManager = mock(EntityManager.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+
+        VectorStoreConfig config = new VectorStoreConfig();
+        config.setEnabled(true);
+        config.setDimension(3);
+        config.setTableName("resume_chunks");
+
+        when(jdbcTemplate.queryForObject(anyString(), any(Class.class))).thenReturn(true);
+
+        VectorStoreService service = new VectorStoreService(jdbcTemplate, entityManager, embeddingService, config);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.save(UUID.randomUUID(), ChunkType.EXPERIENCE, null));
     }
 }

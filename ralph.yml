@@ -4,11 +4,14 @@
 
 cli:
   backend: "codex"
+  # 可选：如果你的 codex 后端按“命令行参数”接收 prompt，可显式加上
+  # prompt_mode: "arg"
 
 event_loop:
   prompt_file: "PROMPT.md"
   completion_promise: "LOOP_COMPLETE"
-  max_iterations: 100
+  max_iterations: 10
+  # max_runtime_seconds: 7200
   # max_runtime_seconds: 14400    # 4 hours max
 
 # ─────────────────────────────────────────────────────────────────────────────
