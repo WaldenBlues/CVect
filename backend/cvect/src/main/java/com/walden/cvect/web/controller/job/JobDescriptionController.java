@@ -4,6 +4,7 @@ import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.DataScopeService;
 import com.walden.cvect.security.PermissionCodes;
 import com.walden.cvect.service.job.JobDescriptionApplicationService;
 import jakarta.validation.Valid;
@@ -28,22 +29,25 @@ public class JobDescriptionController {
     private final CandidateJpaRepository candidateRepository;
     private final JobDescriptionApplicationService jobDescriptionApplicationService;
     private final CurrentUserService currentUserService;
+    private final DataScopeService dataScopeService;
 
     public JobDescriptionController(JobDescriptionJpaRepository jdRepository,
             CandidateJpaRepository candidateRepository,
             JobDescriptionApplicationService jobDescriptionApplicationService,
-            CurrentUserService currentUserService) {
+            CurrentUserService currentUserService,
+            DataScopeService dataScopeService) {
         this.jdRepository = jdRepository;
         this.candidateRepository = candidateRepository;
         this.jobDescriptionApplicationService = jobDescriptionApplicationService;
         this.currentUserService = currentUserService;
+        this.dataScopeService = dataScopeService;
     }
 
     @GetMapping
     @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).JD_READ)")
     public ResponseEntity<List<JobDescriptionSummary>> list() {
         UUID tenantId = currentUserService.currentTenantId();
-        List<JobDescription> jds = jdRepository.findByTenantIdOrderByCreatedAtDesc(tenantId);
+        List<JobDescription> jds = visibleJobDescriptions(tenantId);
         if (jds.isEmpty()) {
             return ResponseEntity.ok(List.of());
         }
@@ -65,7 +69,7 @@ public class JobDescriptionController {
     @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).JD_READ)")
     public ResponseEntity<JobDescriptionSummary> detail(@PathVariable UUID id) {
         UUID tenantId = currentUserService.currentTenantId();
-        return jdRepository.findByIdAndTenantId(id, tenantId)
+        return findVisibleJobDescription(id, tenantId)
                 .map(jd -> ResponseEntity.ok(toSummary(jd)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
@@ -95,6 +99,28 @@ public class JobDescriptionController {
                 : ResponseEntity.notFound().build();
     }
 
+    private List<JobDescription> visibleJobDescriptions(UUID tenantId) {
+        if (dataScopeService.hasTenantWideScope()) {
+            return jdRepository.findByTenantIdOrderByCreatedAtDesc(tenantId);
+        }
+        UUID userId = dataScopeService.currentUserIdOrNull();
+        if (userId == null) {
+            return List.of();
+        }
+        return jdRepository.findByTenantIdAndCreatedByUserIdOrderByCreatedAtDesc(tenantId, userId);
+    }
+
+    private java.util.Optional<JobDescription> findVisibleJobDescription(UUID id, UUID tenantId) {
+        if (dataScopeService.hasTenantWideScope()) {
+            return jdRepository.findByIdAndTenantId(id, tenantId);
+        }
+        UUID userId = dataScopeService.currentUserIdOrNull();
+        if (userId == null) {
+            return java.util.Optional.empty();
+        }
+        return jdRepository.findByIdAndTenantIdAndCreatedByUserId(id, tenantId, userId);
+    }
+
     private JobDescriptionSummary toSummary(JobDescription jd) {
         return toSummary(jd, candidateRepository.countByTenantIdAndJobDescriptionId(
                 currentUserService.currentTenantId(),
@@ -107,6 +133,7 @@ public class JobDescriptionController {
                 jd.getTitle(),
                 jd.getContent(),
                 jd.getCreatedAt(),
+                jd.getCreatedByUserId(),
                 candidateCount);
     }
 
@@ -120,6 +147,7 @@ public class JobDescriptionController {
             String title,
             String content,
             java.time.LocalDateTime createdAt,
+            UUID createdByUserId,
             long candidateCount
     ) {}
 }

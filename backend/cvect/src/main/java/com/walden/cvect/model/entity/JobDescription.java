@@ -10,7 +10,12 @@ import java.util.UUID;
  * JD 组（岗位描述）
  */
 @Entity
-@Table(name = "job_descriptions", indexes = @Index(name = "idx_job_descriptions_tenant_id", columnList = "tenant_id"))
+@Table(
+        name = "job_descriptions",
+        indexes = {
+                @Index(name = "idx_job_descriptions_tenant_id", columnList = "tenant_id"),
+                @Index(name = "idx_job_descriptions_tenant_creator_created", columnList = "tenant_id,created_by_user_id,created_at")
+        })
 public class JobDescription {
 
     @Id
@@ -19,6 +24,9 @@ public class JobDescription {
 
     @Column(name = "tenant_id", nullable = false)
     private UUID tenantId;
+
+    @Column(name = "created_by_user_id")
+    private UUID createdByUserId;
 
     @Column(name = "title", length = 200, nullable = false)
     private String title;
@@ -44,7 +52,12 @@ public class JobDescription {
     }
 
     public JobDescription(UUID tenantId, String title, String content) {
+        this(tenantId, title, content, null);
+    }
+
+    public JobDescription(UUID tenantId, String title, String content, UUID createdByUserId) {
         this.tenantId = tenantId == null ? TenantConstants.DEFAULT_TENANT_ID : tenantId;
+        this.createdByUserId = createdByUserId;
         this.title = title;
         this.content = content;
     }
@@ -63,6 +76,14 @@ public class JobDescription {
 
     public UUID getTenantId() {
         return tenantId;
+    }
+
+    public UUID getCreatedByUserId() {
+        return createdByUserId;
+    }
+
+    public void setCreatedByUserId(UUID createdByUserId) {
+        this.createdByUserId = createdByUserId;
     }
 
     public String getTitle() {

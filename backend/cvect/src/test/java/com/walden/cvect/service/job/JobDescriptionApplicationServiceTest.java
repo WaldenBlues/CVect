@@ -14,6 +14,7 @@ import com.walden.cvect.repository.LinkJpaRepository;
 import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
 import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.DataScopeService;
 import com.walden.cvect.service.job.JobDescriptionApplicationService;
 import com.walden.cvect.service.matching.PersistedMatchScoreService;
 import org.junit.jupiter.api.DisplayName;
@@ -61,6 +62,8 @@ class JobDescriptionApplicationServiceTest {
     private PersistedMatchScoreService persistedMatchScoreService;
     @Mock
     private CurrentUserService currentUserService;
+    @Mock
+    private DataScopeService dataScopeService;
 
     @Test
     @DisplayName("delete should cascade related data when JD exists")
@@ -69,6 +72,7 @@ class JobDescriptionApplicationServiceTest {
         UUID tenantId = TenantConstants.DEFAULT_TENANT_ID;
         JobDescription jd = new JobDescription("Backend", "Spring");
         when(currentUserService.currentTenantId()).thenReturn(tenantId);
+        when(dataScopeService.hasTenantWideScope()).thenReturn(true);
         when(jdRepository.findByIdAndTenantId(jdId, tenantId)).thenReturn(Optional.of(jd));
         when(candidateRepository.findIdsByTenantIdAndJobDescriptionId(tenantId, jdId)).thenReturn(List.of());
 
@@ -95,6 +99,7 @@ class JobDescriptionApplicationServiceTest {
         UUID jdId = UUID.randomUUID();
         UUID tenantId = TenantConstants.DEFAULT_TENANT_ID;
         when(currentUserService.currentTenantId()).thenReturn(tenantId);
+        when(dataScopeService.hasTenantWideScope()).thenReturn(true);
         when(jdRepository.findByIdAndTenantId(jdId, tenantId)).thenReturn(Optional.empty());
 
         JobDescriptionApplicationService service = service();
@@ -116,6 +121,7 @@ class JobDescriptionApplicationServiceTest {
                 itemRepository,
                 vectorStoreService,
                 persistedMatchScoreService,
-                currentUserService);
+                currentUserService,
+                dataScopeService);
     }
 }

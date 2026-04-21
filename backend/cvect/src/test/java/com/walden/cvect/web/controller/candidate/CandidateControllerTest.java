@@ -9,6 +9,7 @@ import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.ResumeChunkVectorJpaRepository;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
 import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.DataScopeService;
 import com.walden.cvect.service.candidate.CandidateSnapshotService;
 import com.walden.cvect.service.matching.PersistedMatchScoreService;
 import com.walden.cvect.web.controller.candidate.CandidateController;
@@ -52,12 +53,15 @@ class CandidateControllerTest {
     private PersistedMatchScoreService persistedMatchScoreService;
     @Mock
     private CurrentUserService currentUserService;
+    @Mock
+    private DataScopeService dataScopeService;
 
     @Test
     @DisplayName("listByJd should not query vector ids when candidate list is empty")
     void listByJdShouldSkipVectorQueryWhenNoCandidates() {
         UUID jdId = UUID.randomUUID();
         when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(dataScopeService.hasTenantWideScope()).thenReturn(true);
         when(candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
                 TenantConstants.DEFAULT_TENANT_ID,
                 jdId)).thenReturn(List.<Candidate>of());
@@ -94,6 +98,7 @@ class CandidateControllerTest {
         when(candidate.getTruncated()).thenReturn(false);
 
         when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(dataScopeService.hasTenantWideScope()).thenReturn(true);
         when(candidateRepository.findByIdAndTenantId(candidateId, TenantConstants.DEFAULT_TENANT_ID))
                 .thenReturn(Optional.of(candidate));
         when(candidateRepository.save(any(Candidate.class))).thenReturn(candidate);
@@ -129,6 +134,7 @@ class CandidateControllerTest {
         when(candidate.getTruncated()).thenReturn(false);
 
         when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(dataScopeService.hasTenantWideScope()).thenReturn(true);
         when(candidateRepository.findByIdAndTenantId(candidateId, TenantConstants.DEFAULT_TENANT_ID))
                 .thenReturn(Optional.of(candidate));
         when(candidateRepository.save(any(Candidate.class))).thenReturn(candidate);
@@ -155,6 +161,7 @@ class CandidateControllerTest {
                 resumeChunkVectorRepository,
                 vectorIngestTaskRepository,
                 persistedMatchScoreService,
-                currentUserService);
+                currentUserService,
+                dataScopeService);
     }
 }

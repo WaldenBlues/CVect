@@ -2,6 +2,7 @@ package com.walden.cvect.infra.embedding;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -10,6 +11,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Embedding 服务 - 调用 Python embedding 服务
@@ -30,14 +32,19 @@ public class EmbeddingService {
     private static final String API_FORMAT_LLAMA_CPP = "llama_cpp";
 
     private final WebClient webClient;
+    private final Function<String, WebClient> webClientFactory;
     private final EmbeddingConfig config;
     private final Duration requestTimeout;
 
+    @Autowired
     public EmbeddingService(EmbeddingConfig config) {
+        this(config, serviceUrl -> WebClient.builder().baseUrl(serviceUrl).build());
+    }
+
+    EmbeddingService(EmbeddingConfig config, Function<String, WebClient> webClientFactory) {
         this.config = config;
-        this.webClient = WebClient.builder()
-                .baseUrl(config.getServiceUrl())
-                .build();
+        this.webClientFactory = webClientFactory;
+        this.webClient = webClientFactory.apply(config.getServiceUrl());
         this.requestTimeout = Duration.ofSeconds(Math.max(1, config.getTimeoutSeconds()));
         log.info("EmbeddingService initialized with model: {}", config.getModelName());
         log.info("Connecting to embedding service at: {}", config.getServiceUrl());
@@ -146,9 +153,7 @@ public class EmbeddingService {
 
     private OpenAiEmbeddingResponse requestOpenAiEmbedding(String url, List<String> texts) {
         OpenAiEmbeddingRequest request = new OpenAiEmbeddingRequest(config.getModelName(), texts);
-        return WebClient.builder()
-                .baseUrl(url)
-                .build()
+        return webClientFactory.apply(url)
                 .post()
                 .bodyValue(request)
                 .retrieve()
@@ -159,9 +164,7 @@ public class EmbeddingService {
 
     private LlamaCppEmbeddingResponse requestLlamaCppEmbedding(String url, String text) {
         LlamaCppEmbeddingRequest request = new LlamaCppEmbeddingRequest(text);
-        return WebClient.builder()
-                .baseUrl(url)
-                .build()
+        return webClientFactory.apply(url)
                 .post()
                 .bodyValue(request)
                 .retrieve()

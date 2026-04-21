@@ -28,18 +28,47 @@
     </form>
   </main>
 
-  <main v-else>
-    <section class="header">
-      <div>
-        <h1 class="title">CVect 实时候选人入库</h1>
-        <p class="subtitle">
-          通过 SSE 订阅入库事件，实时展示最新候选人信息与解析状态。
-        </p>
+  <main v-else class="workspace" :class="roleThemeClass">
+    <section class="role-hero">
+      <div class="role-hero-main">
+        <div class="role-eyebrow">
+          <span class="role-mark">{{ roleProfile.shortLabel }}</span>
+          <span>{{ roleProfile.label }}</span>
+          <span>{{ roleProfile.scope }}</span>
+        </div>
+        <h1 class="title">{{ roleProfile.title }}</h1>
+        <p class="subtitle">{{ roleProfile.subtitle }}</p>
+        <div class="role-actions">
+          <button class="secondary small icon-button" @click="refreshJds">
+            <span class="button-icon" aria-hidden="true">R</span>
+            <span>刷新 JD</span>
+          </button>
+          <button v-if="canWriteJd" class="small icon-button" @click="openCreateJd">
+            <span class="button-icon" aria-hidden="true">+</span>
+            <span>新建 JD</span>
+          </button>
+          <button
+            v-if="canReadAudit"
+            class="secondary small icon-button"
+            :disabled="auditLoading"
+            @click="loadAuditLogs"
+          >
+            <span class="button-icon" aria-hidden="true">A</span>
+            <span>{{ auditLoading ? '审计刷新中' : '刷新审计' }}</span>
+          </button>
+        </div>
       </div>
-      <div class="status-panel">
+      <div class="status-panel role-status">
         <div class="status-row">
           <span>{{ currentUser.displayName || currentUser.username }}</span>
-          <button class="secondary small" @click="logout">退出</button>
+          <button class="secondary small icon-button" @click="logout">
+            <span class="button-icon" aria-hidden="true">X</span>
+            <span>退出</span>
+          </button>
+        </div>
+        <div class="status-row">
+          <span>角色视角</span>
+          <span class="badge">{{ roleScopeLabel }}</span>
         </div>
         <div class="status-row">
           <span>连接状态</span>
@@ -47,16 +76,125 @@
             {{ isConnected ? 'Live' : 'Offline' }}
           </span>
         </div>
+        <div class="permission-grid">
+          <div
+            v-for="capability in roleCapabilities"
+            :key="capability.label"
+            class="capability-pill"
+            :class="{ available: capability.available }"
+          >
+            <span class="capability-dot"></span>
+            <span>{{ capability.label }}</span>
+            <strong>{{ capability.text }}</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="role-dashboard" aria-label="角色指标">
+      <article v-for="metric in roleMetrics" :key="metric.label" class="role-metric">
+        <span class="metric-label">{{ metric.label }}</span>
+        <strong class="metric-value">{{ metric.value }}</strong>
+        <span class="metric-caption">{{ metric.caption }}</span>
+      </article>
+    </section>
+
+    <section class="data-view-strip">
+      <div>
+        <span class="section-kicker">数据视图</span>
+        <h2>{{ dataScopeSummary.title }}</h2>
+        <p>{{ dataScopeSummary.description }}</p>
+      </div>
+      <div class="scope-chips">
+        <span v-for="chip in dataScopeSummary.chips" :key="chip" class="scope-chip">{{ chip }}</span>
+      </div>
+    </section>
+
+    <section class="role-workflow" :class="`workflow-${currentRoleKey}`">
+      <div class="workflow-heading">
+        <span class="section-kicker">{{ roleWorkflow.kicker }}</span>
+        <h2>{{ roleWorkflow.title }}</h2>
+        <p>{{ roleWorkflow.description }}</p>
+      </div>
+
+      <div v-if="currentRoleKey === 'hr'" class="pipeline-board">
+        <button
+          v-for="option in recruitmentStatusOptions"
+          :key="option.value"
+          class="pipeline-lane"
+          :class="{ active: recruitmentFilter === option.value }"
+          @click="setRecruitmentFilter(option.value)"
+        >
+          <span>{{ option.label }}</span>
+          <strong>{{ statusCounts[option.value] || 0 }}</strong>
+          <small>{{ pipelineCaption(option.value) }}</small>
+        </button>
+        <button class="pipeline-lane clear-lane" :class="{ active: !recruitmentFilter }" @click="setRecruitmentFilter('')">
+          <span>全部候选人</span>
+          <strong>{{ scopedCandidates.length }}</strong>
+          <small>取消状态过滤</small>
+        </button>
+      </div>
+
+      <div v-else-if="currentRoleKey === 'recruiter'" class="execution-board">
+        <div class="execution-primary">
+          <span>当前执行 JD</span>
+          <strong>{{ selectedJd?.title || '未选择 JD' }}</strong>
+          <p>{{ selectedJdId ? '上传和状态推进都会绑定这个 JD。' : '先从我的 JD 列表中选择一个岗位。' }}</p>
+          <div class="execution-actions">
+            <button class="small icon-button" :disabled="!canUploadResume || !selectedJdId" @click="openFilePicker">
+              <span class="button-icon" aria-hidden="true">U</span>
+              <span>上传简历</span>
+            </button>
+            <button class="secondary small icon-button" @click="setRecruitmentFilter('TO_CONTACT')">
+              <span class="button-icon" aria-hidden="true">F</span>
+              <span>待沟通</span>
+            </button>
+          </div>
+        </div>
+        <div class="execution-queue">
+          <button
+            v-for="item in recruiterQueue"
+            :key="item.id"
+            class="queue-item"
+            :class="{ active: selectedCandidate?.id === item.id }"
+            @click="selectCandidate(item)"
+          >
+            <span>{{ recruitmentStatusLabel(item.recruitmentStatus) }}</span>
+            <strong>{{ item.title }}</strong>
+            <small>{{ item.sourceFileName || item.id }}</small>
+          </button>
+          <div v-if="!recruiterQueue.length" class="empty">
+            {{ selectedJdId ? '当前 JD 暂无待处理候选人。' : '选择 JD 后显示待跟进候选人。' }}
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="governance-board">
+        <article v-for="item in governanceItems" :key="item.label">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+          <small>{{ item.caption }}</small>
+        </article>
       </div>
     </section>
 
     <section class="jd-board">
       <div class="panel jd-list">
         <div class="panel-header">
-          <h3>JD 列表</h3>
+          <div>
+            <h3>{{ jdListTitle }}</h3>
+            <p class="section-subtitle">{{ jdListSubtitle }}</p>
+          </div>
           <div class="jd-header-actions">
-            <button class="secondary small" @click="refreshJds">刷新</button>
-            <button class="small" @click="openCreateJd">新建</button>
+            <button class="secondary small icon-button" @click="refreshJds">
+              <span class="button-icon" aria-hidden="true">R</span>
+              <span>刷新</span>
+            </button>
+            <button v-if="canWriteJd" class="small icon-button" @click="openCreateJd">
+              <span class="button-icon" aria-hidden="true">+</span>
+              <span>新建</span>
+            </button>
           </div>
         </div>
         <div class="jd-items">
@@ -71,8 +209,8 @@
               <div class="jd-title">
                 <span>{{ jd.title }}</span>
                 <div class="jd-actions">
-                  <button class="ghost" @click.stop="startEditJd(jd)">编辑</button>
-                  <button class="ghost danger" @click.stop="deleteJd(jd)">删除</button>
+                  <button v-if="canWriteJd" class="ghost" @click.stop="startEditJd(jd)">编辑</button>
+                  <button v-if="canDeleteJd" class="ghost danger" @click.stop="deleteJd(jd)">删除</button>
                 </div>
               </div>
               <div class="jd-meta">
@@ -92,7 +230,7 @@
               </div>
             </div>
           </button>
-          <div v-if="!jds.length" class="empty">暂无 JD，请先创建。</div>
+          <div v-if="!jds.length" class="empty">{{ emptyJdText }}</div>
         </div>
         <p class="muted" v-if="jdMessage">{{ jdMessage }}</p>
       </div>
@@ -122,7 +260,7 @@
         </template>
       </div>
 
-      <div class="modal-backdrop" v-if="showCreateJd" @click="closeCreateJd">
+      <div class="modal-backdrop" v-if="showCreateJd && canWriteJd" @click="closeCreateJd">
         <div class="modal" @click.stop>
           <div class="panel-header">
             <h3>新建 JD</h3>
@@ -143,6 +281,7 @@
       </div>
 
       <div
+        v-if="canUploadResume"
         class="panel jd-upload dropzone-panel"
         :class="{ active: isDragActive, disabled: !selectedJdId }"
         @dragover.prevent="onDragOver"
@@ -169,6 +308,51 @@
         </div>
         <input ref="fileInputRef" type="file" multiple class="file-input" @change="onFileChange" />
         <p class="muted" v-if="uploadMessage">{{ uploadMessage }}</p>
+      </div>
+    </section>
+
+    <section v-if="canReadAudit" class="audit-strip">
+      <div class="panel-header">
+        <div>
+          <span class="section-kicker">审计</span>
+          <h3>租户操作记录</h3>
+        </div>
+        <button class="secondary small icon-button" :disabled="auditLoading" @click="loadAuditLogs">
+          <span class="button-icon" aria-hidden="true">R</span>
+          <span>{{ auditLoading ? '刷新中' : '刷新' }}</span>
+        </button>
+      </div>
+      <div class="audit-list">
+        <article v-for="entry in auditLogs" :key="entry.id" class="audit-entry">
+          <div>
+            <strong>{{ entry.action || 'UNKNOWN_ACTION' }}</strong>
+            <span>{{ entry.target || entry.requestPath || 'unknown target' }}</span>
+          </div>
+          <div class="audit-meta">
+            <span>{{ entry.username || 'system' }}</span>
+            <span>{{ entry.createdAt || '—' }}</span>
+            <span class="audit-status" :class="entry.status === 'error' ? 'error' : 'success'">
+              {{ entry.status || 'success' }}
+            </span>
+          </div>
+        </article>
+        <div v-if="!auditLogs.length" class="empty">
+          {{ auditLoading ? '审计加载中...' : '暂无审计记录' }}
+        </div>
+      </div>
+      <p class="muted" v-if="auditMessage">{{ auditMessage }}</p>
+    </section>
+
+    <section class="candidate-view-header">
+      <div>
+        <span class="section-kicker">候选人</span>
+        <h2>{{ candidateViewTitle }}</h2>
+        <p>{{ candidateViewDescription }}</p>
+      </div>
+      <div class="candidate-count-pill">
+        <span>当前筛选</span>
+        <strong>{{ filteredCandidates.length }}</strong>
+        <span>总计 {{ totalCandidatesCount }}</span>
       </div>
     </section>
 
@@ -203,6 +387,7 @@
     </section>
 
     <SemanticPanel
+      v-if="canRunSearch"
       :loading="semanticLoading"
       :message="semanticMessage"
       v-model:autoTune="semanticAutoTune"
@@ -245,7 +430,7 @@
             <span v-else-if="item.noVectorChunk" class="tag warning">无向量分块</span>
           </div>
           <div class="recruitment-row">
-            <span class="recruitment-badge" :class="`status-${item.recruitmentStatus || 'TO_CONTACT'}`">
+            <span class="recruitment-badge" :class="`status-${effectiveRecruitmentStatus(item.recruitmentStatus)}`">
               {{ recruitmentStatusLabel(item.recruitmentStatus) }}
             </span>
           </div>
@@ -286,13 +471,14 @@
                 v-for="option in recruitmentStatusOptions"
                 :key="option.value"
                 class="status-btn"
-                :class="{ active: selectedCandidate.recruitmentStatus === option.value }"
-                :disabled="recruitmentUpdatingId === selectedCandidate.id"
+                :class="{ active: effectiveRecruitmentStatus(selectedCandidate.recruitmentStatus) === option.value }"
+                :disabled="!canUpdateCandidateStatus || recruitmentUpdatingId === selectedCandidate.id"
                 @click="setRecruitmentStatus(selectedCandidate, option.value)"
               >
                 {{ option.label }}
               </button>
             </div>
+            <p class="muted" v-if="!canUpdateCandidateStatus">当前角色仅可查看招聘进度。</p>
             <p class="muted" v-if="recruitmentMessage">{{ recruitmentMessage }}</p>
           </div>
           <div class="detail-section">
@@ -351,7 +537,15 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import SemanticPanel from './components/SemanticPanel.vue'
 import { useSemanticMatching } from './composables/useSemanticMatching'
-import { apiFetch, authLogin, authLogout, authMe, getAccessToken } from './api/http'
+import {
+  apiFetch,
+  authLogin,
+  authLogout,
+  authMe,
+  clearAccessToken,
+  getAccessToken,
+  getAccessTokenExpiresAt
+} from './api/http'
 
 const sseUrl = import.meta.env.VITE_SSE_URL || '/api/candidates/stream'
 
@@ -368,10 +562,112 @@ const log = reactive([])
 const selectedCandidate = ref(null)
 const isManualDisconnect = ref(false)
 let reconnectTimer = null
+let authExpiryTimer = null
 
 const selectedJd = computed(() => {
   return jds.value.find((jd) => jd.id === selectedJdId.value) || null
 })
+
+const currentPermissions = computed(() => new Set(currentUser.value?.permissions || []))
+const hasPermission = (permission) => currentPermissions.value.has(permission)
+const currentRoles = computed(() => currentUser.value?.roles || [])
+
+const roleProfiles = {
+  owner: {
+    key: 'owner',
+    className: 'workspace-owner',
+    shortLabel: 'OWN',
+    label: '企业管理员',
+    scope: '全租户治理',
+    scopeLabel: '企业管理员 / 全租户',
+    title: '企业招聘治理台',
+    subtitle: '面向租户全局管理 JD、候选人、审计和权限能力，优先关注数据质量与操作风险。'
+  },
+  hr: {
+    key: 'hr',
+    className: 'workspace-hr',
+    shortLabel: 'HR',
+    label: '招聘负责人',
+    scope: '全租户招聘',
+    scopeLabel: '招聘负责人 / 全租户',
+    title: '招聘负责人工作台',
+    subtitle: '从招聘管道角度统筹岗位、候选人和语义匹配结果，优先关注推进效率。'
+  },
+  recruiter: {
+    key: 'recruiter',
+    className: 'workspace-recruiter',
+    shortLabel: 'REC',
+    label: '招聘专员',
+    scope: '我的 JD',
+    scopeLabel: '招聘专员 / 我的 JD',
+    title: '我的招聘执行台',
+    subtitle: '只展示由你负责的 JD 与候选人，聚焦简历入库、筛选和状态跟进。'
+  },
+  limited: {
+    key: 'limited',
+    className: 'workspace-limited',
+    shortLabel: 'RO',
+    label: '受限用户',
+    scope: '权限控制',
+    scopeLabel: '受限视角',
+    title: '受限招聘视图',
+    subtitle: '当前账号仅显示已授权的数据和功能入口。'
+  }
+}
+
+const currentRoleKey = computed(() => {
+  if (currentRoles.value.includes('OWNER')) return 'owner'
+  if (currentRoles.value.includes('HR_MANAGER')) return 'hr'
+  if (currentRoles.value.includes('RECRUITER')) return 'recruiter'
+  return 'limited'
+})
+
+const roleProfile = computed(() => roleProfiles[currentRoleKey.value] || roleProfiles.limited)
+const roleThemeClass = computed(() => roleProfile.value.className)
+const roleScopeLabel = computed(() => {
+  return roleProfile.value.scopeLabel
+})
+const canWriteJd = computed(() => hasPermission('JD_WRITE'))
+const canDeleteJd = computed(() => hasPermission('JD_DELETE'))
+const canUploadResume = computed(() => hasPermission('RESUME_UPLOAD'))
+const canUpdateCandidateStatus = computed(() => hasPermission('CANDIDATE_UPDATE_STATUS'))
+const canRunSearch = computed(() => hasPermission('SEARCH_RUN'))
+const canReadAudit = computed(() => hasPermission('AUDIT_READ'))
+const canManageUsers = computed(() => hasPermission('USER_MANAGE'))
+const canManageRoles = computed(() => hasPermission('ROLE_MANAGE'))
+
+const roleCapabilities = computed(() => [
+  {
+    label: 'JD 管理',
+    available: canWriteJd.value,
+    text: canDeleteJd.value ? '新建/编辑/删除' : canWriteJd.value ? '新建/编辑' : '只读'
+  },
+  {
+    label: '简历入库',
+    available: canUploadResume.value,
+    text: canUploadResume.value ? '可上传' : '无入口'
+  },
+  {
+    label: '候选人状态',
+    available: canUpdateCandidateStatus.value,
+    text: canUpdateCandidateStatus.value ? '可推进' : '只读'
+  },
+  {
+    label: '语义匹配',
+    available: canRunSearch.value,
+    text: canRunSearch.value ? '可排序' : '不可用'
+  },
+  {
+    label: '账号权限',
+    available: canManageUsers.value || canManageRoles.value,
+    text: canManageUsers.value || canManageRoles.value ? '已授权' : '无入口'
+  },
+  {
+    label: '审计',
+    available: canReadAudit.value,
+    text: canReadAudit.value ? '可查看' : '隐藏'
+  }
+])
 
 const filterText = ref('')
 const recruitmentFilter = ref('')
@@ -393,6 +689,9 @@ const showCreateJd = ref(false)
 const uploadFiles = ref([])
 const uploading = ref(false)
 const uploadMessage = ref('')
+const auditLogs = ref([])
+const auditLoading = ref(false)
+const auditMessage = ref('')
 const isDragActive = ref(false)
 const fileInputRef = ref(null)
 const editingJdId = ref('')
@@ -437,8 +736,12 @@ const recruitmentStatusLabelMap = {
   REJECTED: '淘汰'
 }
 
+const effectiveRecruitmentStatus = (status) => {
+  return Object.prototype.hasOwnProperty.call(recruitmentStatusLabelMap, status) ? status : 'TO_CONTACT'
+}
+
 const recruitmentStatusLabel = (status) => {
-  return recruitmentStatusLabelMap[status] || '待沟通'
+  return recruitmentStatusLabelMap[effectiveRecruitmentStatus(status)]
 }
 
 const ensureStringArray = (value) => {
@@ -484,23 +787,8 @@ const resetFilters = () => {
   currentPage.value = 1
 }
 
-const filteredCandidates = computed(() => {
-  const keyword = filterText.value.trim().toLowerCase()
-  const keywordParts = keyword ? keyword.split(/\s+/).filter(Boolean) : []
-  const filtered = events.filter((item) => {
-    if (selectedJdId.value && item.jdId && item.jdId !== selectedJdId.value) {
-      return false
-    }
-    if (recruitmentFilter.value && item.recruitmentStatus !== recruitmentFilter.value) {
-      return false
-    }
-
-    if (!keywordParts.length) return true
-    const hay = candidateSearchText(item)
-    return keywordParts.every((part) => hay.includes(part))
-  })
-
-  return filtered.sort((a, b) => {
+const sortCandidates = (items) => {
+  return [...items].sort((a, b) => {
     const aScore = semanticScoreMap.value[a.id]
     const bScore = semanticScoreMap.value[b.id]
     if (typeof aScore === 'number' && typeof bScore === 'number' && aScore !== bScore) {
@@ -518,6 +806,29 @@ const filteredCandidates = computed(() => {
     if (typeof aRank !== 'number' && typeof bRank === 'number') return 1
     return 0
   })
+}
+
+const scopedCandidates = computed(() => {
+  const keyword = filterText.value.trim().toLowerCase()
+  const keywordParts = keyword ? keyword.split(/\s+/).filter(Boolean) : []
+  const scoped = events.filter((item) => {
+    if (selectedJdId.value && item.jdId && item.jdId !== selectedJdId.value) {
+      return false
+    }
+
+    if (!keywordParts.length) return true
+    const hay = candidateSearchText(item)
+    return keywordParts.every((part) => hay.includes(part))
+  })
+
+  return sortCandidates(scoped)
+})
+
+const filteredCandidates = computed(() => {
+  if (!recruitmentFilter.value) {
+    return scopedCandidates.value
+  }
+  return scopedCandidates.value.filter((item) => effectiveRecruitmentStatus(item.recruitmentStatus) === recruitmentFilter.value)
 })
 
 const totalPages = computed(() => {
@@ -531,6 +842,184 @@ const totalCandidatesCount = computed(() => {
   }
   return events.length
 })
+
+const jdCandidateTotal = computed(() => {
+  return jds.value.reduce((total, jd) => {
+    const count = Number(jd.candidateCount)
+    return total + (Number.isFinite(count) ? count : 0)
+  }, 0)
+})
+
+const statusCounts = computed(() => {
+  return scopedCandidates.value.reduce((counts, item) => {
+    const status = effectiveRecruitmentStatus(item.recruitmentStatus)
+    counts[status] = (counts[status] || 0) + 1
+    return counts
+  }, {})
+})
+
+const readyVectorCount = computed(() => {
+  return events.filter((item) => item.vectorStatus === 'READY').length
+})
+
+const selectedJdCaption = computed(() => {
+  return selectedJd.value ? selectedJd.value.title : '未选择 JD'
+})
+
+const roleMetrics = computed(() => {
+  if (currentRoleKey.value === 'owner') {
+    return [
+      { label: '租户 JD', value: jds.value.length, caption: '当前租户可见' },
+      { label: '候选人池', value: jdCandidateTotal.value || totalCandidatesCount.value, caption: '来自全租户 JD' },
+      { label: '审计记录', value: auditLogs.value.length, caption: '最近加载' },
+      { label: '账号权限', value: canManageUsers.value || canManageRoles.value ? '开启' : '关闭', caption: '用户/角色授权' }
+    ]
+  }
+  if (currentRoleKey.value === 'hr') {
+    return [
+      { label: '招聘 JD', value: jds.value.length, caption: '全租户招聘视图' },
+      { label: '当前候选人', value: totalCandidatesCount.value, caption: selectedJdCaption.value },
+      { label: '待面试', value: statusCounts.value.TO_INTERVIEW || 0, caption: '当前筛选范围' },
+      { label: '语义就绪', value: readyVectorCount.value, caption: '可参与匹配' }
+    ]
+  }
+  if (currentRoleKey.value === 'recruiter') {
+    return [
+      { label: '我的 JD', value: jds.value.length, caption: '按创建人过滤' },
+      { label: '当前候选人', value: totalCandidatesCount.value, caption: selectedJdCaption.value },
+      { label: '待沟通', value: statusCounts.value.TO_CONTACT || 0, caption: '当前 JD' },
+      { label: '上传入口', value: canUploadResume.value ? '可用' : '隐藏', caption: '按权限展示' }
+    ]
+  }
+  return [
+    { label: '可见 JD', value: jds.value.length, caption: '权限过滤后' },
+    { label: '候选人', value: totalCandidatesCount.value, caption: selectedJdCaption.value },
+    { label: '待沟通', value: statusCounts.value.TO_CONTACT || 0, caption: '当前范围' },
+    { label: '功能入口', value: roleCapabilities.value.filter((item) => item.available).length, caption: '已授权' }
+  ]
+})
+
+const dataScopeSummary = computed(() => {
+  if (currentRoleKey.value === 'owner') {
+    return {
+      title: '全租户治理视图',
+      description: '接口返回当前租户内全部 JD 与候选人；审计日志仅在 AUDIT_READ 权限下加载。',
+      chips: ['全部 JD', '全部候选人', '审计日志', '账号权限']
+    }
+  }
+  if (currentRoleKey.value === 'hr') {
+    return {
+      title: '全租户招聘视图',
+      description: '接口返回租户范围内招聘数据，页面聚焦 JD 管理、候选人推进和语义匹配。',
+      chips: ['全部 JD', '全部候选人', '招聘状态', '语义匹配']
+    }
+  }
+  if (currentRoleKey.value === 'recruiter') {
+    return {
+      title: '个人执行视图',
+      description: '接口只返回由你创建或负责的 JD 及其候选人，删除和租户级治理入口不展示。',
+      chips: ['我的 JD', '我的候选人', '简历上传', '状态跟进']
+    }
+  }
+  return {
+    title: '权限过滤视图',
+    description: '页面只展示当前账号已授权的数据范围和功能入口。',
+    chips: ['只读范围', '权限控制']
+  }
+})
+
+const jdListTitle = computed(() => {
+  if (currentRoleKey.value === 'owner') return '全租户 JD 管理'
+  if (currentRoleKey.value === 'hr') return '招聘 JD 管道'
+  if (currentRoleKey.value === 'recruiter') return '我的 JD 列表'
+  return '可见 JD'
+})
+
+const jdListSubtitle = computed(() => {
+  if (currentRoleKey.value === 'owner') return '用于检查租户内岗位覆盖和数据归属。'
+  if (currentRoleKey.value === 'hr') return '用于统筹招聘需求、候选人池和推进节奏。'
+  if (currentRoleKey.value === 'recruiter') return '仅展示你创建或负责的岗位。'
+  return '按当前权限过滤后展示。'
+})
+
+const emptyJdText = computed(() => {
+  if (currentRoleKey.value === 'recruiter') return '暂无你负责的 JD。'
+  if (currentRoleKey.value === 'hr') return '当前租户暂无招聘 JD。'
+  if (currentRoleKey.value === 'owner') return '当前租户暂无 JD。'
+  return '暂无可见 JD。'
+})
+
+const candidateViewTitle = computed(() => {
+  if (currentRoleKey.value === 'owner') return '全租户候选人视图'
+  if (currentRoleKey.value === 'hr') return '招聘管道候选人'
+  if (currentRoleKey.value === 'recruiter') return '我的候选人跟进'
+  return '可见候选人'
+})
+
+const candidateViewDescription = computed(() => {
+  if (currentRoleKey.value === 'owner') return '候选人列表跟随当前 JD 和筛选条件变化，用于抽查数据质量与状态分布。'
+  if (currentRoleKey.value === 'hr') return '按岗位筛选候选人，结合语义匹配与招聘状态推进短名单。'
+  if (currentRoleKey.value === 'recruiter') return '只处理你可见的候选人，上传、筛选和状态更新都绑定当前 JD。'
+  return '候选人数据按当前账号权限返回。'
+})
+
+const roleWorkflow = computed(() => {
+  if (currentRoleKey.value === 'hr') {
+    return {
+      kicker: '招聘管道',
+      title: '按状态管理全租户候选人',
+      description: '招聘负责人优先看状态分布，用快捷入口切换待沟通、待面试和淘汰视图。'
+    }
+  }
+  if (currentRoleKey.value === 'recruiter') {
+    return {
+      kicker: '个人执行',
+      title: '围绕当前 JD 处理简历和跟进',
+      description: '招聘专员优先处理自己的岗位，上传简历、查看待沟通候选人并推进状态。'
+    }
+  }
+  return {
+    kicker: '治理检查',
+    title: '租户级数据和权限概览',
+    description: '企业管理员优先查看权限、审计和租户数据质量，避免越权和脏数据扩散。'
+  }
+})
+
+const pipelineCaption = (status) => {
+  if (status === 'TO_CONTACT') return '需要初筛或联系'
+  if (status === 'TO_INTERVIEW') return '进入面试推进'
+  if (status === 'REJECTED') return '已归档候选人'
+  return '当前状态'
+}
+
+const recruiterQueue = computed(() => {
+  return scopedCandidates.value
+    .filter((item) => ['TO_CONTACT', 'TO_INTERVIEW'].includes(effectiveRecruitmentStatus(item.recruitmentStatus)))
+    .slice(0, 5)
+})
+
+const governanceItems = computed(() => [
+  {
+    label: '租户 JD',
+    value: jds.value.length,
+    caption: '全部可见岗位'
+  },
+  {
+    label: '审计最近记录',
+    value: auditLogs.value.length,
+    caption: canReadAudit.value ? '最近加载' : '无权限'
+  },
+  {
+    label: '权限能力',
+    value: roleCapabilities.value.filter((item) => item.available).length,
+    caption: '当前账号已授权'
+  }
+])
+
+const setRecruitmentFilter = (status) => {
+  recruitmentFilter.value = status
+  currentPage.value = 1
+}
 
 const pagedCandidates = computed(() => {
   const start = (currentPage.value - 1) * PAGE_SIZE
@@ -818,8 +1307,9 @@ const selectCandidate = (item) => {
 }
 
 const setRecruitmentStatus = async (candidate, recruitmentStatus) => {
+  if (!canUpdateCandidateStatus.value) return
   if (!candidate?.id || !recruitmentStatus) return
-  if (candidate.recruitmentStatus === recruitmentStatus) return
+  if (effectiveRecruitmentStatus(candidate.recruitmentStatus) === recruitmentStatus) return
   recruitmentUpdatingId.value = candidate.id
   recruitmentMessage.value = ''
   try {
@@ -969,6 +1459,22 @@ const refreshSelectedJdCandidates = async () => {
   }
 }
 
+const loadAuditLogs = async () => {
+  if (!canReadAudit.value || auditLoading.value) return
+  auditLoading.value = true
+  auditMessage.value = ''
+  try {
+    const resp = await apiFetch('/api/audit-logs?size=6')
+    if (!resp.ok) throw new Error('审计日志加载失败')
+    const data = await resp.json()
+    auditLogs.value = Array.isArray(data?.content) ? data.content : []
+  } catch (err) {
+    auditMessage.value = err.message
+  } finally {
+    auditLoading.value = false
+  }
+}
+
 const scheduleJdRefresh = ({ reloadCandidates = false } = {}) => {
   jdRefreshNeedsCandidateReload = jdRefreshNeedsCandidateReload || reloadCandidates
   if (reloadCandidates && selectedJdId.value) {
@@ -1027,6 +1533,7 @@ const selectJd = (jd) => {
 }
 
 const createJd = async () => {
+  if (!canWriteJd.value) return
   if (!jdTitle.value.trim()) return
   jdSaving.value = true
   jdMessage.value = ''
@@ -1059,6 +1566,7 @@ const createJd = async () => {
 }
 
 const openCreateJd = () => {
+  if (!canWriteJd.value) return
   jdTitle.value = ''
   jdText.value = ''
   showCreateJd.value = true
@@ -1069,6 +1577,7 @@ const closeCreateJd = () => {
 }
 
 const startEditJd = (jd) => {
+  if (!canWriteJd.value) return
   editingJdId.value = jd.id
   editTitle.value = jd.title || ''
   editContent.value = jd.content || ''
@@ -1081,6 +1590,7 @@ const cancelEditJd = () => {
 }
 
 const saveEditJd = async (jd) => {
+  if (!canWriteJd.value) return
   if (!editTitle.value.trim()) return
   jdSaving.value = true
   jdMessage.value = ''
@@ -1105,6 +1615,7 @@ const saveEditJd = async (jd) => {
 }
 
 const deleteJd = async (jd) => {
+  if (!canDeleteJd.value) return
   if (!confirm(`删除 JD: ${jd.title} ?\n\n这会一并删除该 JD 下的候选人、上传批次和向量数据。`)) return
   jdSaving.value = true
   jdMessage.value = ''
@@ -1126,7 +1637,7 @@ const deleteJd = async (jd) => {
 }
 
 const onFileChange = (e) => {
-  if (uploading.value) return
+  if (!canUploadResume.value || uploading.value) return
   const files = Array.from(e.target.files || [])
   uploadFiles.value = files
   if (files.length) {
@@ -1135,7 +1646,7 @@ const onFileChange = (e) => {
 }
 
 const onDragOver = () => {
-  if (!selectedJdId.value) return
+  if (!canUploadResume.value || !selectedJdId.value) return
   isDragActive.value = true
 }
 
@@ -1145,6 +1656,7 @@ const onDragLeave = () => {
 
 const onDrop = (e) => {
   isDragActive.value = false
+  if (!canUploadResume.value) return
   if (!selectedJdId.value) {
     uploadMessage.value = '请先选择 JD'
     return
@@ -1158,6 +1670,7 @@ const onDrop = (e) => {
 }
 
 const openFilePicker = () => {
+  if (!canUploadResume.value) return
   if (!selectedJdId.value) {
     uploadMessage.value = '请先选择 JD'
     return
@@ -1168,7 +1681,7 @@ const openFilePicker = () => {
 }
 
 const uploadResume = async () => {
-  if (uploading.value || !uploadFiles.value.length || !selectedJdId.value) return
+  if (!canUploadResume.value || uploading.value || !uploadFiles.value.length || !selectedJdId.value) return
   uploading.value = true
   uploadMessage.value = ''
   try {
@@ -1220,14 +1733,42 @@ const resetWorkspace = () => {
   stopSemanticRefreshTimer()
   events.splice(0, events.length)
   jds.value = []
+  auditLogs.value = []
+  auditMessage.value = ''
+  auditLoading.value = false
   selectedCandidate.value = null
   selectedJdId.value = ''
   jdMessage.value = ''
   uploadMessage.value = ''
 }
 
+const stopAuthExpiryTimer = () => {
+  if (authExpiryTimer) {
+    clearTimeout(authExpiryTimer)
+    authExpiryTimer = null
+  }
+}
+
+const scheduleAuthExpiryTimer = () => {
+  stopAuthExpiryTimer()
+  if (!currentUser.value) return
+  const expiresAt = getAccessTokenExpiresAt()
+  if (!expiresAt) return
+  const delayMs = expiresAt - Date.now()
+  if (delayMs <= 0) {
+    handleAuthExpired()
+    return
+  }
+  authExpiryTimer = window.setTimeout(handleAuthExpired, delayMs)
+}
+
 const bootstrapWorkspace = async () => {
   await refreshJds()
+  if (canReadAudit.value) {
+    await loadAuditLogs()
+  } else {
+    auditLogs.value = []
+  }
   connect()
 }
 
@@ -1238,6 +1779,7 @@ const initAuth = async () => {
     currentUser.value = user
     if (user) {
       await bootstrapWorkspace()
+      scheduleAuthExpiryTimer()
     }
   } finally {
     authReady.value = true
@@ -1257,6 +1799,7 @@ const submitLogin = async () => {
     currentUser.value = user
     loginPassword.value = ''
     await bootstrapWorkspace()
+    scheduleAuthExpiryTimer()
   } catch (err) {
     loginMessage.value = err.message || '登录失败'
   } finally {
@@ -1265,12 +1808,15 @@ const submitLogin = async () => {
 }
 
 const logout = async () => {
+  stopAuthExpiryTimer()
   await authLogout()
   currentUser.value = null
   resetWorkspace()
 }
 
 const handleAuthExpired = () => {
+  stopAuthExpiryTimer()
+  clearAccessToken()
   currentUser.value = null
   loginMessage.value = '登录已过期，请重新登录。'
   resetWorkspace()
@@ -1291,6 +1837,7 @@ onBeforeUnmount(() => {
     clearTimeout(jdRefreshTimer)
     jdRefreshTimer = null
   }
+  stopAuthExpiryTimer()
   stopSemanticRefreshTimer()
   stopVectorFlagPolling()
   disconnect()

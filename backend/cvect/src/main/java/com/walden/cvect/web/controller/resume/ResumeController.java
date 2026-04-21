@@ -2,6 +2,7 @@ package com.walden.cvect.web.controller.resume;
 
 import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.DataScopeService;
 import com.walden.cvect.service.resume.ResumeProcessService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,14 +22,17 @@ public class ResumeController {
     private final ResumeProcessService processService;
     private final JobDescriptionJpaRepository jobDescriptionRepository;
     private final CurrentUserService currentUserService;
+    private final DataScopeService dataScopeService;
 
     public ResumeController(
             ResumeProcessService processService,
             JobDescriptionJpaRepository jobDescriptionRepository,
-            CurrentUserService currentUserService) {
+            CurrentUserService currentUserService,
+            DataScopeService dataScopeService) {
         this.processService = processService;
         this.jobDescriptionRepository = jobDescriptionRepository;
         this.currentUserService = currentUserService;
+        this.dataScopeService = dataScopeService;
     }
 
     /**
@@ -60,7 +64,7 @@ public class ResumeController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", "jdId is invalid"));
         }
-        if (jobDescriptionRepository.findByIdAndTenantId(jobId, currentUserService.currentTenantId()).isEmpty()) {
+        if (!canAccessJobDescription(jobId)) {
             return ResponseEntity.badRequest().body(Map.of("error", "jdId is invalid"));
         }
 
@@ -77,6 +81,18 @@ public class ResumeController {
         response.put("chunks", result.chunks());
 
         return ResponseEntity.ok(response);
+    }
+
+    private boolean canAccessJobDescription(java.util.UUID jobId) {
+        java.util.UUID tenantId = currentUserService.currentTenantId();
+        if (dataScopeService.hasTenantWideScope()) {
+            return jobDescriptionRepository.findByIdAndTenantId(jobId, tenantId).isPresent();
+        }
+        java.util.UUID userId = dataScopeService.currentUserIdOrNull();
+        return userId != null && jobDescriptionRepository.findByIdAndTenantIdAndCreatedByUserId(
+                jobId,
+                tenantId,
+                userId).isPresent();
     }
 
     /**

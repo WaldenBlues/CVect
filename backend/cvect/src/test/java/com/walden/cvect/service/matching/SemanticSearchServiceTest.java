@@ -7,6 +7,7 @@ import com.walden.cvect.model.entity.vector.VectorIngestTaskStatus;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
 import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.DataScopeService;
 import com.walden.cvect.service.matching.SearchQueryEmbeddingCacheService;
 import com.walden.cvect.service.matching.SemanticSearchExecutionService;
 import com.walden.cvect.service.matching.SemanticSearchService;
@@ -54,11 +55,16 @@ class SemanticSearchServiceTest {
     @Mock
     private CurrentUserService currentUserService;
 
+    @Mock
+    private DataScopeService dataScopeService;
+
     private SemanticSearchService service;
 
     @BeforeEach
     void setUp() {
         when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(dataScopeService.hasTenantWideScope()).thenReturn(true);
+        when(dataScopeService.cacheScopeKey()).thenReturn("tenant:" + TenantConstants.DEFAULT_TENANT_ID);
         when(candidateRepository.findIdsByTenantId(TenantConstants.DEFAULT_TENANT_ID)).thenReturn(List.of(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
@@ -68,8 +74,41 @@ class SemanticSearchServiceTest {
                 queryEmbeddingCache,
                 vectorIngestTaskRepository,
                 candidateRepository,
-                currentUserService);
-        service = new SemanticSearchService(executionService);
+                currentUserService,
+                dataScopeService);
+        service = new SemanticSearchService(executionService, dataScopeService);
+    }
+
+    @Test
+    @DisplayName("search should use creator-scoped candidates for recruiter view")
+    void shouldUseCreatorScopedCandidatesForRecruiterView() {
+        UUID userId = UUID.randomUUID();
+        UUID visibleCandidateId = UUID.randomUUID();
+        when(dataScopeService.hasTenantWideScope()).thenReturn(false);
+        when(dataScopeService.currentUserIdOrNull()).thenReturn(userId);
+        when(candidateRepository.findIdsByTenantIdAndJobDescriptionCreatedByUserId(
+                TenantConstants.DEFAULT_TENANT_ID,
+                userId)).thenReturn(List.of(visibleCandidateId));
+        when(queryEmbeddingCache.get("Java backend role")).thenReturn(new float[1024]);
+        when(vectorStore.search(any(float[].class), eq(40), eq(List.of(visibleCandidateId)), any()))
+                .thenReturn(List.of());
+
+        SearchController.SearchRequest request = new SearchController.SearchRequest(
+                "Java backend role",
+                10,
+                false,
+                false,
+                null,
+                null,
+                false);
+
+        SearchController.SearchResponse response = service.search(request);
+
+        assertEquals(0, response.totalResults());
+        verify(candidateRepository).findIdsByTenantIdAndJobDescriptionCreatedByUserId(
+                TenantConstants.DEFAULT_TENANT_ID,
+                userId);
+        verify(candidateRepository, never()).findIdsByTenantId(TenantConstants.DEFAULT_TENANT_ID);
     }
 
     @Test

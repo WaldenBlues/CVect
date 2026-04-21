@@ -36,7 +36,7 @@ public class JwtService {
             @Value("${app.security.jwt.ttl-seconds:86400}") long ttlSeconds) {
         this.objectMapper = objectMapper;
         this.secret = resolveSecret(secret);
-        this.ttlSeconds = Math.max(60L, ttlSeconds);
+        this.ttlSeconds = Math.max(1L, ttlSeconds);
     }
 
     public String createToken(CurrentUser user) {

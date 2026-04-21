@@ -40,6 +40,7 @@ public final class PermissionCodes {
 
     public static final List<String> RECRUITER = List.of(
             JD_READ,
+            JD_WRITE,
             RESUME_UPLOAD,
             CANDIDATE_READ,
             CANDIDATE_UPDATE_STATUS,

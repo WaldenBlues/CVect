@@ -7,6 +7,7 @@ import com.walden.cvect.model.entity.vector.VectorIngestTaskStatus;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
 import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.DataScopeService;
 import com.walden.cvect.web.controller.search.SearchController;
 import org.springframework.stereotype.Service;
 
@@ -30,18 +31,21 @@ public class SemanticSearchExecutionService {
     private final VectorIngestTaskJpaRepository vectorIngestTaskRepository;
     private final CandidateJpaRepository candidateRepository;
     private final CurrentUserService currentUserService;
+    private final DataScopeService dataScopeService;
 
     public SemanticSearchExecutionService(
             VectorStoreService vectorStore,
             SearchQueryEmbeddingCacheService queryEmbeddingCache,
             VectorIngestTaskJpaRepository vectorIngestTaskRepository,
             CandidateJpaRepository candidateRepository,
-            CurrentUserService currentUserService) {
+            CurrentUserService currentUserService,
+            DataScopeService dataScopeService) {
         this.vectorStore = vectorStore;
         this.queryEmbeddingCache = queryEmbeddingCache;
         this.vectorIngestTaskRepository = vectorIngestTaskRepository;
         this.candidateRepository = candidateRepository;
         this.currentUserService = currentUserService;
+        this.dataScopeService = dataScopeService;
     }
 
     @TimedAction(
@@ -52,7 +56,7 @@ public class SemanticSearchExecutionService {
         float[] queryEmbedding = queryEmbeddingCache.get(request.jobDescription());
         ChunkType[] types = resolveChunkTypes(request);
         SearchWeightNormalizer.Weights weightConfig = SearchWeightNormalizer.resolve(request);
-        List<UUID> tenantCandidateIds = candidateRepository.findIdsByTenantId(currentUserService.currentTenantId());
+        List<UUID> tenantCandidateIds = visibleCandidateIds();
         if (tenantCandidateIds.isEmpty()) {
             return new SearchController.SearchResponse(0, request.topK(), List.of());
         }
@@ -72,6 +76,18 @@ public class SemanticSearchExecutionService {
                 sortedCandidates.size(),
                 request.topK(),
                 List.copyOf(sortedCandidates));
+    }
+
+    private List<UUID> visibleCandidateIds() {
+        UUID tenantId = currentUserService.currentTenantId();
+        if (dataScopeService.hasTenantWideScope()) {
+            return candidateRepository.findIdsByTenantId(tenantId);
+        }
+        UUID userId = dataScopeService.currentUserIdOrNull();
+        if (userId == null) {
+            return List.of();
+        }
+        return candidateRepository.findIdsByTenantIdAndJobDescriptionCreatedByUserId(tenantId, userId);
     }
 
     private static int resolveChunkTopK(int candidateTopK) {

@@ -13,6 +13,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.Nullable;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.BindException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
@@ -105,6 +107,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     private HttpStatusCode resolveStatus(Exception ex) {
+        if (ex instanceof AccessDeniedException || ex instanceof AuthorizationDeniedException) {
+            return HttpStatus.FORBIDDEN;
+        }
         if (ex instanceof ErrorResponse errorResponse) {
             return errorResponse.getStatusCode();
         }

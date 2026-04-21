@@ -13,6 +13,7 @@ import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
 import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.DataScopeService;
 import com.walden.cvect.service.upload.queue.UploadQueueJobKeyGenerator;
 import com.walden.cvect.web.sse.BatchStreamEvent;
 import com.walden.cvect.web.sse.BatchStreamService;
@@ -56,6 +57,7 @@ public class UploadApplicationService {
     private final UploadItemJpaRepository itemRepository;
     private final BatchStreamService batchStreamService;
     private final CurrentUserService currentUserService;
+    private final DataScopeService dataScopeService;
     private final Path storageDir;
     private final int maxInflightItems;
     private final int maxFilesPerZip;
@@ -68,6 +70,7 @@ public class UploadApplicationService {
             UploadItemJpaRepository itemRepository,
             BatchStreamService batchStreamService,
             CurrentUserService currentUserService,
+            DataScopeService dataScopeService,
             @Value("${app.upload.storage-dir:storage}") String storageDir,
             @Value("${app.upload.max-inflight-items:2000}") int maxInflightItems,
             @Value("${app.upload.max-files-per-zip:2000}") int maxFilesPerZip) {
@@ -76,6 +79,7 @@ public class UploadApplicationService {
         this.itemRepository = itemRepository;
         this.batchStreamService = batchStreamService;
         this.currentUserService = currentUserService;
+        this.dataScopeService = dataScopeService;
         this.storageDir = resolveStorageDir(storageDir);
         this.maxInflightItems = Math.max(1, maxInflightItems);
         this.maxFilesPerZip = Math.max(1, maxFilesPerZip);
@@ -189,9 +193,8 @@ public class UploadApplicationService {
         }
         try {
             UUID id = UUID.fromString(jdId);
-            JobDescription jd = jobDescriptionRepository.findByIdAndTenantId(
-                    id,
-                    currentUserService.currentTenantId()).orElse(null);
+            UUID tenantId = currentUserService.currentTenantId();
+            JobDescription jd = findAccessibleJobDescription(id, tenantId);
             if (jd == null) {
                 throw new InvalidUploadRequestException("jdId is invalid");
             }
@@ -199,6 +202,17 @@ public class UploadApplicationService {
         } catch (IllegalArgumentException ex) {
             throw new InvalidUploadRequestException("jdId is invalid");
         }
+    }
+
+    private JobDescription findAccessibleJobDescription(UUID id, UUID tenantId) {
+        if (dataScopeService.hasTenantWideScope()) {
+            return jobDescriptionRepository.findByIdAndTenantId(id, tenantId).orElse(null);
+        }
+        UUID userId = dataScopeService.currentUserIdOrNull();
+        if (userId == null) {
+            return null;
+        }
+        return jobDescriptionRepository.findByIdAndTenantIdAndCreatedByUserId(id, tenantId, userId).orElse(null);
     }
 
     private FileUploadResult processUploadedFile(UploadBatch batch, MultipartFile file) throws IOException {

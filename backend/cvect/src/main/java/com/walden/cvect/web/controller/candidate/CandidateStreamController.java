@@ -1,6 +1,7 @@
 package com.walden.cvect.web.controller.candidate;
 
 import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.DataScopeService;
 import com.walden.cvect.web.stream.CandidateStreamService;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,15 +19,22 @@ public class CandidateStreamController {
 
     private final CandidateStreamService streamService;
     private final CurrentUserService currentUserService;
+    private final DataScopeService dataScopeService;
 
-    public CandidateStreamController(CandidateStreamService streamService, CurrentUserService currentUserService) {
+    public CandidateStreamController(
+            CandidateStreamService streamService,
+            CurrentUserService currentUserService,
+            DataScopeService dataScopeService) {
         this.streamService = streamService;
         this.currentUserService = currentUserService;
+        this.dataScopeService = dataScopeService;
     }
 
     @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).CANDIDATE_READ)")
     public SseEmitter stream() {
-        return streamService.register(currentUserService.currentTenantId());
+        return streamService.register(
+                currentUserService.currentTenantId(),
+                dataScopeService.hasTenantWideScope() ? null : currentUserService.currentUserIdOrNull());
     }
 }

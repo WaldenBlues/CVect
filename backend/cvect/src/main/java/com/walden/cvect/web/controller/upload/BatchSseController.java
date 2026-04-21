@@ -2,6 +2,7 @@ package com.walden.cvect.web.controller.upload;
 
 import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.DataScopeService;
 import com.walden.cvect.web.sse.BatchStreamService;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,15 +31,18 @@ public class BatchSseController {
     private final MeterRegistry meterRegistry;
     private final UploadBatchJpaRepository batchRepository;
     private final CurrentUserService currentUserService;
+    private final DataScopeService dataScopeService;
 
     public BatchSseController(BatchStreamService batchStreamService,
             ObjectProvider<MeterRegistry> meterRegistryProvider,
             UploadBatchJpaRepository batchRepository,
-            CurrentUserService currentUserService) {
+            CurrentUserService currentUserService,
+            DataScopeService dataScopeService) {
         this.batchStreamService = batchStreamService;
         this.meterRegistry = meterRegistryProvider.getIfAvailable();
         this.batchRepository = batchRepository;
         this.currentUserService = currentUserService;
+        this.dataScopeService = dataScopeService;
     }
 
     @GetMapping({
@@ -48,12 +52,24 @@ public class BatchSseController {
     @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).RESUME_UPLOAD)")
     public SseEmitter stream(@PathVariable UUID batchId, HttpServletRequest request) {
         recordLegacyPathUsage(request);
-        if (!batchRepository.existsByIdAndTenantId(batchId, currentUserService.currentTenantId())) {
+        if (!canAccessBatch(batchId)) {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.NOT_FOUND,
                     "Batch not found");
         }
         return batchStreamService.subscribe(batchId);
+    }
+
+    private boolean canAccessBatch(UUID batchId) {
+        UUID tenantId = currentUserService.currentTenantId();
+        if (dataScopeService.hasTenantWideScope()) {
+            return batchRepository.existsByIdAndTenantId(batchId, tenantId);
+        }
+        UUID userId = dataScopeService.currentUserIdOrNull();
+        return userId != null && batchRepository.existsByIdAndTenantIdAndJobDescriptionCreatedByUserId(
+                batchId,
+                tenantId,
+                userId);
     }
 
     private void recordLegacyPathUsage(HttpServletRequest request) {

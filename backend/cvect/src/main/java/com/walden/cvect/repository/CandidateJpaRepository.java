@@ -33,13 +33,45 @@ public interface CandidateJpaRepository extends JpaRepository<Candidate, UUID> {
 
     List<Candidate> findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(UUID tenantId, UUID jobDescriptionId);
 
+    @Query("""
+            select c from Candidate c
+            where c.tenantId = :tenantId
+              and c.jobDescription.id = :jobDescriptionId
+              and c.jobDescription.createdByUserId = :createdByUserId
+            order by c.createdAt desc
+            """)
+    List<Candidate> findByTenantIdAndJobDescriptionIdAndJobDescriptionCreatedByUserIdOrderByCreatedAtDesc(
+            @Param("tenantId") UUID tenantId,
+            @Param("jobDescriptionId") UUID jobDescriptionId,
+            @Param("createdByUserId") UUID createdByUserId);
+
     Optional<Candidate> findByIdAndTenantId(UUID id, UUID tenantId);
+
+    @Query("""
+            select c from Candidate c
+            where c.id = :id
+              and c.tenantId = :tenantId
+              and c.jobDescription.createdByUserId = :createdByUserId
+            """)
+    Optional<Candidate> findByIdAndTenantIdAndJobDescriptionCreatedByUserId(
+            @Param("id") UUID id,
+            @Param("tenantId") UUID tenantId,
+            @Param("createdByUserId") UUID createdByUserId);
 
     @Query("select c.id from Candidate c where c.jobDescription.id = :jobDescriptionId")
     List<UUID> findIdsByJobDescriptionId(@Param("jobDescriptionId") UUID jobDescriptionId);
 
     @Query("select c.id from Candidate c where c.tenantId = :tenantId")
     List<UUID> findIdsByTenantId(@Param("tenantId") UUID tenantId);
+
+    @Query("""
+            select c.id from Candidate c
+            where c.tenantId = :tenantId
+              and c.jobDescription.createdByUserId = :createdByUserId
+            """)
+    List<UUID> findIdsByTenantIdAndJobDescriptionCreatedByUserId(
+            @Param("tenantId") UUID tenantId,
+            @Param("createdByUserId") UUID createdByUserId);
 
     @Query("select c.id from Candidate c where c.tenantId = :tenantId and c.jobDescription.id = :jobDescriptionId")
     List<UUID> findIdsByTenantIdAndJobDescriptionId(

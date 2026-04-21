@@ -11,6 +11,7 @@ import com.walden.cvect.model.TenantConstants;
 import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
 import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.DataScopeService;
 import com.walden.cvect.service.matching.SearchQueryEmbeddingCacheService;
 import com.walden.cvect.service.matching.SemanticSearchExecutionService;
 import com.walden.cvect.service.matching.SemanticSearchService;
@@ -265,6 +266,14 @@ class SemanticSearchCacheTest {
         }
 
         @Bean
+        DataScopeService dataScopeService() {
+            DataScopeService dataScopeService = mock(DataScopeService.class);
+            when(dataScopeService.hasTenantWideScope()).thenReturn(true);
+            when(dataScopeService.cacheScopeKey()).thenReturn("tenant:" + TenantConstants.DEFAULT_TENANT_ID);
+            return dataScopeService;
+        }
+
+        @Bean
         SearchQueryEmbeddingCacheService searchQueryEmbeddingCacheService(EmbeddingService embeddingService) {
             return new SearchQueryEmbeddingCacheService(embeddingService);
         }
@@ -275,18 +284,22 @@ class SemanticSearchCacheTest {
                 SearchQueryEmbeddingCacheService searchQueryEmbeddingCacheService,
                 VectorIngestTaskJpaRepository vectorIngestTaskJpaRepository,
                 CandidateJpaRepository candidateJpaRepository,
-                CurrentUserService currentUserService) {
+                CurrentUserService currentUserService,
+                DataScopeService dataScopeService) {
             return new SemanticSearchExecutionService(
                     vectorStoreService,
                     searchQueryEmbeddingCacheService,
                     vectorIngestTaskJpaRepository,
                     candidateJpaRepository,
-                    currentUserService);
+                    currentUserService,
+                    dataScopeService);
         }
 
         @Bean
-        SemanticSearchService semanticSearchService(SemanticSearchExecutionService semanticSearchExecutionService) {
-            return new SemanticSearchService(semanticSearchExecutionService);
+        SemanticSearchService semanticSearchService(
+                SemanticSearchExecutionService semanticSearchExecutionService,
+                DataScopeService dataScopeService) {
+            return new SemanticSearchService(semanticSearchExecutionService, dataScopeService);
         }
 
         @Bean

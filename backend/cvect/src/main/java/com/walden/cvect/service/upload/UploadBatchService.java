@@ -9,6 +9,7 @@ import com.walden.cvect.model.entity.UploadItemStatus;
 import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
 import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.DataScopeService;
 import com.walden.cvect.service.upload.queue.UploadQueueJobKeyGenerator;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -38,22 +39,25 @@ public class UploadBatchService {
     private final UploadItemJpaRepository itemRepository;
     private final MeterRegistry meterRegistry;
     private final CurrentUserService currentUserService;
+    private final DataScopeService dataScopeService;
 
     public UploadBatchService(UploadBatchJpaRepository batchRepository,
             UploadItemJpaRepository itemRepository,
             ObjectProvider<MeterRegistry> meterRegistryProvider,
-            CurrentUserService currentUserService) {
+            CurrentUserService currentUserService,
+            DataScopeService dataScopeService) {
         this.batchRepository = batchRepository;
         this.itemRepository = itemRepository;
         this.meterRegistry = meterRegistryProvider.getIfAvailable();
         this.currentUserService = currentUserService;
+        this.dataScopeService = dataScopeService;
     }
 
     @AppLog(action = "get_upload_batch_overview")
     @Transactional(readOnly = true)
     public Optional<BatchOverview> getBatchOverview(UUID batchId) {
         UUID tenantId = currentUserService.currentTenantId();
-        UploadBatch batch = batchRepository.findByIdAndTenantId(batchId, tenantId).orElse(null);
+        UploadBatch batch = findAccessibleBatch(batchId, tenantId).orElse(null);
         if (batch == null) {
             return Optional.empty();
         }
@@ -95,7 +99,7 @@ public class UploadBatchService {
     @Transactional(readOnly = true)
     public Optional<Page<UploadItemView>> getBatchItems(UUID batchId, String status, Pageable pageable) {
         UUID tenantId = currentUserService.currentTenantId();
-        if (!batchRepository.existsByIdAndTenantId(batchId, tenantId)) {
+        if (!existsAccessibleBatch(batchId, tenantId)) {
             return Optional.empty();
         }
         Page<UploadItem> page;
@@ -125,7 +129,7 @@ public class UploadBatchService {
     @Transactional
     public Optional<RetryFailedResult> retryFailed(UUID batchId) {
         UUID tenantId = currentUserService.currentTenantId();
-        UploadBatch batch = batchRepository.findByIdAndTenantId(batchId, tenantId).orElse(null);
+        UploadBatch batch = findAccessibleBatch(batchId, tenantId).orElse(null);
         if (batch == null) {
             return Optional.empty();
         }
@@ -147,6 +151,28 @@ public class UploadBatchService {
             batchRepository.save(batch);
         }
         return Optional.of(new RetryFailedResult(batchId, retriedCount));
+    }
+
+    private Optional<UploadBatch> findAccessibleBatch(UUID batchId, UUID tenantId) {
+        if (dataScopeService.hasTenantWideScope()) {
+            return batchRepository.findByIdAndTenantId(batchId, tenantId);
+        }
+        UUID userId = dataScopeService.currentUserIdOrNull();
+        if (userId == null) {
+            return Optional.empty();
+        }
+        return batchRepository.findByIdAndTenantIdAndJobDescriptionCreatedByUserId(batchId, tenantId, userId);
+    }
+
+    private boolean existsAccessibleBatch(UUID batchId, UUID tenantId) {
+        if (dataScopeService.hasTenantWideScope()) {
+            return batchRepository.existsByIdAndTenantId(batchId, tenantId);
+        }
+        UUID userId = dataScopeService.currentUserIdOrNull();
+        return userId != null && batchRepository.existsByIdAndTenantIdAndJobDescriptionCreatedByUserId(
+                batchId,
+                tenantId,
+                userId);
     }
 
     private static long get(Map<UploadItemStatus, Long> counts, UploadItemStatus status) {

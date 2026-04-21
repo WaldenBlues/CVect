@@ -50,9 +50,11 @@ public class AuthDataInitializer implements ApplicationRunner {
         ensureDefaultTenant();
         Map<String, AuthPermission> permissions = ensurePermissions();
         AuthRole owner = ensureRole("OWNER", "企业管理员", PermissionCodes.ALL, permissions);
-        ensureRole("HR_MANAGER", "招聘负责人", PermissionCodes.HR_MANAGER, permissions);
-        ensureRole("RECRUITER", "招聘专员", PermissionCodes.RECRUITER, permissions);
-        ensureDemoOwner(owner);
+        AuthRole hrManager = ensureRole("HR_MANAGER", "招聘负责人", PermissionCodes.HR_MANAGER, permissions);
+        AuthRole recruiter = ensureRole("RECRUITER", "招聘专员", PermissionCodes.RECRUITER, permissions);
+        ensureDemoUser("demo", "Demo Owner", owner);
+        ensureDemoUser("hr", "Demo HR Manager", hrManager);
+        ensureDemoUser("recruiter", "Demo Recruiter", recruiter);
     }
 
     private void ensureDefaultTenant() {
@@ -87,15 +89,15 @@ public class AuthDataInitializer implements ApplicationRunner {
         return roleRepository.save(role);
     }
 
-    private void ensureDemoOwner(AuthRole ownerRole) {
-        AuthUser user = userRepository.findByTenantIdAndUsername(DEFAULT_TENANT_ID, "demo")
+    private void ensureDemoUser(String username, String displayName, AuthRole role) {
+        AuthUser user = userRepository.findByTenantIdAndUsername(DEFAULT_TENANT_ID, username)
                 .orElseGet(() -> userRepository.save(new AuthUser(
                         DEFAULT_TENANT_ID,
-                        "demo",
+                        username,
                         passwordEncoder.encode("demo123"),
-                        "Demo Owner",
+                        displayName,
                         true)));
-        user.getRoles().add(ownerRole);
+        user.getRoles().add(role);
         userRepository.save(user);
     }
 }

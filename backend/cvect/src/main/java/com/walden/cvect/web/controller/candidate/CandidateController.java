@@ -10,6 +10,7 @@ import com.walden.cvect.repository.CandidateJpaRepository;
 import com.walden.cvect.repository.ResumeChunkVectorJpaRepository;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
 import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.DataScopeService;
 import com.walden.cvect.service.candidate.CandidateSnapshotService;
 import com.walden.cvect.service.matching.PersistedMatchScoreService;
 import com.walden.cvect.web.stream.CandidateStreamEvent;
@@ -44,6 +45,7 @@ public class CandidateController {
     private final VectorIngestTaskJpaRepository vectorIngestTaskRepository;
     private final PersistedMatchScoreService persistedMatchScoreService;
     private final CurrentUserService currentUserService;
+    private final DataScopeService dataScopeService;
 
     public CandidateController(CandidateJpaRepository candidateRepository,
             CandidateMatchScoreJpaRepository candidateMatchScoreRepository,
@@ -51,7 +53,8 @@ public class CandidateController {
             ResumeChunkVectorJpaRepository resumeChunkVectorRepository,
             VectorIngestTaskJpaRepository vectorIngestTaskRepository,
             PersistedMatchScoreService persistedMatchScoreService,
-            CurrentUserService currentUserService) {
+            CurrentUserService currentUserService,
+            DataScopeService dataScopeService) {
         this.candidateRepository = candidateRepository;
         this.candidateMatchScoreRepository = candidateMatchScoreRepository;
         this.snapshotService = snapshotService;
@@ -59,15 +62,14 @@ public class CandidateController {
         this.vectorIngestTaskRepository = vectorIngestTaskRepository;
         this.persistedMatchScoreService = persistedMatchScoreService;
         this.currentUserService = currentUserService;
+        this.dataScopeService = dataScopeService;
     }
 
     @GetMapping
     @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).CANDIDATE_READ)")
     public ResponseEntity<List<CandidateListItem>> listByJd(@RequestParam("jdId") UUID jdId) {
         UUID tenantId = currentUserService.currentTenantId();
-        List<Candidate> candidates = candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
-                tenantId,
-                jdId);
+        List<Candidate> candidates = visibleCandidates(tenantId, jdId);
         List<CandidateStreamEvent> snapshotEvents = snapshotService.listByTenantAndJd(tenantId, jdId);
         Map<UUID, CandidateStreamEvent> byCandidateId = new HashMap<>();
         for (CandidateStreamEvent event : snapshotEvents) {
@@ -146,6 +148,31 @@ public class CandidateController {
         return ResponseEntity.ok(events);
     }
 
+    private List<Candidate> visibleCandidates(UUID tenantId, UUID jdId) {
+        if (dataScopeService.hasTenantWideScope()) {
+            return candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(tenantId, jdId);
+        }
+        UUID userId = dataScopeService.currentUserIdOrNull();
+        if (userId == null) {
+            return List.of();
+        }
+        return candidateRepository.findByTenantIdAndJobDescriptionIdAndJobDescriptionCreatedByUserIdOrderByCreatedAtDesc(
+                tenantId,
+                jdId,
+                userId);
+    }
+
+    private java.util.Optional<Candidate> findVisibleCandidate(UUID candidateId, UUID tenantId) {
+        if (dataScopeService.hasTenantWideScope()) {
+            return candidateRepository.findByIdAndTenantId(candidateId, tenantId);
+        }
+        UUID userId = dataScopeService.currentUserIdOrNull();
+        if (userId == null) {
+            return java.util.Optional.empty();
+        }
+        return candidateRepository.findByIdAndTenantIdAndJobDescriptionCreatedByUserId(candidateId, tenantId, userId);
+    }
+
     private static String resolveVectorStatus(boolean hasVectorChunk, boolean hasInflight, boolean hasFailed) {
         if (hasInflight && hasVectorChunk) {
             return "PARTIAL";
@@ -172,7 +199,7 @@ public class CandidateController {
             @PathVariable("id") UUID id,
             @Valid @RequestBody UpdateRecruitmentStatusRequest request) {
         UUID tenantId = currentUserService.currentTenantId();
-        Candidate candidate = candidateRepository.findByIdAndTenantId(id, tenantId).orElse(null);
+        Candidate candidate = findVisibleCandidate(id, tenantId).orElse(null);
         if (candidate == null) {
             return ResponseEntity.notFound().build();
         }

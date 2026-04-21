@@ -46,3 +46,10 @@
 ## ExecPlans
 - When implementing complex features, major refactors, or cross-module changes, first create or update an ExecPlan in `PLANS.md` before coding.
 - The ExecPlan should cover goal, impact scope, risks, implementation steps, verification for each step, and rollback approach.
+
+## Local Tool Debug Notes
+- If `apply_patch` reports `No such file or directory` for a file that shell commands can read, first verify the default sandbox with `pwd`, `ls`, or `sed` without escalation.
+- In WSL sessions, this can be a transient Codex sandbox/filesystem-view issue. Restarting Codex and restoring the conversation can restore both default shell access and `apply_patch`.
+- After restart, confirm `apply_patch` with a harmless repo-local add/delete probe before editing real files.
+- Do not treat an `apply_patch` path error as proof that the target file is missing; confirm with shell commands first.
+- If the issue persists and the change is blocking, use a small scoped fallback edit, then verify with `git diff --check` and the smallest relevant test.

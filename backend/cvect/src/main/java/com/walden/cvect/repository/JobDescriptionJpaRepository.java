@@ -11,7 +11,15 @@ public interface JobDescriptionJpaRepository extends JpaRepository<JobDescriptio
 
     List<JobDescription> findByTenantIdOrderByCreatedAtDesc(UUID tenantId);
 
+    List<JobDescription> findByTenantIdAndCreatedByUserIdOrderByCreatedAtDesc(UUID tenantId, UUID createdByUserId);
+
     Optional<JobDescription> findByIdAndTenantId(UUID id, UUID tenantId);
 
+    Optional<JobDescription> findByIdAndTenantIdAndCreatedByUserId(UUID id, UUID tenantId, UUID createdByUserId);
+
+    boolean existsByIdAndTenantIdAndCreatedByUserId(UUID id, UUID tenantId, UUID createdByUserId);
+
     List<JobDescription> findByTenantId(UUID tenantId);
+
+    List<JobDescription> findByTenantIdAndCreatedByUserId(UUID tenantId, UUID createdByUserId);
 }

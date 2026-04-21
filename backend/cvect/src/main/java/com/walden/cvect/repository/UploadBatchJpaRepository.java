@@ -17,7 +17,29 @@ public interface UploadBatchJpaRepository extends JpaRepository<UploadBatch, UUI
 
     boolean existsByIdAndTenantId(UUID id, UUID tenantId);
 
+    @Query("""
+            select count(b) > 0 from UploadBatch b
+            where b.id = :id
+              and b.tenantId = :tenantId
+              and b.jobDescription.createdByUserId = :createdByUserId
+            """)
+    boolean existsByIdAndTenantIdAndJobDescriptionCreatedByUserId(
+            @Param("id") UUID id,
+            @Param("tenantId") UUID tenantId,
+            @Param("createdByUserId") UUID createdByUserId);
+
     java.util.Optional<UploadBatch> findByIdAndTenantId(UUID id, UUID tenantId);
+
+    @Query("""
+            select b from UploadBatch b
+            where b.id = :id
+              and b.tenantId = :tenantId
+              and b.jobDescription.createdByUserId = :createdByUserId
+            """)
+    java.util.Optional<UploadBatch> findByIdAndTenantIdAndJobDescriptionCreatedByUserId(
+            @Param("id") UUID id,
+            @Param("tenantId") UUID tenantId,
+            @Param("createdByUserId") UUID createdByUserId);
 
     long deleteByJobDescriptionId(UUID jobDescriptionId);
 

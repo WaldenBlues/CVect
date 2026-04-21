@@ -1,5 +1,6 @@
 package com.walden.cvect.web.stream;
 
+import com.walden.cvect.repository.JobDescriptionJpaRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,14 +24,22 @@ public class CandidateStreamService {
 
     private final List<Subscription> subscriptions = new CopyOnWriteArrayList<>();
     private final long emitterTimeoutMs;
+    private final JobDescriptionJpaRepository jobDescriptionRepository;
 
-    public CandidateStreamService(@Value("${app.sse.timeout-ms:600000}") long emitterTimeoutMs) {
+    public CandidateStreamService(
+            @Value("${app.sse.timeout-ms:600000}") long emitterTimeoutMs,
+            JobDescriptionJpaRepository jobDescriptionRepository) {
         this.emitterTimeoutMs = emitterTimeoutMs > 0 ? emitterTimeoutMs : DEFAULT_TIMEOUT_MS;
+        this.jobDescriptionRepository = jobDescriptionRepository;
     }
 
     public SseEmitter register(UUID tenantId) {
+        return register(tenantId, null);
+    }
+
+    public SseEmitter register(UUID tenantId, UUID createdByUserId) {
         SseEmitter emitter = new SseEmitter(emitterTimeoutMs);
-        Subscription subscription = new Subscription(tenantId, emitter);
+        Subscription subscription = new Subscription(tenantId, createdByUserId, emitter);
         subscriptions.add(subscription);
 
         emitter.onCompletion(() -> subscriptions.remove(subscription));
@@ -101,14 +110,32 @@ public class CandidateStreamService {
 
     private boolean canReceive(Subscription subscription, Object data) {
         if (data instanceof CandidateStreamEvent event) {
-            return event.tenantId() == null || event.tenantId().equals(subscription.tenantId());
+            return sameTenant(subscription, event.tenantId()) && canReceiveJob(subscription, event.tenantId(), event.jdId());
         }
         if (data instanceof VectorStatusStreamEvent event) {
-            return event.tenantId() == null || event.tenantId().equals(subscription.tenantId());
+            return sameTenant(subscription, event.tenantId()) && canReceiveJob(subscription, event.tenantId(), event.jdId());
         }
         return true;
     }
 
-    private record Subscription(UUID tenantId, SseEmitter emitter) {
+    private boolean sameTenant(Subscription subscription, UUID tenantId) {
+        return tenantId == null || tenantId.equals(subscription.tenantId());
+    }
+
+    private boolean canReceiveJob(Subscription subscription, UUID tenantId, UUID jobDescriptionId) {
+        if (subscription.createdByUserId() == null) {
+            return true;
+        }
+        if (jobDescriptionId == null) {
+            return false;
+        }
+        UUID resolvedTenantId = tenantId == null ? subscription.tenantId() : tenantId;
+        return jobDescriptionRepository.existsByIdAndTenantIdAndCreatedByUserId(
+                jobDescriptionId,
+                resolvedTenantId,
+                subscription.createdByUserId());
+    }
+
+    private record Subscription(UUID tenantId, UUID createdByUserId, SseEmitter emitter) {
     }
 }

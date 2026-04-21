@@ -15,6 +15,7 @@ import com.walden.cvect.repository.UploadBatchJpaRepository;
 import com.walden.cvect.repository.UploadItemJpaRepository;
 import com.walden.cvect.infra.vector.VectorStoreService;
 import com.walden.cvect.security.CurrentUserService;
+import com.walden.cvect.security.DataScopeService;
 import com.walden.cvect.service.matching.PersistedMatchScoreService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,7 @@ public class JobDescriptionApplicationService {
     private final VectorStoreService vectorStoreService;
     private final PersistedMatchScoreService persistedMatchScoreService;
     private final CurrentUserService currentUserService;
+    private final DataScopeService dataScopeService;
 
     public JobDescriptionApplicationService(
             JobDescriptionJpaRepository jdRepository,
@@ -53,7 +55,8 @@ public class JobDescriptionApplicationService {
             UploadItemJpaRepository itemRepository,
             VectorStoreService vectorStoreService,
             PersistedMatchScoreService persistedMatchScoreService,
-            CurrentUserService currentUserService) {
+            CurrentUserService currentUserService,
+            DataScopeService dataScopeService) {
         this.jdRepository = jdRepository;
         this.candidateRepository = candidateRepository;
         this.snapshotRepository = snapshotRepository;
@@ -67,13 +70,18 @@ public class JobDescriptionApplicationService {
         this.vectorStoreService = vectorStoreService;
         this.persistedMatchScoreService = persistedMatchScoreService;
         this.currentUserService = currentUserService;
+        this.dataScopeService = dataScopeService;
     }
 
     @AppLog(action = "create_job_description")
     @AuditAction(action = "create_job_description", target = "job_description")
     public JobDescription create(String title, String content) {
         UUID tenantId = currentUserService.currentTenantId();
-        JobDescription saved = jdRepository.save(new JobDescription(tenantId, title, content));
+        JobDescription saved = jdRepository.save(new JobDescription(
+                tenantId,
+                title,
+                content,
+                currentUserService.currentUserIdOrNull()));
         persistedMatchScoreService.markJobDescriptionDirty(saved.getId());
         persistedMatchScoreService.scheduleRefreshForJobDescription(saved.getId());
         return saved;
@@ -83,7 +91,7 @@ public class JobDescriptionApplicationService {
     @AuditAction(action = "update_job_description", target = "job_description", logResult = true)
     public Optional<JobDescription> update(UUID id, String title, String content) {
         UUID tenantId = currentUserService.currentTenantId();
-        return jdRepository.findByIdAndTenantId(id, tenantId)
+        return findAccessibleJobDescription(id, tenantId)
                 .map(jd -> {
                     jd.setTitle(title);
                     jd.setContent(content);
@@ -94,12 +102,23 @@ public class JobDescriptionApplicationService {
                 });
     }
 
+    private Optional<JobDescription> findAccessibleJobDescription(UUID id, UUID tenantId) {
+        if (dataScopeService.hasTenantWideScope()) {
+            return jdRepository.findByIdAndTenantId(id, tenantId);
+        }
+        UUID userId = dataScopeService.currentUserIdOrNull();
+        if (userId == null) {
+            return Optional.empty();
+        }
+        return jdRepository.findByIdAndTenantIdAndCreatedByUserId(id, tenantId, userId);
+    }
+
     @AppLog(action = "delete_job_description")
     @AuditAction(action = "delete_job_description", target = "job_description", logResult = true)
     @Transactional
     public boolean delete(UUID id) {
         UUID tenantId = currentUserService.currentTenantId();
-        JobDescription jd = jdRepository.findByIdAndTenantId(id, tenantId).orElse(null);
+        JobDescription jd = findAccessibleJobDescription(id, tenantId).orElse(null);
         if (jd == null) {
             return false;
         }
