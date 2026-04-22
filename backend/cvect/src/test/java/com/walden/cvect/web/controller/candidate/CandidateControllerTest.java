@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,6 +30,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -75,6 +77,59 @@ class CandidateControllerTest {
         assertNotNull(response.getBody());
         assertEquals(0, response.getBody().size());
         verify(resumeChunkVectorRepository, never()).findDistinctCandidateIdsIn(anyCollection());
+    }
+
+    @Test
+    @DisplayName("listByJd should schedule refresh when vectorized candidates are missing persisted scores")
+    void listByJdShouldScheduleRefreshWhenVectorizedCandidatesAreMissingScores() {
+        UUID jdId = UUID.randomUUID();
+        UUID candidateId = UUID.randomUUID();
+
+        Candidate candidate = mock(Candidate.class);
+        when(candidate.getId()).thenReturn(candidateId);
+
+        when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(dataScopeService.hasTenantWideScope()).thenReturn(true);
+        when(candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
+                TenantConstants.DEFAULT_TENANT_ID,
+                jdId)).thenReturn(List.of(candidate));
+        when(snapshotService.listByTenantAndJd(TenantConstants.DEFAULT_TENANT_ID, jdId))
+                .thenReturn(List.of(new CandidateStreamEvent(
+                        candidateId,
+                        TenantConstants.DEFAULT_TENANT_ID,
+                        jdId,
+                        "DONE",
+                        CandidateRecruitmentStatus.TO_CONTACT.name(),
+                        "Alice",
+                        "alice.pdf",
+                        "application/pdf",
+                        123L,
+                        42,
+                        false,
+                        LocalDateTime.of(2024, 1, 1, 12, 0),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of())));
+        when(candidateMatchScoreRepository.findByTenantIdAndJobDescriptionIdAndCandidateIdIn(
+                any(),
+                any(),
+                anyCollection())).thenReturn(List.of());
+        when(resumeChunkVectorRepository.findDistinctCandidateIdsIn(anyCollection()))
+                .thenReturn(List.of(candidateId));
+        when(vectorIngestTaskRepository.findCandidateIdsByStatusIn(anyCollection(), anyList()))
+                .thenReturn(List.of());
+
+        CandidateController controller = controller();
+
+        ResponseEntity<List<CandidateController.CandidateListItem>> response = controller.listByJd(jdId);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().size());
+        assertEquals(candidateId, response.getBody().get(0).candidateId());
+        assertEquals("READY", response.getBody().get(0).vectorStatus());
+        verify(persistedMatchScoreService).scheduleRefreshForJobDescription(jdId);
     }
 
     @Test
