@@ -29,6 +29,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
@@ -122,6 +123,66 @@ class CandidateControllerVectorStatusTest {
         assertEquals(candidateId, response.getBody().get(0).candidateId());
         assertEquals("PARTIAL", response.getBody().get(0).vectorStatus());
         assertFalse(response.getBody().get(0).noVectorChunk());
+        verify(persistedMatchScoreService, never()).scheduleRefreshForJobDescription(jdId);
+    }
+
+    @Test
+    @DisplayName("listByJd should report failed vector status when ingest failed without a vector chunk")
+    void listByJdShouldReportFailedVectorStatusWhenIngestFailedWithoutVectorChunk() {
+        UUID jdId = UUID.randomUUID();
+        UUID candidateId = UUID.randomUUID();
+
+        Candidate candidate = mock(Candidate.class);
+        when(candidate.getId()).thenReturn(candidateId);
+
+        when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(dataScopeService.hasTenantWideScope()).thenReturn(true);
+        when(candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
+                TenantConstants.DEFAULT_TENANT_ID,
+                jdId)).thenReturn(List.of(candidate));
+        when(snapshotService.listByTenantAndJd(TenantConstants.DEFAULT_TENANT_ID, jdId))
+                .thenReturn(List.of(new CandidateStreamEvent(
+                        candidateId,
+                        TenantConstants.DEFAULT_TENANT_ID,
+                        jdId,
+                        "DONE",
+                        CandidateRecruitmentStatus.TO_CONTACT.name(),
+                        "Alice",
+                        "alice.pdf",
+                        "application/pdf",
+                        123L,
+                        42,
+                        false,
+                        LocalDateTime.of(2024, 1, 1, 12, 0),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of())));
+        when(candidateMatchScoreRepository.findByTenantIdAndJobDescriptionIdAndCandidateIdIn(
+                any(),
+                any(),
+                anyCollection())).thenReturn(List.of());
+        when(resumeChunkVectorRepository.findDistinctCandidateIdsIn(anyCollection()))
+                .thenReturn(List.of());
+        when(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
+                anyCollection(),
+                eq(List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING))))
+                .thenReturn(List.of());
+        when(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
+                anyCollection(),
+                eq(List.of(VectorIngestTaskStatus.FAILED))))
+                .thenReturn(List.of(candidateId));
+
+        CandidateController controller = controller();
+
+        ResponseEntity<List<CandidateController.CandidateListItem>> response = controller.listByJd(jdId);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().size());
+        assertEquals(candidateId, response.getBody().get(0).candidateId());
+        assertEquals("FAILED", response.getBody().get(0).vectorStatus());
+        assertTrue(response.getBody().get(0).noVectorChunk());
         verify(persistedMatchScoreService, never()).scheduleRefreshForJobDescription(jdId);
     }
 

@@ -1,6 +1,7 @@
 package com.walden.cvect.web.controller.candidate;
 
 import com.walden.cvect.model.entity.Candidate;
+import com.walden.cvect.model.entity.CandidateMatchScore;
 import com.walden.cvect.model.entity.CandidateRecruitmentStatus;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.model.TenantConstants;
@@ -129,6 +130,88 @@ class CandidateControllerTest {
         assertEquals(1, response.getBody().size());
         assertEquals(candidateId, response.getBody().get(0).candidateId());
         assertEquals("READY", response.getBody().get(0).vectorStatus());
+        verify(persistedMatchScoreService).scheduleRefreshForJobDescription(jdId);
+    }
+
+    @Test
+    @DisplayName("listByJd should schedule refresh when a vectorized candidate is missing a score even if another candidate has one")
+    void listByJdShouldScheduleRefreshWhenVectorizedCandidateMissingScoreButOtherCandidateHasScore() {
+        UUID jdId = UUID.randomUUID();
+        UUID vectorizedCandidateId = UUID.randomUUID();
+        UUID staleScoredCandidateId = UUID.randomUUID();
+
+        Candidate vectorizedCandidate = mock(Candidate.class);
+        when(vectorizedCandidate.getId()).thenReturn(vectorizedCandidateId);
+        Candidate staleScoredCandidate = mock(Candidate.class);
+        when(staleScoredCandidate.getId()).thenReturn(staleScoredCandidateId);
+
+        when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(dataScopeService.hasTenantWideScope()).thenReturn(true);
+        when(candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
+                TenantConstants.DEFAULT_TENANT_ID,
+                jdId)).thenReturn(List.of(vectorizedCandidate, staleScoredCandidate));
+        when(snapshotService.listByTenantAndJd(TenantConstants.DEFAULT_TENANT_ID, jdId))
+                .thenReturn(List.of(
+                        new CandidateStreamEvent(
+                                vectorizedCandidateId,
+                                TenantConstants.DEFAULT_TENANT_ID,
+                                jdId,
+                                "DONE",
+                                CandidateRecruitmentStatus.TO_CONTACT.name(),
+                                "Alice",
+                                "alice.pdf",
+                                "application/pdf",
+                                123L,
+                                42,
+                                false,
+                                LocalDateTime.of(2024, 1, 1, 12, 0),
+                                List.of(),
+                                List.of(),
+                                List.of(),
+                                List.of(),
+                                List.of()),
+                        new CandidateStreamEvent(
+                                staleScoredCandidateId,
+                                TenantConstants.DEFAULT_TENANT_ID,
+                                jdId,
+                                "DONE",
+                                CandidateRecruitmentStatus.TO_CONTACT.name(),
+                                "Bob",
+                                "bob.pdf",
+                                "application/pdf",
+                                456L,
+                                84,
+                                false,
+                                LocalDateTime.of(2024, 1, 2, 12, 0),
+                                List.of(),
+                                List.of(),
+                                List.of(),
+                                List.of(),
+                                List.of())));
+        when(candidateMatchScoreRepository.findByTenantIdAndJobDescriptionIdAndCandidateIdIn(
+                any(),
+                any(),
+                anyCollection())).thenReturn(List.of(new CandidateMatchScore(
+                TenantConstants.DEFAULT_TENANT_ID,
+                staleScoredCandidateId,
+                jdId,
+                0.75f,
+                0.7f,
+                0.8f,
+                LocalDateTime.of(2024, 1, 3, 12, 0))));
+        when(resumeChunkVectorRepository.findDistinctCandidateIdsIn(anyCollection()))
+                .thenReturn(List.of(vectorizedCandidateId));
+        when(vectorIngestTaskRepository.findCandidateIdsByStatusIn(anyCollection(), anyList()))
+                .thenReturn(List.of());
+
+        CandidateController controller = controller();
+
+        ResponseEntity<List<CandidateController.CandidateListItem>> response = controller.listByJd(jdId);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(2, response.getBody().size());
+        assertEquals(vectorizedCandidateId, response.getBody().get(0).candidateId());
+        assertEquals(staleScoredCandidateId, response.getBody().get(1).candidateId());
         verify(persistedMatchScoreService).scheduleRefreshForJobDescription(jdId);
     }
 

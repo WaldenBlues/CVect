@@ -14,10 +14,10 @@ import org.springframework.test.context.TestPropertySource;
 
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * VectorStoreService 错误处理测试
@@ -45,53 +45,40 @@ class VectorStoreServiceErrorHandlingTest {
     private CandidateJpaRepository candidateRepository;
 
     @Test
-    @DisplayName("当向量存储不可用时，save 方法应优雅降级不抛错")
-    void should_propagate_exception_when_embedding_service_fails() {
+    @DisplayName("当向量存储不可用时，save 方法应返回 false 并跳过 embedding 服务")
+    void should_return_false_when_vector_store_is_unavailable() {
         // Given
         UUID candidateId = createCandidateId("vector-error-1");
         String content = "Java developer experience";
-        
-        when(embeddingService.embed(anyString()))
-            .thenThrow(new RuntimeException("Embedding service unavailable"));
-        
-        // When & Then: 当前实现在向量存储不可用时会降级返回，不抛异常
-        assertThatCode(() ->
-            vectorStore.save(candidateId, ChunkType.EXPERIENCE, content)
-        ).doesNotThrowAnyException();
+
+        // When & Then: 向量存储不可用时会直接跳过保存
+        assertThat(vectorStore.save(candidateId, ChunkType.EXPERIENCE, content)).isFalse();
+        verifyNoInteractions(embeddingService);
     }
 
     @Test
-    @DisplayName("当向量存储不可用时，空向量输入也应被优雅跳过")
-    void should_handle_empty_embedding_array() {
+    @DisplayName("当向量存储不可用时，空向量输入也应返回 false")
+    void should_return_false_for_empty_embedding_array() {
         // Given
         UUID candidateId = createCandidateId("vector-error-2");
         String content = "Test content";
 
-        when(embeddingService.embed(anyString()))
-            .thenReturn(new float[0]); // 空数组
-
-        // When & Then: 当前实现在向量存储不可用时会降级返回，不抛异常
-        assertThatCode(() ->
-                vectorStore.save(candidateId, ChunkType.EXPERIENCE, content)
-        ).doesNotThrowAnyException();
+        // When & Then: 向量存储不可用时会直接跳过保存
+        assertThat(vectorStore.save(candidateId, ChunkType.EXPERIENCE, content)).isFalse();
+        verifyNoInteractions(embeddingService);
     }
 
     @Test
-    @DisplayName("搜索时 embedding 服务失败应抛出异常")
-    void should_throw_exception_when_embedding_fails_during_search() {
+    @DisplayName("当 pgvector 不可用时，搜索应抛出 IllegalStateException")
+    void should_throw_when_search_is_called_without_pgvector() {
         // Given
-        float[] queryEmbedding = new float[1024];
-        
-        // 模拟 embedding 服务在搜索时失败（通过 search 方法直接使用传入的 embedding）
-        // 这里测试 search 方法本身的错误处理
-        
-        // When: 使用无效的 embedding 数组
         float[] invalidEmbedding = new float[0];
-        
-        // Then: 应该抛出异常
-        assertThatThrownBy(() -> 
-            vectorStore.search(invalidEmbedding, 10, ChunkType.EXPERIENCE)
-        ).isInstanceOf(Exception.class);
+
+        // When & Then: pgvector 不可用时应明确失败
+        assertThatThrownBy(() ->
+                vectorStore.search(invalidEmbedding, 10, ChunkType.EXPERIENCE)
+        ).isInstanceOf(IllegalStateException.class)
+                .hasMessage("pgvector extension is unavailable");
     }
 
     @Test
@@ -99,96 +86,57 @@ class VectorStoreServiceErrorHandlingTest {
     void should_not_throw_exception_when_deleting_nonexistent_candidate() {
         // Given
         UUID nonExistentCandidateId = UUID.randomUUID();
-        
+
         // When & Then
-        // 删除不存在的候选人应该不抛异常（或至少不崩溃）
-        try {
-            vectorStore.deleteByCandidate(nonExistentCandidateId);
-        } catch (Exception e) {
-            // 如果抛出异常，应该是受控的，不是崩溃
-            // 这里我们允许任何异常，但测试会记录
-        }
+        assertThatCode(() -> vectorStore.deleteByCandidate(nonExistentCandidateId))
+                .doesNotThrowAnyException();
     }
 
     @Test
-    @DisplayName("创建向量索引时数据库错误应受控")
-    void should_throw_exception_on_database_error_during_index_creation() {
-        // Given: 使用 H2 内存数据库，可能不支持 pgvector 的向量索引
-        
-        // When & Then
-        // 在 H2 上创建向量索引可能失败（因为 H2 不支持 pgvector 扩展）
-        // 我们验证方法调用不导致崩溃
-        try {
-            vectorStore.createVectorIndex();
-        } catch (Exception e) {
-            // 预期可能抛出异常，因为 H2 不支持 pgvector
-            // 这是可接受的
-        }
+    @DisplayName("当 pgvector 不可用时，创建向量索引应直接跳过")
+    void should_skip_index_creation_when_pgvector_is_unavailable() {
+        assertThatCode(() -> vectorStore.createVectorIndex())
+                .doesNotThrowAnyException();
     }
 
     @Test
-    @DisplayName("应处理无效的 chunk 类型")
-    void should_handle_invalid_chunk_types() {
+    @DisplayName("当向量存储不可用时，chunk 保存应返回 false")
+    void should_return_false_when_vector_store_is_unavailable_for_chunk_saves() {
         // Given
         UUID candidateId = createCandidateId("vector-error-3");
         String content = "Test content";
-        float[] dummyEmbedding = new float[1024];
-        
-        when(embeddingService.embed(anyString()))
-            .thenReturn(dummyEmbedding);
-        
-        // When & Then: 使用有效的 ChunkType（EXPERIENCE 和 SKILL）
-        // 这里我们测试两种有效类型
-        try {
-            vectorStore.save(candidateId, ChunkType.EXPERIENCE, content);
-            vectorStore.save(candidateId, ChunkType.SKILL, content);
-        } catch (Exception e) {
-            // 不应该为有效类型抛出异常
-            throw new AssertionError("Valid chunk types should not throw exceptions", e);
-        }
+
+        // When & Then: 向量存储不可用时应跳过保存，不抛异常
+        assertThat(vectorStore.save(candidateId, ChunkType.EXPERIENCE, content)).isFalse();
+        assertThat(vectorStore.save(candidateId, ChunkType.SKILL, content)).isFalse();
+        verifyNoInteractions(embeddingService);
     }
 
     @Test
-    @DisplayName("应处理空内容字符串")
-    void should_handle_empty_content_string() {
+    @DisplayName("当向量存储不可用时，空内容字符串也应返回 false")
+    void should_return_false_for_empty_content_string() {
         // Given
         UUID candidateId = createCandidateId("vector-error-4");
         String emptyContent = "";
-        float[] dummyEmbedding = new float[1024];
-        
-        when(embeddingService.embed(anyString()))
-            .thenReturn(dummyEmbedding);
-        
-        // When & Then
-        // 空字符串可能被 embedding 服务处理
-        // 这里验证不崩溃
-        try {
-            vectorStore.save(candidateId, ChunkType.EXPERIENCE, emptyContent);
-        } catch (Exception e) {
-            // 允许异常，但不应该是崩溃
-        }
+
+        // When & Then: 向量存储不可用时会直接跳过保存
+        assertThat(vectorStore.save(candidateId, ChunkType.EXPERIENCE, emptyContent)).isFalse();
+        verifyNoInteractions(embeddingService);
     }
 
     @Test
-    @DisplayName("应处理超长内容字符串")
-    void should_handle_very_long_content_string() {
+    @DisplayName("当向量存储不可用时，超长内容字符串也应返回 false")
+    void should_return_false_for_very_long_content_string() {
         // Given
         UUID candidateId = createCandidateId("vector-error-5");
         StringBuilder longContent = new StringBuilder();
         for (int i = 0; i < 10000; i++) {
             longContent.append("Very long resume content line ").append(i).append(". ");
         }
-        float[] dummyEmbedding = new float[1024];
-        
-        when(embeddingService.embed(anyString()))
-            .thenReturn(dummyEmbedding);
-        
-        // When & Then: 验证不崩溃
-        try {
-            vectorStore.save(candidateId, ChunkType.EXPERIENCE, longContent.toString());
-        } catch (Exception e) {
-            // 可能由于数据库限制抛出异常，但不应崩溃
-        }
+
+        // When & Then: 向量存储不可用时会直接跳过保存
+        assertThat(vectorStore.save(candidateId, ChunkType.EXPERIENCE, longContent.toString())).isFalse();
+        verifyNoInteractions(embeddingService);
     }
 
     private UUID createCandidateId(String namePrefix) {

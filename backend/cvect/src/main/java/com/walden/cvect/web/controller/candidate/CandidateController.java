@@ -92,7 +92,8 @@ public class CandidateController {
         Set<UUID> vectorizedCandidateIds = candidateIds.isEmpty()
                 ? Set.of()
                 : new HashSet<>(resumeChunkVectorRepository.findDistinctCandidateIdsIn(candidateIds));
-        if (!vectorizedCandidateIds.isEmpty() && scoreByCandidateId.size() < vectorizedCandidateIds.size()) {
+        if (!vectorizedCandidateIds.isEmpty()
+                && !scoreByCandidateId.keySet().containsAll(vectorizedCandidateIds)) {
             persistedMatchScoreService.scheduleRefreshForJobDescription(jdId);
         }
         Set<UUID> inflightCandidateIds = candidateIds.isEmpty()
