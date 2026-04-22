@@ -57,8 +57,8 @@ class VectorStoreServiceErrorHandlingTest {
     }
 
     @Test
-    @DisplayName("当向量存储不可用时，空向量输入也应返回 false")
-    void should_return_false_for_empty_embedding_array() {
+    @DisplayName("当向量存储不可用时，内容保存应返回 false")
+    void should_return_false_for_content_save_when_vector_store_is_unavailable() {
         // Given
         UUID candidateId = createCandidateId("vector-error-2");
         String content = "Test content";
