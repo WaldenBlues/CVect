@@ -186,6 +186,66 @@ class CandidateControllerVectorStatusTest {
         verify(persistedMatchScoreService, never()).scheduleRefreshForJobDescription(jdId);
     }
 
+    @Test
+    @DisplayName("listByJd should report processing vector status when ingest is inflight without a vector chunk")
+    void listByJdShouldReportProcessingVectorStatusWhenIngestIsInflightWithoutAVectorChunk() {
+        UUID jdId = UUID.randomUUID();
+        UUID candidateId = UUID.randomUUID();
+
+        Candidate candidate = mock(Candidate.class);
+        when(candidate.getId()).thenReturn(candidateId);
+
+        when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(dataScopeService.hasTenantWideScope()).thenReturn(true);
+        when(candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
+                TenantConstants.DEFAULT_TENANT_ID,
+                jdId)).thenReturn(List.of(candidate));
+        when(snapshotService.listByTenantAndJd(TenantConstants.DEFAULT_TENANT_ID, jdId))
+                .thenReturn(List.of(new CandidateStreamEvent(
+                        candidateId,
+                        TenantConstants.DEFAULT_TENANT_ID,
+                        jdId,
+                        "DONE",
+                        CandidateRecruitmentStatus.TO_CONTACT.name(),
+                        "Alice",
+                        "alice.pdf",
+                        "application/pdf",
+                        123L,
+                        42,
+                        false,
+                        LocalDateTime.of(2024, 1, 1, 12, 0),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of())));
+        when(candidateMatchScoreRepository.findByTenantIdAndJobDescriptionIdAndCandidateIdIn(
+                any(),
+                any(),
+                anyCollection())).thenReturn(List.of());
+        when(resumeChunkVectorRepository.findDistinctCandidateIdsIn(anyCollection()))
+                .thenReturn(List.of());
+        when(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
+                anyCollection(),
+                eq(List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING))))
+                .thenReturn(List.of(candidateId));
+        when(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
+                anyCollection(),
+                eq(List.of(VectorIngestTaskStatus.FAILED))))
+                .thenReturn(List.of());
+
+        CandidateController controller = controller();
+
+        ResponseEntity<List<CandidateController.CandidateListItem>> response = controller.listByJd(jdId);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().size());
+        assertEquals(candidateId, response.getBody().get(0).candidateId());
+        assertEquals("PROCESSING", response.getBody().get(0).vectorStatus());
+        assertTrue(response.getBody().get(0).noVectorChunk());
+        verify(persistedMatchScoreService, never()).scheduleRefreshForJobDescription(jdId);
+    }
+
     private CandidateController controller() {
         return new CandidateController(
                 candidateRepository,
