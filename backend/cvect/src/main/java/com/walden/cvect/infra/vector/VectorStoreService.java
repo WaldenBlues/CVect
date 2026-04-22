@@ -497,6 +497,11 @@ public class VectorStoreService {
             throw new IllegalArgumentException(
                     fieldName + " dimension mismatch: expected=" + expected + ", actual=" + vector.length);
         }
+        for (float value : vector) {
+            if (!Float.isFinite(value)) {
+                throw new IllegalArgumentException(fieldName + " must contain only finite values");
+            }
+        }
     }
 
     private static String validateSqlIdentifier(String value, String configKey) {

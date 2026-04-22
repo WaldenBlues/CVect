@@ -16,8 +16,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -66,6 +68,30 @@ class VectorStoreServiceSearchScoringTest {
                 "k8s",
                 1.4f);
         assertEquals(0.0f, result.score(), 0.0001f);
+    }
+
+    @Test
+    @DisplayName("deleteByJobDescription should use the H2-compatible subquery form")
+    void deleteByJobDescriptionShouldUseSubqueryForm() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        EntityManager entityManager = mock(EntityManager.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+
+        VectorStoreConfig config = new VectorStoreConfig();
+        config.setEnabled(true);
+        config.setDimension(3);
+        config.setTableName("resume_chunks");
+
+        when(jdbcTemplate.queryForObject(anyString(), any(Class.class))).thenReturn(true);
+
+        VectorStoreService service = new VectorStoreService(jdbcTemplate, entityManager, embeddingService, config);
+        UUID jobDescriptionId = UUID.randomUUID();
+
+        service.deleteByJobDescription(jobDescriptionId);
+
+        verify(jdbcTemplate).update(
+                "DELETE FROM resume_chunks WHERE candidate_id IN (SELECT id FROM candidates WHERE jd_id = ?)",
+                jobDescriptionId);
     }
 
     @Test
@@ -298,5 +324,51 @@ class VectorStoreServiceSearchScoringTest {
                 () -> service.save(UUID.randomUUID(), ChunkType.EXPERIENCE, "backend java"));
         assertEquals("embedding dimension mismatch: expected=3, actual=2", exception.getMessage());
         verify(entityManager, never()).persist(any());
+    }
+
+    @Test
+    @DisplayName("save should reject non-finite embedding values before persisting")
+    void saveShouldRejectNonFiniteEmbeddingValues() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        EntityManager entityManager = mock(EntityManager.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+
+        VectorStoreConfig config = new VectorStoreConfig();
+        config.setEnabled(true);
+        config.setDimension(3);
+        config.setTableName("resume_chunks");
+
+        when(jdbcTemplate.queryForObject(anyString(), any(Class.class))).thenReturn(true);
+        when(embeddingService.embed(anyString())).thenReturn(new float[] {0.1f, Float.NaN, 0.3f});
+
+        VectorStoreService service = new VectorStoreService(jdbcTemplate, entityManager, embeddingService, config);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.save(UUID.randomUUID(), ChunkType.EXPERIENCE, "backend java"));
+        assertEquals("embedding must contain only finite values", exception.getMessage());
+        verify(entityManager, never()).persist(any());
+    }
+
+    @Test
+    @DisplayName("search should reject non-finite query embeddings before executing SQL")
+    void searchShouldRejectNonFiniteQueryEmbeddings() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        EntityManager entityManager = mock(EntityManager.class);
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+
+        VectorStoreConfig config = new VectorStoreConfig();
+        config.setEnabled(true);
+        config.setDimension(3);
+        config.setTableName("resume_chunks");
+
+        when(jdbcTemplate.queryForObject(anyString(), any(Class.class))).thenReturn(true);
+
+        VectorStoreService service = new VectorStoreService(jdbcTemplate, entityManager, embeddingService, config);
+        clearInvocations(jdbcTemplate, entityManager, embeddingService);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> service.search(new float[] {0.1f, Float.NaN, 0.3f}, 5));
+        assertEquals("queryEmbedding must contain only finite values", exception.getMessage());
+        verifyNoInteractions(jdbcTemplate, entityManager, embeddingService);
     }
 }
