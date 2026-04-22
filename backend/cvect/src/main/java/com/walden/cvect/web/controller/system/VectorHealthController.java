@@ -20,7 +20,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/vector")
 public class VectorHealthController {
-    private static final String DEFAULT_EMBEDDING_HEALTH_URL = "http://localhost:8001/health";
+    private static final String DEFAULT_EMBEDDING_HEALTH_URL = "http://localhost:8001/ready";
 
     private final VectorIngestTaskJpaRepository taskRepository;
     private final EmbeddingConfig embeddingConfig;
@@ -128,15 +128,15 @@ public class VectorHealthController {
             URI uri = URI.create(embeddingServiceUrl);
             String path = uri.getPath();
             if (path == null || path.isBlank() || "/".equals(path)) {
-                path = "/health";
+                path = "/ready";
             } else if (path.endsWith("/v1/embeddings") || path.endsWith("/embeddings")) {
-                path = "/health";
+                path = "/ready";
             } else if (path.endsWith("/embedding")) {
-                path = path.substring(0, path.length() - "/embedding".length()) + "/health";
+                path = path.substring(0, path.length() - "/embedding".length()) + "/ready";
             } else if (path.endsWith("/embed")) {
-                path = path.substring(0, path.length() - "/embed".length()) + "/health";
+                path = path.substring(0, path.length() - "/embed".length()) + "/ready";
             } else {
-                path = path.replaceAll("/+$", "") + "/health";
+                path = path.replaceAll("/+$", "") + "/ready";
             }
             URI healthUri = new URI(
                     uri.getScheme(),

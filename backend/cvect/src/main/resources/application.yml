@@ -90,7 +90,7 @@ app:
     max-inflight-items: ${CVECT_UPLOAD_MAX_INFLIGHT_ITEMS:2000}
     max-files-per-zip: ${CVECT_UPLOAD_MAX_FILES_PER_ZIP:2000}
     worker:
-      enabled: true
+      enabled: ${CVECT_UPLOAD_WORKER_ENABLED:true}
       initial-delay-ms: 3000
       idle-sleep-ms: 300
       consumer-count: 2

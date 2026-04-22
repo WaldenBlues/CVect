@@ -31,7 +31,7 @@ services:
     restart: unless-stopped
     environment:
       EMBEDDING_MODEL_ID: ${CVECT_EMBEDDING_MODEL:?set in .env}
-      HF_HOME: /root/.cache/huggingface
+      HF_HOME: /home/qwen/.cache/huggingface
       HF_ENDPOINT: ${CVECT_HF_ENDPOINT:?set in .env}
       HF_HUB_OFFLINE: ${CVECT_HF_HUB_OFFLINE:?set in .env}
       HF_LOCAL_FILES_ONLY: ${CVECT_HF_LOCAL_FILES_ONLY:?set in .env}
@@ -59,9 +59,9 @@ services:
       HOST: 0.0.0.0
       PORT: 8001
     volumes:
-      - ${CVECT_HF_CACHE_DIR:?set in .env}:/root/.cache/huggingface
+      - ${CVECT_HF_CACHE_DIR:?set in .env}:/home/qwen/.cache/huggingface
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/ready', timeout=5)"]
       interval: 15s
       timeout: 10s
       retries: 40
@@ -87,9 +87,10 @@ services:
       CVECT_JWT_TTL_SECONDS: ${CVECT_JWT_TTL_SECONDS:-86400}
       CVECT_EMBEDDING_SERVICE_URL: ${CVECT_EMBEDDING_SERVICE_URL:-http://qwen:8001/embed}
       CVECT_EMBEDDING_API_FORMAT: ${CVECT_EMBEDDING_API_FORMAT:-auto}
-      CVECT_EMBEDDING_HEALTH_URL: ${CVECT_EMBEDDING_HEALTH_URL:-http://qwen:8001/health}
+      CVECT_EMBEDDING_HEALTH_URL: ${CVECT_EMBEDDING_HEALTH_URL:-http://qwen:8001/ready}
       CVECT_VECTOR_ENABLED: ${CVECT_VECTOR_ENABLED:-true}
       CVECT_VECTOR_INGEST_WORKER_ENABLED: ${CVECT_VECTOR_INGEST_WORKER_ENABLED:-true}
+      CVECT_UPLOAD_WORKER_ENABLED: ${CVECT_UPLOAD_WORKER_ENABLED:-true}
       CVECT_UPLOAD_STORAGE_DIR: /data/storage
       CVECT_SHOW_SQL: ${CVECT_SHOW_SQL:?set in .env}
       CVECT_CACHE_ENABLED: ${CVECT_CACHE_ENABLED:?set in .env}
@@ -120,7 +121,7 @@ services:
       CVECT_BASIC_AUTH_USERNAME: ${CVECT_BASIC_AUTH_USERNAME:?set in .env}
       CVECT_BASIC_AUTH_PASSWORD: ${CVECT_BASIC_AUTH_PASSWORD:?set in .env}
     ports:
-      - "${CVECT_HTTP_PORT:?set in .env}:80"
+      - "${CVECT_HTTP_PORT:?set in .env}:8080"
 
 volumes:
   postgres_data:

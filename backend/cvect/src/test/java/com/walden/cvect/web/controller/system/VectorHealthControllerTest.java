@@ -71,7 +71,7 @@ class VectorHealthControllerTest {
     }
 
     @Test
-    @DisplayName("health should resolve llama.cpp health endpoint from embedding URL")
+    @DisplayName("health should resolve llama.cpp readiness endpoint from embedding URL")
     void shouldResolveLlamaCppHealthEndpoint() {
         EmbeddingConfig config = new EmbeddingConfig();
         config.setServiceUrl("http://127.0.0.1:65535/embedding");
@@ -84,11 +84,11 @@ class VectorHealthControllerTest {
 
         assertEquals(503, response.getStatusCode().value());
         assertNotNull(response.getBody());
-        assertEquals("http://127.0.0.1:65535/health", response.getBody().embeddingHealthUrl());
+        assertEquals("http://127.0.0.1:65535/ready", response.getBody().embeddingHealthUrl());
     }
 
     @Test
-    @DisplayName("health should resolve native embed endpoint to non-loading health endpoint")
+    @DisplayName("health should resolve native embed endpoint to readiness endpoint")
     void shouldResolveNativeEmbedEndpointToHealth() {
         EmbeddingConfig config = new EmbeddingConfig();
         config.setServiceUrl("http://127.0.0.1:65535/embed");
@@ -101,6 +101,6 @@ class VectorHealthControllerTest {
 
         assertEquals(503, response.getStatusCode().value());
         assertNotNull(response.getBody());
-        assertEquals("http://127.0.0.1:65535/health", response.getBody().embeddingHealthUrl());
+        assertEquals("http://127.0.0.1:65535/ready", response.getBody().embeddingHealthUrl());
     }
 }

@@ -31,9 +31,14 @@ RUN if [ -n "${ALPINE_APK_MIRROR}" ]; then \
     fi \
     && apk add --no-cache apache2-utils
 
+COPY nginx-rootless.conf /etc/nginx/nginx.conf
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY docker-entrypoint.d/30-cvect-auth.envsh /docker-entrypoint.d/04-cvect-auth.envsh
 RUN chmod +x /docker-entrypoint.d/04-cvect-auth.envsh
 COPY --from=build /app/dist /usr/share/nginx/html
+RUN mkdir -p /var/cache/nginx /tmp/cvect-auth /etc/nginx/conf.d \
+    && chown -R nginx:nginx /var/cache/nginx /tmp/cvect-auth /etc/nginx/conf.d /usr/share/nginx/html
 
-EXPOSE 80
+USER nginx
+
+EXPOSE 8080

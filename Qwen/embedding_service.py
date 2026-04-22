@@ -387,6 +387,11 @@ def health() -> Dict[str, object]:
 
 @app.get("/ready")
 def ready() -> Dict[str, object]:
+    try:
+        registry.load_embedding()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Embedding readiness check failed", exc_info=exc)
+        raise HTTPException(status_code=503, detail="embedding model not ready") from exc
     return {
         "status": "ready",
         "device": DEVICE,

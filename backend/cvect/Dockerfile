@@ -46,8 +46,15 @@ RUN if [ -n "${UBUNTU_APT_MIRROR}" ] && [ -f /etc/apt/sources.list ]; then \
 
 COPY --from=build /build/target/*.jar /app/app.jar
 
+RUN groupadd --system cvect \
+    && useradd --system --gid cvect --create-home --home-dir /home/cvect --shell /usr/sbin/nologin cvect \
+    && mkdir -p /data/storage /app \
+    && chown -R cvect:cvect /app /data/storage /home/cvect
+
 EXPOSE 8080
 
 ENV CVECT_UPLOAD_STORAGE_DIR=/data/storage
+
+USER cvect
 
 ENTRYPOINT ["sh", "-c", "exec java ${JAVA_OPTS:-} -jar /app/app.jar"]

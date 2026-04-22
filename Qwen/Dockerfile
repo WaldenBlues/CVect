@@ -49,7 +49,15 @@ ENV MAX_INPUT_LENGTH="1024"
 ENV PRELOAD_MODELS="false"
 ENV HOST="0.0.0.0"
 ENV PORT="8001"
+ENV HF_HOME="/home/qwen/.cache/huggingface"
+
+RUN groupadd --system qwen \
+    && useradd --system --gid qwen --create-home --home-dir /home/qwen --shell /usr/sbin/nologin qwen \
+    && mkdir -p /home/qwen/.cache/huggingface /app \
+    && chown -R qwen:qwen /app /home/qwen
 
 EXPOSE 8001
+
+USER qwen
 
 CMD ["python", "embedding_service.py"]
