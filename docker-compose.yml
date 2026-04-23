@@ -25,7 +25,7 @@ services:
         DEBIAN_APT_MIRROR: ${CVECT_DEBIAN_APT_MIRROR-}
         PIP_INDEX_URL: ${CVECT_PIP_INDEX_URL-}
         PIP_TRUSTED_HOST: ${CVECT_PIP_TRUSTED_HOST-}
-        TORCH_PACKAGE: ${CVECT_TORCH_PACKAGE:-torch==2.10.0+cpu}
+        TORCH_PACKAGE: ${CVECT_TORCH_PACKAGE:-torch==2.10.0}
         TORCH_WHEEL_INDEX_URL: ${CVECT_TORCH_WHEEL_INDEX_URL:-https://download.pytorch.org/whl/cpu}
         TORCH_WHEEL_TRUSTED_HOST: ${CVECT_TORCH_WHEEL_TRUSTED_HOST:-download.pytorch.org}
     restart: unless-stopped

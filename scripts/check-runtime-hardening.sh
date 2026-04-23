@@ -34,9 +34,11 @@ assert_contains frontend/docker-entrypoint.d/30-cvect-auth.envsh "auth_basic_use
 assert_contains docker-compose.yml '${CVECT_HTTP_PORT:?set in .env}:8080'
 assert_contains docker-compose.yml "/home/qwen/.cache/huggingface"
 assert_contains docker-compose.yml "CVECT_UPLOAD_WORKER_ENABLED"
+assert_contains docker-compose.yml "TORCH_PACKAGE: \${CVECT_TORCH_PACKAGE:-torch==2.10.0}"
 assert_contains .env "CVECT_BASIC_AUTH_ENABLED=true"
 assert_contains .env "CVECT_BASIC_AUTH_USERNAME="
 assert_contains .env "CVECT_BASIC_AUTH_PASSWORD="
+assert_contains .env "CVECT_TORCH_PACKAGE=torch==2.10.0"
 assert_not_contains .env "demo123"
 assert_not_contains scripts/perf/run-k6-web-baseline.sh "demo123"
 assert_not_contains scripts/perf/k6-web-baseline.js "demo123"
