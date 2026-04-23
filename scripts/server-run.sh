@@ -140,19 +140,25 @@ uses_local_qwen() {
 
 case "${COMMAND}" in
   up)
-    run_up --build
+    run_up --no-build
     ;;
   up-no-build)
     run_up --no-build
+    ;;
+  up-build)
+    run_up --build
     ;;
   down)
     run_compose down
     ;;
   restart)
-    run_up --build --force-recreate
+    run_up --no-build --force-recreate
     ;;
   restart-no-build)
     run_up --no-build --force-recreate
+    ;;
+  restart-build)
+    run_up --build --force-recreate
     ;;
   status)
     run_compose ps
@@ -172,11 +178,12 @@ case "${COMMAND}" in
     ;;
   *)
     cat <<EOF
-Usage: scripts/server-run.sh [up|up-no-build|down|restart|restart-no-build|status|logs|config|pull] [service]
+Usage: scripts/server-run.sh [up|up-build|up-no-build|down|restart|restart-build|restart-no-build|status|logs|config|pull] [service]
 
 Examples:
   scripts/qwen-offline-cache.sh prefetch
   scripts/server-run.sh up
+  scripts/server-run.sh up-build
   scripts/server-run.sh up-no-build
   scripts/server-run.sh status
   scripts/server-run.sh logs backend

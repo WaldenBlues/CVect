@@ -29,8 +29,8 @@ RUN if [ -n "${PIP_INDEX_URL}" ]; then \
     && if [ -n "${PIP_TRUSTED_HOST}" ]; then \
       pip config set global.trusted-host "${PIP_TRUSTED_HOST}"; \
     fi \
-    && pip install --no-cache-dir --extra-index-url "${TORCH_WHEEL_INDEX_URL}" --trusted-host "${TORCH_WHEEL_TRUSTED_HOST}" "${TORCH_PACKAGE}" \
-    && pip install --no-cache-dir -r requirements-service.txt
+    && pip install --no-cache-dir --retries 10 --timeout 120 --extra-index-url "${TORCH_WHEEL_INDEX_URL}" --trusted-host "${TORCH_WHEEL_TRUSTED_HOST}" "${TORCH_PACKAGE}" \
+    && pip install --no-cache-dir --retries 10 --timeout 120 -r requirements-service.txt
 
 COPY embedding_service.py .
 

@@ -125,6 +125,8 @@ scripts/server-run.sh down
 scripts/server-run.sh restart
 ```
 
+`scripts/server-run.sh up` starts from existing images and will not build on the server. If you intentionally want to build on the server, use `scripts/server-run.sh up-build`.
+
 If `CVECT_EMBEDDING_SERVICE_URL` points to an external embedding service instead of `http://qwen:8001/embed`, `scripts/server-run.sh` will skip the local `qwen` container and only start `postgres/backend/frontend`.
 
 ### Offline HF Cache
@@ -179,14 +181,16 @@ Server:
 gunzip -c cvect-images.tgz | docker load
 scripts/qwen-offline-cache.sh unpack /path/to/qwen-hf-cache.tgz
 scripts/qwen-offline-cache.sh verify
-scripts/server-run.sh up-no-build
+scripts/server-run.sh up
 scripts/server-run.sh status
 ```
 
 Useful no-build commands:
 
 ```bash
+scripts/server-run.sh up
 scripts/server-run.sh up-no-build
+scripts/server-run.sh restart
 scripts/server-run.sh restart-no-build
 ```
 

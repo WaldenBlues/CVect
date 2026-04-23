@@ -4,7 +4,7 @@ set -euo pipefail
 assert_contains() {
   local file="$1"
   local pattern="$2"
-  if ! grep -Fq "$pattern" "$file"; then
+  if ! grep -Fq -- "$pattern" "$file"; then
     echo "Expected '$pattern' in $file" >&2
     exit 1
   fi
@@ -13,7 +13,7 @@ assert_contains() {
 assert_not_contains() {
   local file="$1"
   local pattern="$2"
-  if grep -Fq "$pattern" "$file"; then
+  if grep -Fq -- "$pattern" "$file"; then
     echo "Did not expect '$pattern' in $file" >&2
     exit 1
   fi
@@ -23,6 +23,7 @@ assert_contains backend/cvect/Dockerfile "USER cvect"
 assert_contains backend/cvect/Dockerfile "/data/storage"
 assert_contains Qwen/Dockerfile "USER qwen"
 assert_contains Qwen/Dockerfile "HF_HOME=\"/home/qwen/.cache/huggingface\""
+assert_contains Qwen/Dockerfile "--retries 10 --timeout 120"
 assert_contains frontend/Dockerfile "USER nginx"
 assert_contains frontend/Dockerfile "/etc/nginx/nginx.conf"
 assert_contains frontend/nginx-rootless.conf "pid /tmp/nginx.pid;"
