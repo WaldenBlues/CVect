@@ -1,4 +1,4 @@
-name: cvect
+name: ${CVECT_COMPOSE_PROJECT_NAME:-cvect}
 
 services:
   postgres:
@@ -61,6 +61,8 @@ services:
       PORT: 8001
     volumes:
       - ${CVECT_HF_CACHE_DIR:?set in .env}:/home/qwen/.cache/huggingface
+    ports:
+      - "${CVECT_EMBEDDING_PUBLIC_PORT:-8001}:8001"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/ready', timeout=5)"]
       interval: 15s

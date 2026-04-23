@@ -5,17 +5,17 @@
 ![Vue 3](https://img.shields.io/badge/Vue-3-42b883?style=flat-square)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Embedding%20Service-009688?style=flat-square)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17%20%2B%20pgvector-336791?style=flat-square)
-![Docker Compose](https://img.shields.io/badge/Docker%20Compose-Single%20Stack-2496ed?style=flat-square)
+![Docker Compose](https://img.shields.io/badge/Docker%20Compose-Web%20%2B%20Embedding-2496ed?style=flat-square)
 ![Qwen CPU](https://img.shields.io/badge/Qwen-CPU%20Embedding-8b5cf6?style=flat-square)
 
 CVect 是一个面向招聘场景的简历处理与候选人管理系统，覆盖 `JD 管理`、`简历上传解析`、`候选人列表`、`SSE 实时流` 和 `pgvector` 语义检索。
 
 项目当前默认形态已经收敛为：
 
-- 一个编排入口：`docker-compose.yml`
-- 一个配置文件：`.env`
-- 一个本地模型服务：`Qwen` CPU embedding
-- 两个运行脚本：`scripts/local-run.sh`、`scripts/server-run.sh`
+- 三个编排入口：`docker-compose.yml`、`docker-compose.web.yml`、`docker-compose.embedding.yml`
+- 三个配置文件：`.env`、`.env.web`、`.env.embedding`
+- 一个可单独部署的模型服务：`Qwen`
+- 三个运行脚本：`scripts/local-run.sh`、`scripts/server-run.sh`、`scripts/embedding-run.sh`
 
 ## Preview
 
@@ -53,9 +53,13 @@ CVect 是一个面向招聘场景的简历处理与候选人管理系统，覆�
 ## Architecture
 
 ```text
+web host:
 frontend -> nginx -> backend -> postgres
                        |
-                       -> qwen embedding service
+                       -> remote embedding service
+
+embedding host:
+qwen -> :8001
 ```
 
 ## Project Layout
@@ -66,8 +70,12 @@ CVect/
 ├── frontend/             # Vue app
 ├── Qwen/                 # FastAPI embedding service
 ├── scripts/              # run / deploy / cache scripts
-├── docker-compose.yml    # single compose entry
-└── .env                  # single config source
+├── docker-compose.yml    # local all-in-one compose
+├── docker-compose.web.yml
+├── docker-compose.embedding.yml
+├── .env                  # local development env
+├── .env.web              # web host env
+└── .env.embedding        # embedding host env
 ```
 
 ## Requirements
@@ -105,11 +113,22 @@ Local mode behavior:
 - `frontend` runs locally on `:5173`
 - logs and pid files are written under `.run/`
 
-### Docker Deployment
+### Web Deployment
 
-Server mode reads the same [`.env`](./.env) and uses the same [docker-compose.yml](./docker-compose.yml).
+`scripts/server-run.sh` now manages only the web stack:
 
-Build and run on the target machine:
+- `postgres`
+- `backend`
+- `frontend`
+
+Edit [`.env.web`](./.env.web) before starting the web host. It must point at the remote embedding service:
+
+```bash
+CVECT_EMBEDDING_SERVICE_URL=http://<embedding-host>:8001/embed
+CVECT_EMBEDDING_HEALTH_URL=http://<embedding-host>:8001/ready
+```
+
+Then start the web host:
 
 ```bash
 scripts/server-run.sh up
@@ -125,9 +144,30 @@ scripts/server-run.sh down
 scripts/server-run.sh restart
 ```
 
-`scripts/server-run.sh up` starts from existing images and will not build on the server. If you intentionally want to build on the server, use `scripts/server-run.sh up-build`.
+`scripts/server-run.sh up` starts from existing images and will not build on the server. If you intentionally want to build the web images on the server, use `scripts/server-run.sh up-build`.
 
-If `CVECT_EMBEDDING_SERVICE_URL` points to an external embedding service instead of `http://qwen:8001/embed`, `scripts/server-run.sh` will skip the local `qwen` container and only start `postgres/backend/frontend`.
+If [`.env.web`](./.env.web) still points to `http://qwen:8001/...`, `scripts/server-run.sh` fails fast instead of starting a local embedding container on the web host.
+
+### Embedding Deployment
+
+`scripts/embedding-run.sh` manages only the `qwen` service and is intended for the future GPU host.
+
+Edit [`.env.embedding`](./.env.embedding) before starting the embedding host.
+
+```bash
+scripts/embedding-run.sh up-build
+```
+
+Useful commands:
+
+```bash
+scripts/embedding-run.sh status
+scripts/embedding-run.sh logs
+scripts/embedding-run.sh restart
+scripts/embedding-run.sh down
+```
+
+The embedding host publishes `qwen` on `CVECT_EMBEDDING_PUBLIC_PORT`. Point the web host at that address through `CVECT_EMBEDDING_SERVICE_URL` and `CVECT_EMBEDDING_HEALTH_URL`.
 
 ### Offline HF Cache
 
@@ -152,46 +192,50 @@ scripts/qwen-offline-cache.sh pack
 scripts/qwen-offline-cache.sh unpack /path/to/qwen-hf-cache.tgz
 ```
 
-### Local Build, Server Load
+### Local Build, Remote Load
 
-If you do not want the server to build images:
+If you do not want remote machines to build images:
 
 1. Build locally
-2. Export images
-3. Upload images + HF cache + `.env`
-4. Load and run on the server
+2. Export the web images and embedding image separately
+3. Upload the matching image archive to each host
+4. Upload HF cache only to the embedding host
+5. Start each role with its dedicated script
 
 Local:
 
 ```bash
 docker compose --env-file .env -f docker-compose.yml build qwen backend frontend
 docker pull m.daocloud.io/docker.io/pgvector/pgvector:pg17
-docker save -o /tmp/cvect-images.tar \
-  cvect-qwen:latest \
+docker save -o /tmp/cvect-web-images.tar \
   cvect-backend:latest \
   cvect-frontend:latest \
   m.daocloud.io/docker.io/pgvector/pgvector:pg17
-gzip -c /tmp/cvect-images.tar > .artifacts/cvect-images.tgz
+docker save -o /tmp/cvect-embedding-images.tar \
+  cvect-qwen:latest
+gzip -c /tmp/cvect-web-images.tar > .artifacts/cvect-web-images.tgz
+gzip -c /tmp/cvect-embedding-images.tar > .artifacts/cvect-embedding-images.tgz
 scripts/qwen-offline-cache.sh pack
 ```
 
-Server:
+Web host:
 
 ```bash
-gunzip -c cvect-images.tgz | docker load
-scripts/qwen-offline-cache.sh unpack /path/to/qwen-hf-cache.tgz
-scripts/qwen-offline-cache.sh verify
+cp .env.web /opt/cvect/.env.web
+gunzip -c cvect-web-images.tgz | docker load
 scripts/server-run.sh up
 scripts/server-run.sh status
 ```
 
-Useful no-build commands:
+Embedding host:
 
 ```bash
-scripts/server-run.sh up
-scripts/server-run.sh up-no-build
-scripts/server-run.sh restart
-scripts/server-run.sh restart-no-build
+cp .env.embedding /opt/cvect/.env.embedding
+gunzip -c cvect-embedding-images.tgz | docker load
+scripts/qwen-offline-cache.sh unpack /path/to/qwen-hf-cache.tgz
+scripts/qwen-offline-cache.sh verify
+scripts/embedding-run.sh up
+scripts/embedding-run.sh status
 ```
 
 ## Validation
@@ -205,11 +249,18 @@ curl -fsS http://127.0.0.1:8001/health
 curl -fsS http://127.0.0.1:8080/api/resumes/health
 ```
 
-Compose / server mode:
+Web host:
 
 ```bash
-curl -u 'demo:demo123' -fsS http://127.0.0.1:8088/healthz
-docker compose --env-file .env -f docker-compose.yml ps
+curl -u '<user>:<pass>' -fsS http://127.0.0.1:8088/healthz
+scripts/server-run.sh status
+```
+
+Embedding host:
+
+```bash
+curl -fsS http://127.0.0.1:8001/ready
+scripts/embedding-run.sh status
 ```
 
 ### Tests
@@ -236,7 +287,11 @@ python3 -m py_compile Qwen/embedding_service.py
 
 ## Key Configuration
 
-Most runtime behavior is controlled from [`.env`](./.env).
+Runtime behavior is split across the role-specific env files:
+
+- local development: [`.env`](./.env)
+- web host: [`.env.web`](./.env.web)
+- embedding host: [`.env.embedding`](./.env.embedding)
 
 Important keys:
 
@@ -247,6 +302,7 @@ Important keys:
 - `CVECT_EMBEDDING_SERVICE_URL`
 - `CVECT_EMBEDDING_API_FORMAT`
 - `CVECT_EMBEDDING_HEALTH_URL`
+- `CVECT_EMBEDDING_PUBLIC_PORT`
 - `CVECT_EMBEDDING_MODEL`
 - `CVECT_EMBEDDING_BATCH_SIZE`
 - `CVECT_EMBEDDING_MAX_INPUT_LENGTH`
@@ -268,7 +324,7 @@ Small machine defaults are already tuned for `2C4G`:
 ## Deployment Notes
 
 - Live demo URL can be linked from the GitHub repository "About" section.
-- The default deployment is single-node.
-- `qwen` is embedding-only by default.
-- Frontend auth is configured at the nginx layer and should be managed via `.env`.
-- This repository is optimized for local development, demos, and single-host deployment.
+- Web and embedding are now separate deployment roles.
+- `qwen` should live on the embedding host only.
+- Frontend auth is configured at the nginx layer and should be managed via `.env.web`.
+- `scripts/local-run.sh` remains the all-in-one local development entrypoint.

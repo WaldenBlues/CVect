@@ -1,0 +1,79 @@
+name: ${CVECT_COMPOSE_PROJECT_NAME:-cvect-web}
+
+services:
+  postgres:
+    image: ${CVECT_POSTGRES_IMAGE:?set in .env.web}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${CVECT_POSTGRES_DB:?set in .env.web}
+      POSTGRES_USER: ${CVECT_POSTGRES_USER:?set in .env.web}
+      POSTGRES_PASSWORD: ${CVECT_POSTGRES_PASSWORD:?set in .env.web}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CVECT_POSTGRES_USER:?set in .env.web} -d ${CVECT_POSTGRES_DB:?set in .env.web}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build:
+      context: ./backend/cvect
+      args:
+        MAVEN_BUILD_IMAGE: ${CVECT_MAVEN_BUILD_IMAGE:?set in .env.web}
+        JAVA_RUNTIME_IMAGE: ${CVECT_JAVA_RUNTIME_IMAGE:?set in .env.web}
+        MAVEN_MIRROR_URL: ${CVECT_MAVEN_MIRROR_URL-}
+        UBUNTU_APT_MIRROR: ${CVECT_UBUNTU_APT_MIRROR-}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      JAVA_OPTS: ${JAVA_OPTS-}
+      CVECT_SERVER_PORT: 8080
+      CVECT_DB_URL: jdbc:postgresql://postgres:5432/${CVECT_POSTGRES_DB:?set in .env.web}
+      CVECT_DB_USERNAME: ${CVECT_POSTGRES_USER:?set in .env.web}
+      CVECT_DB_PASSWORD: ${CVECT_POSTGRES_PASSWORD:?set in .env.web}
+      CVECT_JWT_TTL_SECONDS: ${CVECT_JWT_TTL_SECONDS:-86400}
+      CVECT_EMBEDDING_SERVICE_URL: ${CVECT_EMBEDDING_SERVICE_URL:?set in .env.web}
+      CVECT_EMBEDDING_API_FORMAT: ${CVECT_EMBEDDING_API_FORMAT:-auto}
+      CVECT_EMBEDDING_HEALTH_URL: ${CVECT_EMBEDDING_HEALTH_URL:?set in .env.web}
+      CVECT_VECTOR_ENABLED: ${CVECT_VECTOR_ENABLED:-true}
+      CVECT_VECTOR_INGEST_WORKER_ENABLED: ${CVECT_VECTOR_INGEST_WORKER_ENABLED:-true}
+      CVECT_UPLOAD_WORKER_ENABLED: ${CVECT_UPLOAD_WORKER_ENABLED:-true}
+      CVECT_UPLOAD_STORAGE_DIR: /data/storage
+      CVECT_SHOW_SQL: ${CVECT_SHOW_SQL:?set in .env.web}
+      CVECT_CACHE_ENABLED: ${CVECT_CACHE_ENABLED:?set in .env.web}
+    expose:
+      - "8080"
+    volumes:
+      - backend_storage:/data/storage
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/resumes/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NODE_BUILD_IMAGE: ${CVECT_NODE_BUILD_IMAGE:?set in .env.web}
+        NGINX_RUNTIME_IMAGE: ${CVECT_NGINX_RUNTIME_IMAGE:?set in .env.web}
+        NPM_REGISTRY: ${CVECT_NPM_REGISTRY-}
+        ALPINE_APK_MIRROR: ${CVECT_ALPINE_APK_MIRROR-}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      CVECT_BASIC_AUTH_ENABLED: ${CVECT_BASIC_AUTH_ENABLED:?set in .env.web}
+      CVECT_BASIC_AUTH_USERNAME: ${CVECT_BASIC_AUTH_USERNAME-}
+      CVECT_BASIC_AUTH_PASSWORD: ${CVECT_BASIC_AUTH_PASSWORD-}
+    ports:
+      - "${CVECT_HTTP_PORT:?set in .env.web}:8080"
+
+volumes:
+  postgres_data:
+  backend_storage:

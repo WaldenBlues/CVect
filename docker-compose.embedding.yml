@@ -1,0 +1,54 @@
+name: ${CVECT_COMPOSE_PROJECT_NAME:-cvect-embedding}
+
+services:
+  qwen:
+    build:
+      context: ./Qwen
+      args:
+        PYTHON_BASE_IMAGE: ${CVECT_PYTHON_BASE_IMAGE:?set in .env.embedding}
+        DEBIAN_APT_MIRROR: ${CVECT_DEBIAN_APT_MIRROR-}
+        PIP_INDEX_URL: ${CVECT_PIP_INDEX_URL-}
+        PIP_TRUSTED_HOST: ${CVECT_PIP_TRUSTED_HOST-}
+        TORCH_PACKAGE: ${CVECT_TORCH_PACKAGE:-torch==2.10.0}
+        TORCH_WHEEL_INDEX_URL: ${CVECT_TORCH_WHEEL_INDEX_URL:-https://download.pytorch.org/whl/cpu}
+        TORCH_WHEEL_TRUSTED_HOST: ${CVECT_TORCH_WHEEL_TRUSTED_HOST:-download.pytorch.org}
+    restart: unless-stopped
+    environment:
+      EMBEDDING_MODEL_ID: ${CVECT_EMBEDDING_MODEL:?set in .env.embedding}
+      HF_HOME: /home/qwen/.cache/huggingface
+      HF_ENDPOINT: ${CVECT_HF_ENDPOINT:?set in .env.embedding}
+      HF_HUB_OFFLINE: ${CVECT_HF_HUB_OFFLINE:?set in .env.embedding}
+      HF_LOCAL_FILES_ONLY: ${CVECT_HF_LOCAL_FILES_ONLY:?set in .env.embedding}
+      HF_HUB_DISABLE_XET: ${CVECT_HF_HUB_DISABLE_XET:?set in .env.embedding}
+      HTTP_PROXY: ${CVECT_HTTP_PROXY-}
+      HTTPS_PROXY: ${CVECT_HTTPS_PROXY-}
+      NO_PROXY: ${CVECT_NO_PROXY-}
+      CORS_ALLOW_ORIGINS: ${CVECT_CORS_ALLOW_ORIGINS:-}
+      http_proxy: ${CVECT_HTTP_PROXY-}
+      https_proxy: ${CVECT_HTTPS_PROXY-}
+      no_proxy: ${CVECT_NO_PROXY-}
+      DEVICE: ${CVECT_EMBEDDING_DEVICE:?set in .env.embedding}
+      TORCH_DTYPE: ${CVECT_TORCH_DTYPE:?set in .env.embedding}
+      TORCH_NUM_THREADS: ${CVECT_TORCH_NUM_THREADS:-1}
+      TORCH_NUM_INTEROP_THREADS: ${CVECT_TORCH_NUM_INTEROP_THREADS:-1}
+      OMP_NUM_THREADS: ${CVECT_TORCH_NUM_THREADS:-1}
+      MKL_NUM_THREADS: ${CVECT_TORCH_NUM_THREADS:-1}
+      MAX_BATCH_SIZE: ${CVECT_EMBEDDING_BATCH_SIZE:?set in .env.embedding}
+      MAX_CONCURRENT_REQUESTS: ${CVECT_EMBEDDING_MAX_CONCURRENT_REQUESTS:-1}
+      MAX_INPUT_LENGTH: ${CVECT_EMBEDDING_MAX_INPUT_LENGTH:?set in .env.embedding}
+      IDLE_UNLOAD_SECONDS: ${CVECT_EMBEDDING_IDLE_UNLOAD_SECONDS:-900}
+      IDLE_CHECK_INTERVAL_SECONDS: ${CVECT_EMBEDDING_IDLE_CHECK_INTERVAL_SECONDS:-30}
+      PRELOAD_MODELS: ${CVECT_PRELOAD_MODELS:?set in .env.embedding}
+      MALLOC_ARENA_MAX: ${CVECT_MALLOC_ARENA_MAX:-2}
+      TOKENIZERS_PARALLELISM: "false"
+      HOST: 0.0.0.0
+      PORT: 8001
+    volumes:
+      - ${CVECT_HF_CACHE_DIR:?set in .env.embedding}:/home/qwen/.cache/huggingface
+    ports:
+      - "${CVECT_EMBEDDING_PUBLIC_PORT:-8001}:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/ready', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      retries: 40

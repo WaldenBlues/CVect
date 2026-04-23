@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="${ROOT_DIR}/.env"
-COMPOSE_FILE="${ROOT_DIR}/docker-compose.yml"
+ENV_FILE="${CVECT_ENV_FILE:-${ROOT_DIR}/.env.embedding}"
+COMPOSE_FILE="${CVECT_COMPOSE_FILE:-${ROOT_DIR}/docker-compose.embedding.yml}"
 
 read_env_value() {
   local key="$1"

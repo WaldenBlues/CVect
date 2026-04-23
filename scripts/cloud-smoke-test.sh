@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="${ROOT_DIR}/.env"
+ENV_FILE="${CVECT_ENV_FILE:-${ROOT_DIR}/.env.web}"
 
 read_env_value() {
   local key="$1"

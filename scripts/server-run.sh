@@ -2,10 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="${ROOT_DIR}/docker-compose.yml"
-ENV_FILE="${ROOT_DIR}/.env"
+COMPOSE_FILE="${CVECT_COMPOSE_FILE:-${ROOT_DIR}/docker-compose.web.yml}"
+ENV_FILE="${CVECT_ENV_FILE:-${ROOT_DIR}/.env.web}"
 COMMAND="${1:-up}"
 SERVICE="${2:-}"
+COMPOSE_PROJECT_NAME_VALUE="${CVECT_WEB_COMPOSE_PROJECT_NAME:-cvect-web}"
+WEB_SERVICES=(postgres backend frontend)
 
 read_env_value() {
   local key="$1"
@@ -34,61 +36,6 @@ read_env_value() {
   done < "${ENV_FILE}"
 }
 
-normalize_bool() {
-  local value="${1:-}"
-  value="$(printf '%s' "${value}" | tr '[:upper:]' '[:lower:]')"
-  case "${value}" in
-    1|true|yes|on)
-      printf 'true'
-      ;;
-    *)
-      printf 'false'
-      ;;
-  esac
-}
-
-resolve_path() {
-  local path="$1"
-  if [[ "${path}" = /* ]]; then
-    printf '%s' "${path}"
-  else
-    printf '%s/%s' "${ROOT_DIR}" "${path#./}"
-  fi
-}
-
-prepare_hf_cache_dir() {
-  local cache_dir offline local_only cache_dir_abs
-
-  cache_dir="${CVECT_HF_CACHE_DIR:-$(read_env_value CVECT_HF_CACHE_DIR)}"
-  offline="$(normalize_bool "${CVECT_HF_HUB_OFFLINE:-$(read_env_value CVECT_HF_HUB_OFFLINE)}")"
-  local_only="$(normalize_bool "${CVECT_HF_LOCAL_FILES_ONLY:-$(read_env_value CVECT_HF_LOCAL_FILES_ONLY)}")"
-
-  if [[ -z "${cache_dir}" ]]; then
-    echo "Missing CVECT_HF_CACHE_DIR in ${ENV_FILE}" >&2
-    exit 1
-  fi
-
-  cache_dir_abs="$(resolve_path "${cache_dir}")"
-  mkdir -p "${cache_dir_abs}"
-
-  if [[ "${offline}" = "true" || "${local_only}" = "true" ]]; then
-    if [[ ! -d "${cache_dir_abs}/hub" ]] || ! find "${cache_dir_abs}/hub" -mindepth 1 -maxdepth 1 -type d | grep -q .; then
-      cat >&2 <<EOF
-Offline Hugging Face mode is enabled, but the cache is empty:
-  ${cache_dir_abs}
-
-Prepare the cache locally first:
-  scripts/qwen-offline-cache.sh prefetch
-  scripts/qwen-offline-cache.sh pack
-
-Then upload the archive to the server and unpack it:
-  scripts/qwen-offline-cache.sh unpack /path/to/qwen-hf-cache.tgz
-EOF
-      exit 1
-    fi
-  fi
-}
-
 if [[ ! -f "${COMPOSE_FILE}" ]]; then
   echo "Missing compose file: ${COMPOSE_FILE}"
   exit 1
@@ -100,27 +47,8 @@ if [[ ! -f "${ENV_FILE}" ]]; then
 fi
 
 run_compose() {
-  docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
-}
-
-run_up() {
-  local build_flag="${1:-}"
-  shift || true
-
-  if uses_local_qwen; then
-    prepare_hf_cache_dir
-    if [[ -n "${build_flag}" ]]; then
-      run_compose up -d "${build_flag}" "$@"
-    else
-      run_compose up -d "$@"
-    fi
-  else
-    if [[ -n "${build_flag}" ]]; then
-      run_compose up -d "${build_flag}" "$@" postgres backend frontend
-    else
-      run_compose up -d "$@" postgres backend frontend
-    fi
-  fi
+  CVECT_COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME_VALUE}" \
+    docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
 }
 
 embedding_service_url() {
@@ -132,61 +60,107 @@ embedding_service_url() {
   printf '%s' "${value}"
 }
 
-uses_local_qwen() {
+embedding_health_url() {
   local url
-  url="$(embedding_service_url)"
+  url="${CVECT_EMBEDDING_HEALTH_URL:-$(read_env_value CVECT_EMBEDDING_HEALTH_URL)}"
+  if [[ -z "${url}" ]]; then
+    url="http://qwen:8001/ready"
+  fi
+  printf '%s' "${url}"
+}
+
+is_local_qwen_url() {
+  local url="$1"
   [[ "${url}" =~ ^https?://qwen(:[0-9]+)?(/.*)?$ ]]
+}
+
+ensure_external_embedding_service() {
+  local service_url health_url
+  service_url="$(embedding_service_url)"
+  health_url="$(embedding_health_url)"
+
+  if is_local_qwen_url "${service_url}" || is_local_qwen_url "${health_url}"; then
+    cat >&2 <<EOF
+scripts/server-run.sh now manages only the web stack: ${WEB_SERVICES[*]}
+
+Current embedding config still points to the in-project qwen service:
+  CVECT_EMBEDDING_SERVICE_URL=${service_url}
+  CVECT_EMBEDDING_HEALTH_URL=${health_url}
+
+Set those env values to your external embedding host before starting the web stack.
+Run scripts/embedding-run.sh on the GPU host if you want to deploy qwen itself.
+EOF
+    exit 1
+  fi
+}
+
+run_web_up() {
+  local build_flag="${1:-}"
+  shift || true
+
+  ensure_external_embedding_service
+
+  if [[ -n "${build_flag}" ]]; then
+    run_compose up -d "${build_flag}" "$@" "${WEB_SERVICES[@]}"
+  else
+    run_compose up -d "$@" "${WEB_SERVICES[@]}"
+  fi
 }
 
 case "${COMMAND}" in
   up)
-    run_up --no-build
+    run_web_up --no-build
     ;;
   up-no-build)
-    run_up --no-build
+    run_web_up --no-build
     ;;
   up-build)
-    run_up --build
+    run_web_up --build
     ;;
   down)
     run_compose down
     ;;
   restart)
-    run_up --no-build --force-recreate
+    run_web_up --no-build --force-recreate
     ;;
   restart-no-build)
-    run_up --no-build --force-recreate
+    run_web_up --no-build --force-recreate
     ;;
   restart-build)
-    run_up --build --force-recreate
+    run_web_up --build --force-recreate
     ;;
   status)
-    run_compose ps
+    run_compose ps "${WEB_SERVICES[@]}"
     ;;
   logs)
     if [[ -n "${SERVICE}" ]]; then
       run_compose logs -f "${SERVICE}"
     else
-      run_compose logs -f
+      run_compose logs -f "${WEB_SERVICES[@]}"
     fi
     ;;
   config)
     run_compose config
     ;;
   pull)
-    run_compose pull
+    run_compose pull "${WEB_SERVICES[@]}"
     ;;
   *)
     cat <<EOF
 Usage: scripts/server-run.sh [up|up-build|up-no-build|down|restart|restart-build|restart-no-build|status|logs|config|pull] [service]
 
 Examples:
-  scripts/qwen-offline-cache.sh prefetch
   scripts/server-run.sh up
   scripts/server-run.sh up-build
-  scripts/server-run.sh up-no-build
+  scripts/server-run.sh restart
   scripts/server-run.sh status
   scripts/server-run.sh logs backend
+
+Notes:
+  - This script manages only the web stack: ${WEB_SERVICES[*]}
+  - Default env file: ${ENV_FILE}
+  - Point CVECT_EMBEDDING_SERVICE_URL / CVECT_EMBEDDING_HEALTH_URL at your external embedding service
+  - Use scripts/embedding-run.sh on the GPU host for qwen
 EOF
     exit 1
     ;;

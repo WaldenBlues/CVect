@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="${ROOT_DIR}/.env"
+ENV_FILE="${CVECT_ENV_FILE:-${ROOT_DIR}/.env.embedding}"
 COMMAND="${1:-help}"
 ARG1="${2:-}"
 
@@ -268,7 +268,7 @@ Examples:
   scp .artifacts/qwen-hf-cache.tgz <server>:/tmp/
   # on the server:
   scripts/qwen-offline-cache.sh unpack /tmp/qwen-hf-cache.tgz
-  scripts/server-run.sh up
+  scripts/embedding-run.sh up
 EOF
     ;;
   *)
