@@ -78,14 +78,5 @@ class ResumeChunkPipelineTest {
                 assertTrue(hasSemanticChunk,
                                 "chunk 类型全部为 OTHER，说明 chunk 规则可能失效");
 
-                // debug 输出（非常有价值）
-                System.out.println("========= CHUNKS =========");
-                for (ResumeChunk chunk : chunks) {
-                        System.out.println("[" + chunk.getIndex() + "] "
-                                        + chunk.getType());
-                        System.out.println(chunk.getContent());
-                        System.out.println("-------------------------");
-                }
-                System.out.println("==========================");
         }
 }

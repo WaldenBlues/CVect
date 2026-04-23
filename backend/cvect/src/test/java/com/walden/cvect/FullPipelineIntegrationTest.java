@@ -54,12 +54,6 @@ class FullPipelineIntegrationTest {
 
         assertTrue(types.size() >= 2, "至少应有 2 种不同类型的 chunk");
 
-        // 打印结果用于调试
-        System.out.println("========== FULL PIPELINE RESULT ==========");
-        System.out.println("candidateId: " + result.candidateId());
-        System.out.println("total chunks: " + result.chunks().size());
-        System.out.println("chunk types: " + types);
-        System.out.println("==========================================");
     }
 
     @Test
@@ -82,10 +76,6 @@ class FullPipelineIntegrationTest {
         assertNotNull(result.chunks());
         assertFalse(result.chunks().isEmpty());
 
-        System.out.println("========== RESUME.PDF RESULT ==========");
-        System.out.println("candidateId: " + result.candidateId());
-        System.out.println("total chunks: " + result.chunks().size());
-        System.out.println("========================================");
     }
 
     @Test

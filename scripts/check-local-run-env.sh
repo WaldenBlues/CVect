@@ -8,6 +8,7 @@ LOG_DIR="${TMP_ROOT}/logs"
 NOHUP_LOG="${LOG_DIR}/nohup.log"
 DOCKER_LOG="${LOG_DIR}/docker.log"
 NPM_LOG="${LOG_DIR}/npm.log"
+CURL_LOG="${LOG_DIR}/curl.log"
 
 cleanup() {
   if [[ -x "${TMP_ROOT}/scripts/local-run.sh" ]]; then
@@ -37,6 +38,10 @@ fi
 
 case "${1:-}" in
   compose)
+    if [[ -z "${CVECT_BASIC_AUTH_USERNAME:-}" || -z "${CVECT_BASIC_AUTH_PASSWORD:-}" ]]; then
+      echo "missing compose basic auth interpolation fallback" >&2
+      exit 17
+    fi
     if [[ " $* " == *" ps -q postgres "* ]]; then
       printf 'fake-postgres-id\n'
     fi
@@ -55,6 +60,21 @@ EOF
 cat >"${STUB_DIR}/curl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+
+log_file="${CURL_LOG_FILE:-}"
+if [[ -n "${log_file}" ]]; then
+  printf '%s\n' "curl $*" >>"${log_file}"
+fi
+exit 0
+EOF
+
+cat >"${STUB_DIR}/python3" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "-" ]]; then
+  cat >/dev/null
+fi
 exit 0
 EOF
 
@@ -85,11 +105,12 @@ fi
 exec sleep 300
 EOF
 
-chmod +x "${STUB_DIR}/docker" "${STUB_DIR}/curl" "${STUB_DIR}/npm" "${STUB_DIR}/nohup"
+chmod +x "${STUB_DIR}/docker" "${STUB_DIR}/curl" "${STUB_DIR}/python3" "${STUB_DIR}/npm" "${STUB_DIR}/nohup"
 
 export PATH="${STUB_DIR}:${PATH}"
 export NOHUP_LOG_FILE="${NOHUP_LOG}"
 export DOCKER_LOG_FILE="${DOCKER_LOG}"
+export CURL_LOG_FILE="${CURL_LOG}"
 export NPM_LOG_FILE="${NPM_LOG}"
 
 export CVECT_SECURITY_ENABLED="false"
@@ -101,6 +122,7 @@ export CVECT_EMBEDDING_TIMEOUT_SECONDS="321"
 export CVECT_UPLOAD_STORAGE_DIR="/tmp/cvect-storage"
 export CVECT_SHOW_SQL="true"
 export CVECT_VECTOR_MAX_CONCURRENT_WRITES="7"
+export CVECT_HF_HUB_OFFLINE="false"
 export CVECT_HF_LOCAL_FILES_ONLY="false"
 export CVECT_EMBEDDING_SERVICE_URL="http://example.invalid/embed"
 
@@ -109,7 +131,7 @@ export CVECT_EMBEDDING_SERVICE_URL="http://example.invalid/embed"
 assert_contains() {
   local file="$1"
   local pattern="$2"
-  if ! grep -Fq "$pattern" "$file"; then
+  if ! grep -Fq -- "$pattern" "$file"; then
     echo "Expected '$pattern' in $file" >&2
     exit 1
   fi
@@ -124,7 +146,12 @@ assert_contains "${NOHUP_LOG}" "CVECT_EMBEDDING_TIMEOUT_SECONDS=321"
 assert_contains "${NOHUP_LOG}" "CVECT_UPLOAD_STORAGE_DIR=/tmp/cvect-storage"
 assert_contains "${NOHUP_LOG}" "CVECT_SHOW_SQL=true"
 assert_contains "${NOHUP_LOG}" "CVECT_VECTOR_MAX_CONCURRENT_WRITES=7"
+assert_contains "${NOHUP_LOG}" "HF_HUB_OFFLINE=false"
 assert_contains "${NOHUP_LOG}" "HF_LOCAL_FILES_ONLY=false"
+assert_contains "${NOHUP_LOG}" "HF_HOME=${TMP_ROOT}/.runtime/huggingface"
 assert_contains "${NOHUP_LOG}" "CVECT_EMBEDDING_SERVICE_URL=http://example.invalid/embed"
+assert_contains "${CURL_LOG}" "curl --noproxy * --max-time 5 -fsS http://localhost:8001/ready"
+assert_contains "${DOCKER_LOG}" "-f ${TMP_ROOT}/.run/docker-compose.local.yml"
+assert_contains "${TMP_ROOT}/.run/docker-compose.local.yml" "- \"5432:5432\""
 
 echo "local-run env propagation check passed"

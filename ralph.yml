@@ -10,9 +10,10 @@ cli:
 event_loop:
   prompt_file: "PROMPT.md"
   completion_promise: "LOOP_COMPLETE"
-  max_iterations: 5
-  max_runtime_seconds: 1800
-  # max_runtime_seconds: 14400    # 4 hours max
+  # The current plan has 24 backlog items; 32 leaves room for multi-step bugfix cycles
+  # without letting a single Ralph run sprawl indefinitely.
+  max_iterations: 32
+  max_runtime_seconds: 14400    # hard cap: 4 hours
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Additional Configuration (uncomment to customize)

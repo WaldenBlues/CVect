@@ -7,6 +7,7 @@ LOG_DIR="${RUN_DIR}/logs"
 PID_DIR="${RUN_DIR}/pids"
 ENV_FILE="${ROOT_DIR}/.env"
 COMPOSE_FILE="${ROOT_DIR}/docker-compose.yml"
+COMPOSE_OVERRIDE_FILE="${RUN_DIR}/docker-compose.local.yml"
 
 ENV_SOURCE=""
 if [[ -f "${ENV_FILE}" ]]; then
@@ -92,6 +93,8 @@ BACKEND_DB_USERNAME="$(resolve_setting CVECT_DB_USERNAME "${POSTGRES_USER}")"
 BACKEND_DB_PASSWORD="$(resolve_setting CVECT_DB_PASSWORD "${POSTGRES_PASSWORD}")"
 SECURITY_ENABLED="$(resolve_setting CVECT_SECURITY_ENABLED true)"
 JWT_SECRET="$(resolve_setting CVECT_JWT_SECRET cvect-dev-secret-change-me)"
+BASIC_AUTH_USERNAME="$(resolve_setting CVECT_BASIC_AUTH_USERNAME local-run)"
+BASIC_AUTH_PASSWORD="$(resolve_setting CVECT_BASIC_AUTH_PASSWORD local-run)"
 CACHE_ENABLED="$(resolve_setting CVECT_CACHE_ENABLED true)"
 VECTOR_ENABLED="$(resolve_setting CVECT_VECTOR_ENABLED true)"
 VECTOR_INGEST_WORKER_ENABLED="$(resolve_setting CVECT_VECTOR_INGEST_WORKER_ENABLED true)"
@@ -118,20 +121,80 @@ HF_ENDPOINT="$(resolve_setting CVECT_HF_ENDPOINT https://huggingface.co)"
 HF_HUB_OFFLINE="$(resolve_setting CVECT_HF_HUB_OFFLINE true)"
 HF_LOCAL_FILES_ONLY="$(resolve_setting CVECT_HF_LOCAL_FILES_ONLY true)"
 HF_HUB_DISABLE_XET="$(resolve_setting CVECT_HF_HUB_DISABLE_XET false)"
+QWEN_PYTHON="$(resolve_setting CVECT_QWEN_PYTHON "")"
+QWEN_VENV_DIR="$(resolve_setting CVECT_QWEN_VENV_DIR "${ROOT_DIR}/.runtime/qwen-service-venv")"
+PIP_INDEX_URL_VALUE="$(resolve_setting CVECT_PIP_INDEX_URL "")"
+PIP_TRUSTED_HOST_VALUE="$(resolve_setting CVECT_PIP_TRUSTED_HOST "")"
+TORCH_PACKAGE="$(resolve_setting CVECT_TORCH_PACKAGE torch)"
+TORCH_WHEEL_INDEX_URL="$(resolve_setting CVECT_TORCH_WHEEL_INDEX_URL "")"
+TORCH_WHEEL_TRUSTED_HOST="$(resolve_setting CVECT_TORCH_WHEEL_TRUSTED_HOST "")"
 HTTP_PROXY_VALUE="$(resolve_setting CVECT_HTTP_PROXY "")"
 HTTPS_PROXY_VALUE="$(resolve_setting CVECT_HTTPS_PROXY "")"
 NO_PROXY_VALUE="$(resolve_setting CVECT_NO_PROXY "127.0.0.1,localhost,postgres,qwen,backend,frontend")"
 QWEN_TORCH_DTYPE="$(resolve_setting CVECT_TORCH_DTYPE auto)"
 QWEN_TORCH_NUM_THREADS="$(resolve_setting CVECT_TORCH_NUM_THREADS 1)"
 QWEN_TORCH_NUM_INTEROP_THREADS="$(resolve_setting CVECT_TORCH_NUM_INTEROP_THREADS 1)"
+QWEN_CORS_ALLOW_ORIGINS="$(resolve_setting CVECT_CORS_ALLOW_ORIGINS "")"
 BACKEND_HEALTH_URL="${CVECT_BACKEND_HEALTH_URL:-http://localhost:${BACKEND_PORT}/api/resumes/health}"
 FRONTEND_URL="${CVECT_FRONTEND_URL:-http://localhost:5173}"
+EMBEDDING_PYTHON=""
+
+localize_qwen_url() {
+  local url="$1"
+  if [[ "${url}" =~ ^(https?://)qwen(:[0-9]+)?(/.*)?$ ]]; then
+    printf '%s' "${BASH_REMATCH[1]}localhost${BASH_REMATCH[2]:-}${BASH_REMATCH[3]:-}"
+    return 0
+  fi
+  printf '%s' "${url}"
+}
+
+EMBEDDING_SERVICE_URL="$(localize_qwen_url "${EMBEDDING_SERVICE_URL}")"
+EMBEDDING_HEALTH_URL="$(localize_qwen_url "${EMBEDDING_HEALTH_URL}")"
+
+resolve_path() {
+  local path="$1"
+  if [[ "${path}" = /* ]]; then
+    printf '%s' "${path}"
+  else
+    printf '%s/%s' "${ROOT_DIR}" "${path#./}"
+  fi
+}
+
+HF_CACHE_DIR="$(resolve_path "${HF_CACHE_DIR}")"
+QWEN_VENV_DIR="$(resolve_path "${QWEN_VENV_DIR}")"
+
+normalize_bool() {
+  local value="${1:-}"
+  value="$(printf '%s' "${value}" | tr '[:upper:]' '[:lower:]')"
+  case "${value}" in
+    1|true|yes|on)
+      printf 'true'
+      ;;
+    *)
+      printf 'false'
+      ;;
+  esac
+}
+
+write_local_compose_override() {
+  cat >"${COMPOSE_OVERRIDE_FILE}" <<EOF
+services:
+  postgres:
+    ports:
+      - "${POSTGRES_PORT}:5432"
+EOF
+}
 
 run_local_compose() {
+  write_local_compose_override
   if [[ -n "${ENV_SOURCE}" ]]; then
-    docker compose --env-file "${ENV_SOURCE}" -f "${COMPOSE_FILE}" "$@"
+    CVECT_BASIC_AUTH_USERNAME="${BASIC_AUTH_USERNAME}" \
+      CVECT_BASIC_AUTH_PASSWORD="${BASIC_AUTH_PASSWORD}" \
+      docker compose --env-file "${ENV_SOURCE}" -f "${COMPOSE_FILE}" -f "${COMPOSE_OVERRIDE_FILE}" "$@"
   else
-    docker compose -f "${COMPOSE_FILE}" "$@"
+    CVECT_BASIC_AUTH_USERNAME="${BASIC_AUTH_USERNAME}" \
+      CVECT_BASIC_AUTH_PASSWORD="${BASIC_AUTH_PASSWORD}" \
+      docker compose -f "${COMPOSE_FILE}" -f "${COMPOSE_OVERRIDE_FILE}" "$@"
   fi
 }
 
@@ -170,7 +233,7 @@ assert_process_alive() {
 
 http_ready() {
   local url="$1"
-  curl -fsS "${url}" >/dev/null 2>&1
+  curl --noproxy '*' --max-time 5 -fsS "${url}" >/dev/null 2>&1
 }
 
 wait_for_http() {
@@ -250,6 +313,121 @@ wait_for_postgres() {
   wait_for_tcp "postgres" "${POSTGRES_HOST}" "${POSTGRES_PORT}" "${POSTGRES_WAIT_TIMEOUT}"
 }
 
+python_has_embedding_deps() {
+  local python_bin="$1"
+  "${python_bin}" - <<'PY' >/dev/null 2>&1
+import fastapi
+import torch
+import transformers
+PY
+}
+
+venv_has_pip() {
+  local python_bin="$1"
+  "${python_bin}" -m pip --version >/dev/null 2>&1
+}
+
+ensure_embedding_python() {
+  local venv_dir python_bin pip_bin
+  local -a torch_install_cmd service_install_cmd
+
+  if [[ -n "${QWEN_PYTHON}" ]]; then
+    if python_has_embedding_deps "${QWEN_PYTHON}"; then
+      EMBEDDING_PYTHON="${QWEN_PYTHON}"
+      return 0
+    fi
+    echo "[embedding] ${QWEN_PYTHON} is missing torch/fastapi/transformers" >&2
+    return 1
+  fi
+
+  if python_has_embedding_deps python3; then
+    EMBEDDING_PYTHON="python3"
+    return 0
+  fi
+
+  venv_dir="$(resolve_path "${QWEN_VENV_DIR}")"
+  python_bin="${venv_dir}/bin/python"
+  pip_bin="${venv_dir}/bin/pip"
+
+  mkdir -p "$(dirname "${venv_dir}")"
+  if [[ ! -x "${python_bin}" ]]; then
+    echo "[embedding] creating Python venv: ${venv_dir}"
+    python3 -m venv "${venv_dir}"
+  fi
+  if ! venv_has_pip "${python_bin}"; then
+    echo "[embedding] repairing Python venv: ${venv_dir}"
+    python3 -m venv --clear "${venv_dir}"
+  fi
+  if ! venv_has_pip "${python_bin}"; then
+    echo "[embedding] ${venv_dir} does not have pip; install python3.12-venv or set CVECT_QWEN_PYTHON" >&2
+    return 1
+  fi
+
+  if ! python_has_embedding_deps "${python_bin}"; then
+    echo "[embedding] installing Python runtime dependencies in ${venv_dir}"
+    torch_install_cmd=("${pip_bin}" install)
+    if [[ -n "${PIP_INDEX_URL_VALUE}" ]]; then
+      torch_install_cmd+=(--index-url "${PIP_INDEX_URL_VALUE}")
+    fi
+    if [[ -n "${PIP_TRUSTED_HOST_VALUE}" ]]; then
+      torch_install_cmd+=(--trusted-host "${PIP_TRUSTED_HOST_VALUE}")
+    fi
+    if [[ -n "${TORCH_WHEEL_INDEX_URL}" ]]; then
+      torch_install_cmd+=(--extra-index-url "${TORCH_WHEEL_INDEX_URL}")
+    fi
+    if [[ -n "${TORCH_WHEEL_TRUSTED_HOST}" ]]; then
+      torch_install_cmd+=(--trusted-host "${TORCH_WHEEL_TRUSTED_HOST}")
+    fi
+    torch_install_cmd+=("${TORCH_PACKAGE}")
+    "${torch_install_cmd[@]}"
+
+    service_install_cmd=("${pip_bin}" install)
+    if [[ -n "${PIP_INDEX_URL_VALUE}" ]]; then
+      service_install_cmd+=(--index-url "${PIP_INDEX_URL_VALUE}")
+    fi
+    if [[ -n "${PIP_TRUSTED_HOST_VALUE}" ]]; then
+      service_install_cmd+=(--trusted-host "${PIP_TRUSTED_HOST_VALUE}")
+    fi
+    service_install_cmd+=(-r "${ROOT_DIR}/Qwen/requirements-service.txt")
+    "${service_install_cmd[@]}"
+  fi
+
+  if ! python_has_embedding_deps "${python_bin}"; then
+    echo "[embedding] missing Python runtime dependencies after install attempt" >&2
+    echo "[embedding] set CVECT_QWEN_PYTHON to a Python with torch, fastapi, and transformers, or inspect ${venv_dir}" >&2
+    return 1
+  fi
+
+  EMBEDDING_PYTHON="${python_bin}"
+}
+
+ensure_embedding_cache_available() {
+  local cache_dir offline local_only
+
+  offline="$(normalize_bool "${HF_HUB_OFFLINE}")"
+  local_only="$(normalize_bool "${HF_LOCAL_FILES_ONLY}")"
+  if [[ "${offline}" != "true" && "${local_only}" != "true" ]]; then
+    return 0
+  fi
+
+  cache_dir="$(resolve_path "${HF_CACHE_DIR}")"
+  if [[ -d "${cache_dir}/hub" ]] && find "${cache_dir}/hub" -mindepth 1 -maxdepth 1 -type d | grep -q .; then
+    return 0
+  fi
+
+  cat >&2 <<EOF
+[embedding] offline Hugging Face mode is enabled, but the cache is empty:
+  ${cache_dir}
+
+Prepare the model cache first:
+  CVECT_HF_HUB_OFFLINE=false CVECT_HF_LOCAL_FILES_ONLY=false scripts/qwen-offline-cache.sh prefetch
+
+Then run:
+  ./scripts/local-run.sh
+EOF
+  return 1
+}
+
 start_postgres() {
   echo "[postgres] starting..."
   (cd "${ROOT_DIR}" && run_local_compose up -d postgres)
@@ -260,7 +438,9 @@ start_embedding() {
     echo "[embedding] already running (pid=$(cat "${EMBED_PID_FILE}"))"
     return
   fi
-  echo "[embedding] starting on :8001..."
+  ensure_embedding_python
+  ensure_embedding_cache_available
+  echo "[embedding] starting on :8001 with ${EMBEDDING_PYTHON}..."
   (
     cd "${ROOT_DIR}/Qwen"
     nohup env \
@@ -287,12 +467,13 @@ start_embedding() {
       MAX_INPUT_LENGTH="${EMBEDDING_MAX_INPUT_LENGTH}" \
       IDLE_UNLOAD_SECONDS="${EMBEDDING_IDLE_UNLOAD_SECONDS}" \
       IDLE_CHECK_INTERVAL_SECONDS="${EMBEDDING_IDLE_CHECK_INTERVAL_SECONDS}" \
+      CORS_ALLOW_ORIGINS="${QWEN_CORS_ALLOW_ORIGINS}" \
       PRELOAD_MODELS="${PRELOAD_MODELS}" \
       MALLOC_ARENA_MAX="${MALLOC_ARENA_MAX}" \
       TOKENIZERS_PARALLELISM="false" \
       HOST=0.0.0.0 \
       PORT=8001 \
-      python3 embedding_service.py >"${EMBED_LOG}" 2>&1 &
+      "${EMBEDDING_PYTHON}" embedding_service.py >"${EMBED_LOG}" 2>&1 &
     echo $! >"${EMBED_PID_FILE}"
   )
 }

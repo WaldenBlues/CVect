@@ -4,8 +4,8 @@ import { check, fail } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
 
 const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:8088';
-const BASIC_USER = __ENV.BASIC_USER || 'demo';
-const BASIC_PASSWORD = __ENV.BASIC_PASSWORD || 'demo123';
+const BASIC_USER = __ENV.BASIC_USER || '';
+const BASIC_PASSWORD = __ENV.BASIC_PASSWORD || '';
 
 const JDS_VUS = Number(__ENV.JDS_VUS || 5);
 const CANDIDATES_VUS = Number(__ENV.CANDIDATES_VUS || 5);
@@ -85,6 +85,16 @@ export const options = {
 };
 
 function authHeaders() {
+  if ((BASIC_USER === '' && BASIC_PASSWORD !== '') || (BASIC_USER !== '' && BASIC_PASSWORD === '')) {
+    fail('BASIC_USER and BASIC_PASSWORD must both be set or both be empty.');
+  }
+
+  if (BASIC_USER === '' && BASIC_PASSWORD === '') {
+    return {
+      'Content-Type': 'application/json',
+    };
+  }
+
   return {
     Authorization: `Basic ${encoding.b64encode(`${BASIC_USER}:${BASIC_PASSWORD}`)}`,
     'Content-Type': 'application/json',

@@ -17,9 +17,10 @@ public class UploadWorkerExecutorConfig {
             @Value("${app.upload.worker.executor.queue-capacity:100}") int queueCapacity,
             @Value("${app.upload.worker.executor.thread-name-prefix:upload-worker-}") String threadNamePrefix,
             TaskDecorator mdcTaskDecorator) {
+        int normalizedCorePoolSize = Math.max(1, corePoolSize);
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(Math.max(1, corePoolSize));
-        executor.setMaxPoolSize(Math.max(corePoolSize, maxPoolSize));
+        executor.setCorePoolSize(normalizedCorePoolSize);
+        executor.setMaxPoolSize(Math.max(normalizedCorePoolSize, maxPoolSize));
         executor.setQueueCapacity(Math.max(0, queueCapacity));
         executor.setThreadNamePrefix(threadNamePrefix);
         executor.setTaskDecorator(mdcTaskDecorator);

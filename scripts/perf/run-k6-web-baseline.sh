@@ -8,10 +8,15 @@ SCRIPT_PATH="/work/scripts/perf/k6-web-baseline.js"
 mkdir -p "${RESULT_DIR}"
 
 : "${BASE_URL:=http://127.0.0.1:8088}"
-: "${BASIC_USER:=demo}"
-: "${BASIC_PASSWORD:=demo123}"
+: "${BASIC_USER:=}"
+: "${BASIC_PASSWORD:=}"
 : "${K6_IMAGE:=grafana/k6:0.49.0}"
 : "${SUMMARY_NAME:=k6-web-baseline-summary.json}"
+
+if [[ -n "${BASIC_USER}" && -z "${BASIC_PASSWORD}" ]] || [[ -z "${BASIC_USER}" && -n "${BASIC_PASSWORD}" ]]; then
+  echo "BASIC_USER and BASIC_PASSWORD must both be set or both be empty." >&2
+  exit 1
+fi
 
 docker run --rm --network host \
   -u "$(id -u):$(id -g)" \

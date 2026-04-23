@@ -244,8 +244,6 @@ public class LogValueSanitizer {
     }
 
     private String quote(String value) {
-        return '"' + value
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"") + '"';
+        return '"' + LogTextEscaper.escape(value) + '"';
     }
 }

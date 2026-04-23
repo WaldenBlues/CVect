@@ -28,7 +28,6 @@ public class JpaSmokeTest {
                     "EMAIL",
                     "test@example.com");
             repo.save(c);
-            System.out.println("✅ JPA save OK");
         };
     }
 }

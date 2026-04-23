@@ -70,20 +70,5 @@ class FactExtractionIntegrationTest {
                 assertTrue(chunks.stream().anyMatch(c -> c.getType() == ChunkType.CONTACT),
                                 "测试用 PDF 必须包含 CONTACT chunk");
 
-                // 打印结果：观察 RuleBasedFactChunkSelector 的过滤效果
-                printFactReport(chunks.size(), facts);
-        }
-
-        private void printFactReport(int originalSize, List<ResumeChunk> facts) {
-                System.out.println("========= FACT EXTRACTION REPORT =========");
-                System.out.println("原始分块总数: " + originalSize);
-                System.out.println("提取事实总数: " + facts.size());
-                System.out.println("-----------------------------------------");
-                facts.forEach(f -> {
-                        System.out.printf("[%s] -> %s%n", f.getType(),
-                                        f.getContent().replace("\n", " ").substring(0,
-                                                        Math.min(f.getContent().length(), 50)) + "...");
-                });
-                System.out.println("==========================================");
         }
 }

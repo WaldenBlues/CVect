@@ -46,9 +46,7 @@ public class WebLogFormatter {
             return "\"\"";
         }
         if (requiresQuoting(text)) {
-            return '"' + text
-                    .replace("\\", "\\\\")
-                    .replace("\"", "\\\"") + '"';
+            return '"' + LogTextEscaper.escape(text) + '"';
         }
         return text;
     }
@@ -56,7 +54,7 @@ public class WebLogFormatter {
     private boolean requiresQuoting(String text) {
         for (int i = 0; i < text.length(); i++) {
             char ch = text.charAt(i);
-            if (Character.isWhitespace(ch) || ch == '=' || ch == ',' || ch == '"' || ch == '[' || ch == ']' || ch == '{' || ch == '}') {
+            if (Character.isWhitespace(ch) || Character.isISOControl(ch) || ch == '=' || ch == ',' || ch == '"' || ch == '[' || ch == ']' || ch == '{' || ch == '}') {
                 return true;
             }
         }

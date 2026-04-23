@@ -30,6 +30,8 @@ Run only these primary items for the next Ralph execution, in this order:
 
 Primary estimate: `175-235` minutes before normal verification overhead.
 
+Recommended Ralph iteration ceiling: `32`.
+
 Reserve items, in order:
 - `P3 [bugfix:test-suite-output-noise-hides-failures]` estimated `30-45` minutes.
 - `P3 [bugfix:web-log-control-characters-can-forge-lines]` estimated `25-40` minutes.

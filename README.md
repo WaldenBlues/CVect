@@ -83,6 +83,8 @@ CVect/
 
 Edit [`.env`](./.env) first, then run:
 
+If `CVECT_BASIC_AUTH_ENABLED=true`, set `CVECT_BASIC_AUTH_USERNAME` and `CVECT_BASIC_AUTH_PASSWORD` in `.env` before starting; the checked-in defaults intentionally leave those blank.
+
 ```bash
 scripts/local-run.sh start
 ```

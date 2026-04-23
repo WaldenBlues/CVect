@@ -127,6 +127,16 @@ CPU_COUNT = os.cpu_count() or 1
 TORCH_NUM_THREADS = _resolve_thread_count("TORCH_NUM_THREADS", min(2, CPU_COUNT))
 TORCH_NUM_INTEROP_THREADS = _resolve_thread_count("TORCH_NUM_INTEROP_THREADS", 1)
 
+
+def _parse_cors_allow_origins() -> List[str]:
+    raw = os.getenv("CORS_ALLOW_ORIGINS", "")
+    if not raw.strip():
+        return []
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
+CORS_ALLOW_ORIGINS = _parse_cors_allow_origins()
+
 REQUEST_SEMAPHORE = threading.Semaphore(MAX_CONCURRENT_REQUESTS)
 IDLE_UNLOAD_STOP = threading.Event()
 IDLE_UNLOAD_THREAD: threading.Thread | None = None
@@ -326,8 +336,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=CORS_ALLOW_ORIGINS,
+    allow_credentials=bool(CORS_ALLOW_ORIGINS),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -457,7 +467,7 @@ def embed(request: EmbeddingRequest) -> EmbeddingResponse:
         vectors = _embedding_forward(request.texts, request.normalize)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Embedding failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="embedding request failed") from exc
 
     elapsed = (time.time() - start) * 1000
     dimension = len(vectors[0]) if vectors else 0

@@ -41,9 +41,5 @@ class TikaResumeParserTest {
                 assertFalse(result.getContent().contains("\uFFFD"),
                                 "解析结果包含替换字符，可能存在编码问题");
 
-                // debug 输出（测试时很有用）
-                System.out.println("========= RAW TEXT =========");
-                System.out.println(result.getContent());
-                System.out.println("============================");
         }
 }
