@@ -19,14 +19,49 @@ Only touch frontend code if the selected bug explicitly requires client/server c
 ## Working Rule
 Process the backlog in priority order. Pick one bugfix at a time, write or update the narrowest regression test, apply the smallest production patch, then run the smallest relevant verification command. If a finding proves false, leave a short note in the completion report and move to the next item.
 
+## Current Ralph 3-4 Hour Run Window
+Target: execute a bounded Ralph run of roughly `3` to `4` hours, with reserve items available if the primary items finish early.
+
+Run only these primary items for the next Ralph execution, in this order:
+- `P2 [bugfix:qwen-readiness-does-not-prove-embedding-loadable]` estimated `45-60` minutes.
+- `P2 [bugfix:local-run-ignores-env-security-and-embedding-settings]` estimated `45-60` minutes.
+- `P3 [bugfix:upload-worker-enabled-not-env-configurable]` estimated `25-40` minutes.
+- `P3 [bugfix:docker-runtime-root-and-basic-auth-secret-hardening]` estimated `60-75` minutes.
+
+Primary estimate: `175-235` minutes before normal verification overhead.
+
+Reserve items, in order:
+- `P3 [bugfix:test-suite-output-noise-hides-failures]` estimated `30-45` minutes.
+- `P3 [bugfix:web-log-control-characters-can-forge-lines]` estimated `25-40` minutes.
+- `P3 [bugfix:qwen-cors-wildcard-with-credentials]` estimated `20-35` minutes.
+- `P3 [bugfix:qwen-embed-error-leaks-internal-detail]` estimated `20-30` minutes.
+- `P3 [bugfix:worker-executor-max-pool-can-be-less-than-core]` estimated `25-40` minutes.
+
+Use reserve items one at a time only if all primary items finish before `190` elapsed minutes and at least `40` minutes remain before the `4` hour hard cap. Do not select any other backlog item in this run.
+
+Stop conditions:
+- Stop after all primary items are completed, proven false, or explicitly blocked, unless the reserve rule above applies.
+- Stop after the allowed reserve items are completed, proven false, explicitly blocked, or no longer allowed by the elapsed-time rules.
+- Do not start a new item after `210` elapsed minutes.
+- Do not start a new item if fewer than `30` minutes remain before the `4` hour hard cap.
+- If an item needs a broad refactor, new subsystem, schema/data migration, or unavailable external network dependency, record it as blocked and move to the next allowed item.
+- If verification fails for an unrelated environment reason, report the exact failing command and decide based on the smallest relevant verification that is still available.
+- When stopping for any condition above, print exactly `LOOP_COMPLETE`.
+
 ## Current Acceptance Baseline
-Latest manual acceptance run:
+Latest manual acceptance runs:
 
 ```bash
 cd backend/cvect && ./mvnw -q test
+cd frontend && npm test
 ```
 
-Observed on 2026-04-22:
+Observed on 2026-04-23:
+- Backend: `190` tests, `0` failures, `0` errors, `0` skipped.
+- Frontend: `2` tests, `0` failures, `0` errors.
+- First backend attempt in the default sandbox was blocked by read-only Maven local repository metadata under `~/.m2`; rerun with Maven local repository write access passed.
+
+Previous backend observation on 2026-04-22:
 - `190` tests
 - `0` failures
 - `0` errors
@@ -483,6 +518,312 @@ Suggested verification:
 
 ```bash
 cd backend/cvect && ./mvnw -q test
+```
+
+### P2 [bugfix:qwen-readiness-does-not-prove-embedding-loadable]
+Estimated Ralph effort: 45-60 minutes.
+
+Bug statement: Deployment health checks can report Qwen and backend vector health as healthy while the embedding model is not loaded and may not be loadable, so compose startup and smoke tests can pass before the first real embedding request fails.
+
+Evidence:
+- `Qwen/embedding_service.py:339` only loads the model when `PRELOAD_MODELS=true`.
+- `Qwen/embedding_service.py:374` returns `/health` with `status=healthy` without checking model loadability.
+- `Qwen/embedding_service.py:388` returns `/ready` with `status=ready` without requiring `embedding_loaded=true`.
+- `Qwen/Dockerfile:49` defaults `PRELOAD_MODELS=false`.
+- `docker-compose.yml:64` checks `http://127.0.0.1:8001/health`.
+- `docker-compose.yml:90` points backend vector health at `http://qwen:8001/health` by default.
+- `scripts/cloud-smoke-test.sh:72` only checks backend `/api/vector/health` for `"status":"UP"`.
+
+Smallest failing path:
+- Start Qwen with `PRELOAD_MODELS=false` and `HF_LOCAL_FILES_ONLY=true` with no cached model.
+- `GET /health` and `GET /ready` still return success before any model can be loaded.
+- Backend `/api/vector/health` and the cloud smoke test can pass even though the first `/embed` request fails during lazy model load.
+
+Regression target:
+- Add a focused Qwen service test or smoke-level script test.
+- Assert `/health` remains a liveness endpoint and does not claim model readiness.
+- Assert `/ready` is not successful, or returns a non-ready status, when the embedding model is not loaded or failed to load.
+- Assert compose/backend health wiring uses readiness semantics for embedding-dependent checks.
+
+Minimal fix direction:
+- Keep `/health` as cheap process liveness.
+- Make `/ready` truthfully reflect embedding readiness, either by requiring a loaded model or by reporting a non-ready status when lazy loading has not succeeded.
+- Point compose and backend vector health defaults at the readiness endpoint if the check is meant to prove embedding availability.
+- Update `scripts/cloud-smoke-test.sh` expectations so it cannot pass on liveness alone.
+
+Suggested verification:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile Qwen/embedding_service.py
+cd backend/cvect && ./mvnw -q -Dtest=VectorHealthControllerTest test
+```
+
+### P2 [bugfix:local-run-ignores-env-security-and-embedding-settings]
+Estimated Ralph effort: 45-60 minutes.
+
+Bug statement: `scripts/local-run.sh` is documented as using the same `.env` configuration source as server mode, but it starts backend and Qwen with a small hardcoded environment subset, so local acceptance can silently diverge from Docker/server behavior.
+
+Evidence:
+- `README.md:16` says there is one configuration file: `.env`.
+- `README.md:70` calls `.env` the single config source.
+- `README.md:108` says server mode reads the same `.env`.
+- `scripts/local-run.sh:93` uses `CVECT_EMBED_HEALTH_URL` with a default `/health` URL instead of the backend-style `CVECT_EMBEDDING_HEALTH_URL`.
+- `scripts/local-run.sh:225` starts Qwen.
+- `scripts/local-run.sh:231` forces `HOST`, `PORT`, and `PRELOAD_MODELS=false` only.
+- `scripts/local-run.sh:238` starts backend.
+- `scripts/local-run.sh:245` through `scripts/local-run.sh:250` pass DB, port, and upload limits only.
+
+Smallest failing path:
+- Set security or embedding values in `.env`, for example `CVECT_JWT_SECRET`, `CVECT_SECURITY_ENABLED`, `CVECT_EMBEDDING_MAX_INPUT_LENGTH`, `CVECT_HF_LOCAL_FILES_ONLY`, or `CVECT_CACHE_ENABLED`.
+- Run `scripts/local-run.sh start`.
+- Backend or Qwen starts with defaults that do not match the documented `.env` runtime configuration, so a local test can pass while the server deployment behaves differently.
+
+Regression target:
+- Add a script-level test or dry-run harness that stubs process launch and captures the environment passed to backend and Qwen.
+- Assert security, cache, vector, embedding model, HF offline/cache, concurrency, and max input settings are propagated consistently.
+- Assert local health URL naming matches the backend/deployment convention.
+
+Minimal fix direction:
+- Reuse `resolve_setting` for the runtime properties already present in compose and application config.
+- Pass the smallest necessary `.env`-derived variable set to backend and Qwen rather than forcing hardcoded local defaults.
+- Keep developer-friendly defaults only when `.env` omits a value.
+
+Suggested verification:
+
+```bash
+bash -n scripts/local-run.sh
+cd backend/cvect && ./mvnw -q -DskipTests compile
+```
+
+### P3 [bugfix:upload-worker-enabled-not-env-configurable]
+Estimated Ralph effort: 25-40 minutes.
+
+Bug statement: Upload worker beans are conditional on `app.upload.worker.enabled`, and tests disable them directly with Spring properties, but runtime configuration hardcodes the property to `true`, so operators cannot disable the upload worker through `.env` the way they can disable the vector ingest worker.
+
+Evidence:
+- `backend/cvect/src/main/resources/application.yml:92` defines upload worker config.
+- `backend/cvect/src/main/resources/application.yml:93` hardcodes `enabled: true`.
+- `backend/cvect/src/main/java/com/walden/cvect/service/upload/queue/UploadQueueWorkerService.java:42` is conditional on `app.upload.worker.enabled`.
+- `backend/cvect/src/main/java/com/walden/cvect/service/upload/queue/UploadQueueWorkerRunner.java:22` is conditional on `app.upload.worker.enabled`.
+- `docker-compose.yml:92` exposes `CVECT_VECTOR_INGEST_WORKER_ENABLED`, but there is no matching upload worker environment override.
+
+Smallest failing path:
+- Set `CVECT_UPLOAD_WORKER_ENABLED=false` for a runtime deployment.
+- Start the backend.
+- Upload queue worker beans still load because `application.yml` does not bind that environment variable.
+
+Regression target:
+- Add or update a focused Spring context/configuration test.
+- Assert `CVECT_UPLOAD_WORKER_ENABLED=false` or `app.upload.worker.enabled=false` prevents worker beans from loading.
+- Assert the default remains enabled for current local behavior.
+
+Minimal fix direction:
+- Change `app.upload.worker.enabled` to `${CVECT_UPLOAD_WORKER_ENABLED:true}`.
+- Add the environment variable to compose and local-run only if the selected fix includes deployment parity.
+- Do not change worker scheduling, queue claim logic, or upload controller behavior.
+
+Suggested verification:
+
+```bash
+cd backend/cvect && ./mvnw -q -Dtest=UploadQueueWorkerServiceIntegrationTest test
+```
+
+### P3 [bugfix:upload-total-byte-cap-not-env-configurable]
+Estimated Ralph effort: 20-30 minutes.
+
+Bug statement: ZIP total-byte cap is now enforced in `UploadApplicationService`, but the runtime config never exposes `CVECT_UPLOAD_MAX_TOTAL_BYTES`, so `.env`-based deployments cannot tune the limit the same way they tune the other upload caps.
+
+Evidence:
+- `backend/cvect/src/main/java/com/walden/cvect/service/upload/UploadApplicationService.java:77` reads `app.upload.max-total-bytes` with a hardcoded fallback.
+- `backend/cvect/src/main/java/com/walden/cvect/service/upload/UploadApplicationService.java:87` normalizes the fallback into the service state.
+- `backend/cvect/src/main/resources/application.yml:90` through `backend/cvect/src/main/resources/application.yml:91` define upload caps but omit total bytes.
+- `docker-compose.yml:92` through `docker-compose.yml:100` pass upload worker and storage settings but no total-byte cap.
+- `scripts/local-run.sh:238` through `scripts/local-run.sh:250` also omit a total-byte cap override.
+
+Smallest failing path:
+- Set `CVECT_UPLOAD_MAX_TOTAL_BYTES=1` in `.env` or the shell environment.
+- Start local or server mode.
+- ZIP uploads still use the built-in 200 MB default because the new cap is not wired through the project's `CVECT_` configuration convention.
+
+Regression target:
+- Add a focused config test showing `CVECT_UPLOAD_MAX_TOTAL_BYTES` is honored.
+- Add runtime wiring in the local and compose launch paths.
+- Keep the default at 200 MB for existing behavior.
+
+Minimal fix direction:
+- Bind `app.upload.max-total-bytes` from `CVECT_UPLOAD_MAX_TOTAL_BYTES` in `application.yml`.
+- Pass the variable through `docker-compose.yml` and `scripts/local-run.sh`.
+- Leave the per-entry cap and ZIP truncation behavior unchanged.
+
+Suggested verification:
+
+```bash
+cd backend/cvect && ./mvnw -q -Dtest=UploadControllerStorageIdempotencyIntegrationTest test
+```
+
+### P3 [bugfix:docker-runtime-root-and-basic-auth-secret-hardening]
+Estimated Ralph effort: 60-75 minutes.
+
+Bug statement: Runtime images do not declare least-privilege users, and nginx basic-auth password generation passes the password on the command line, increasing the blast radius of a container compromise and briefly exposing credentials through process arguments.
+
+Evidence:
+- `backend/cvect/Dockerfile:34` starts the runtime image without a later `USER` directive.
+- `backend/cvect/Dockerfile:53` runs the Java process as the image default user.
+- `Qwen/Dockerfile:55` runs the embedding service as the image default user.
+- `docker-compose.yml:34` and `docker-compose.yml:60` mount Hugging Face cache paths under `/root/.cache/huggingface`.
+- `frontend/Dockerfile:25` starts the nginx runtime image without a repository-level least-privilege adjustment.
+- `frontend/docker-entrypoint.d/30-cvect-auth.envsh:12` passes `CVECT_BASIC_AUTH_PASSWORD` to `htpasswd -bc` as a process argument.
+
+Smallest failing path:
+- Build or inspect the runtime images.
+- Backend, Qwen, and frontend containers run with default root-oriented runtime assumptions.
+- Enabling frontend basic auth briefly places the basic-auth password in the `htpasswd` command arguments.
+
+Regression target:
+- Add static Dockerfile/entrypoint checks or document an image-inspection smoke test.
+- Assert backend and Qwen runtime stages define non-root users and writable app/cache/storage directories.
+- Assert nginx basic-auth generation reads the password from stdin or another non-argv path.
+
+Minimal fix direction:
+- Add dedicated non-root runtime users and ownership for `/app`, `/data/storage`, and model cache directories.
+- Move Qwen HF cache away from `/root` or chown the mounted path for the service user.
+- Replace `htpasswd -bc user password` with a form that avoids exposing the password in argv.
+- Account for nginx port and writable temp/cache paths before changing the frontend runtime user.
+
+Suggested verification:
+
+```bash
+docker compose --env-file .env -f docker-compose.yml config
+bash -n frontend/docker-entrypoint.d/30-cvect-auth.envsh
+```
+
+### P3 [bugfix:web-log-control-characters-can-forge-lines]
+Estimated Ralph effort: 25-40 minutes.
+
+Bug statement: Structured web log formatting quotes strings but does not escape control characters such as CR/LF, so request paths, exception messages, or multipart filenames containing newlines can forge extra log lines.
+
+Evidence:
+- `backend/cvect/src/main/java/com/walden/cvect/logging/support/WebLogFormatter.java:49` quotes string values.
+- `backend/cvect/src/main/java/com/walden/cvect/logging/support/WebLogFormatter.java:50` through `backend/cvect/src/main/java/com/walden/cvect/logging/support/WebLogFormatter.java:51` escape backslash and double quote only.
+- `backend/cvect/src/main/java/com/walden/cvect/logging/support/LogValueSanitizer.java:182` includes multipart filenames in summaries.
+- `backend/cvect/src/main/java/com/walden/cvect/logging/support/LogValueSanitizer.java:197` through `backend/cvect/src/main/java/com/walden/cvect/logging/support/LogValueSanitizer.java:201` join original multipart filenames into one log value.
+- `backend/cvect/src/main/java/com/walden/cvect/logging/support/LogValueSanitizer.java:246` through `backend/cvect/src/main/java/com/walden/cvect/logging/support/LogValueSanitizer.java:249` also escape backslash and double quote only.
+
+Smallest failing path:
+- Format a web log field or multipart filename containing `\nstatus=200 event=fake`.
+- The formatted log output contains an actual newline, not an escaped sequence.
+- Downstream log review can interpret the injected line as a separate structured event.
+
+Regression target:
+- Add focused unit tests for `WebLogFormatter` and `LogValueSanitizer`.
+- Assert CR, LF, tab, and other ISO control characters are escaped or replaced.
+- Assert normal spaces and existing quote/backslash escaping still behave as expected.
+
+Minimal fix direction:
+- Centralize a small control-character escaping helper.
+- Escape `\r`, `\n`, and `\t` at minimum; preferably escape other ISO control characters as `\u00XX`.
+- Keep log field names and existing output shape stable.
+
+Suggested verification:
+
+```bash
+cd backend/cvect && ./mvnw -q -Dtest=WebLogFormatterTest,LogValueSanitizerTest test
+```
+
+### P3 [bugfix:qwen-cors-wildcard-with-credentials]
+Estimated Ralph effort: 20-35 minutes.
+
+Bug statement: Qwen embedding service installs permissive CORS with wildcard origins and credentials enabled, which is broader than needed for an internal embedding service and can produce unsafe or browser-incompatible CORS behavior if exposed.
+
+Evidence:
+- `Qwen/embedding_service.py:327` installs `CORSMiddleware`.
+- `Qwen/embedding_service.py:329` sets `allow_origins=["*"]`.
+- `Qwen/embedding_service.py:330` sets `allow_credentials=True`.
+- `docker-compose.yml:37` through `docker-compose.yml:61` configure Qwen as a backend service, not a browser-facing API.
+
+Smallest failing path:
+- Send a browser preflight with an arbitrary `Origin`.
+- Qwen accepts the origin policy even though embedding calls should be internal.
+- If credentials are involved, wildcard-origin behavior can be incompatible with browser CORS rules or unintentionally permissive.
+
+Regression target:
+- Add a small FastAPI/TestClient test or a documented script-level smoke test.
+- Assert default CORS does not allow arbitrary browser origins with credentials.
+- Assert explicitly configured origins are honored if a deployment needs browser access.
+
+Minimal fix direction:
+- Introduce a minimal `CORS_ALLOW_ORIGINS` environment setting for Qwen.
+- Default to no browser origins or a local-only list, not wildcard with credentials.
+- Keep backend-to-Qwen server-side calls unaffected because they do not depend on browser CORS.
+
+Suggested verification:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile Qwen/embedding_service.py
+```
+
+### P3 [bugfix:qwen-embed-error-leaks-internal-detail]
+Estimated Ralph effort: 20-30 minutes.
+
+Bug statement: Qwen `/embed` returns `str(exc)` in the HTTP 500 response, so model-load paths, dependency errors, proxy details, or other internal exception text can be exposed to clients.
+
+Evidence:
+- `Qwen/embedding_service.py:452` calls `_embedding_forward`.
+- `Qwen/embedding_service.py:453` catches any exception.
+- `Qwen/embedding_service.py:454` logs the detailed exception server-side.
+- `Qwen/embedding_service.py:455` returns `detail=str(exc)` to the HTTP client.
+
+Smallest failing path:
+- Make `_embedding_forward` raise an exception containing a local path, model cache path, or upstream error text.
+- `POST /embed` returns that internal message in the JSON error detail.
+- A caller sees operational details that should remain in server logs.
+
+Regression target:
+- Add a focused Qwen API test that monkeypatches `_embedding_forward` to raise a sensitive message.
+- Assert the response uses a generic client-facing error.
+- Assert server-side logging still keeps the detailed exception for diagnosis.
+
+Minimal fix direction:
+- Return a generic `Embedding request failed` detail or a stable error code.
+- Keep `logger.exception("Embedding failed")` for internal diagnostics.
+- Do not hide validation errors such as batch-size violations.
+
+Suggested verification:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile Qwen/embedding_service.py
+```
+
+### P3 [bugfix:worker-executor-max-pool-can-be-less-than-core]
+Estimated Ralph effort: 25-40 minutes.
+
+Bug statement: Upload and vector worker executor configs clamp the core pool size to at least `1`, but compute max pool size from the raw configured values, so invalid low values can still produce `maxPoolSize < corePoolSize` during startup.
+
+Evidence:
+- `backend/cvect/src/main/java/com/walden/cvect/config/UploadWorkerExecutorConfig.java:21` clamps upload core pool size to at least `1`.
+- `backend/cvect/src/main/java/com/walden/cvect/config/UploadWorkerExecutorConfig.java:22` sets upload max pool size from raw `corePoolSize` and `maxPoolSize`.
+- `backend/cvect/src/main/java/com/walden/cvect/config/VectorIngestWorkerExecutorConfig.java:21` clamps vector core pool size to at least `1`.
+- `backend/cvect/src/main/java/com/walden/cvect/config/VectorIngestWorkerExecutorConfig.java:22` sets vector max pool size from raw `corePoolSize` and `maxPoolSize`.
+
+Smallest failing path:
+- Configure `app.upload.worker.executor.core-pool-size=0` and `app.upload.worker.executor.max-pool-size=0`.
+- Or configure `app.vector.ingest.worker.executor.core-pool-size=0` and `app.vector.ingest.worker.executor.max-pool-size=0`.
+- The executor attempts to initialize with core `1` and max `0`, causing startup failure or invalid executor state.
+
+Regression target:
+- Add focused config unit tests for both executor config classes.
+- Assert zero or negative core/max values normalize to a valid executor.
+- Assert normal positive values are preserved.
+
+Minimal fix direction:
+- Compute `normalizedCore = Math.max(1, corePoolSize)`.
+- Compute `normalizedMax = Math.max(normalizedCore, maxPoolSize)`.
+- Use normalized values consistently for both upload and vector executors.
+
+Suggested verification:
+
+```bash
+cd backend/cvect && ./mvnw -q -Dtest=UploadWorkerExecutorConfigTest,VectorIngestWorkerExecutorConfigTest test
 ```
 
 ## Execution Template For Each Ralph Loop

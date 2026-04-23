@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
@@ -29,7 +30,9 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.UUID;
+import java.util.Map;
 import java.util.stream.Stream;
+import java.util.stream.Collectors;
 import java.io.ByteArrayOutputStream;
 import java.util.zip.ZipOutputStream;
 
@@ -43,7 +46,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.upload.worker.enabled=true",
         "app.upload.worker.initial-delay-ms=600000",
         "app.upload.worker.fixed-delay-ms=600000",
-        "app.upload.max-inflight-items=1"
+        "app.upload.max-inflight-items=1",
+        "app.upload.max-total-bytes=1"
 })
 @AutoConfigureMockMvc
 @Tag("integration")
@@ -66,6 +70,9 @@ class UploadControllerStorageIdempotencyIntegrationTest extends PostgresIntegrat
 
     @Autowired
     private UploadQueueWorkerService workerService;
+
+    @Value("${app.upload.max-total-bytes}")
+    private long maxTotalBytes;
 
     @BeforeEach
     void cleanQueueState() {
@@ -218,6 +225,51 @@ class UploadControllerStorageIdempotencyIntegrationTest extends PostgresIntegrat
         UploadItem item = itemRepository.findByBatch_Id(batchId, PageRequest.of(0, 1)).getContent().get(0);
         assertEquals(UploadItemStatus.FAILED, item.getStatus());
         assertEquals("Unsupported file type", item.getErrorMessage());
+    }
+
+    @Test
+    @DisplayName("zip upload should stop after the total byte cap is exceeded")
+    void zipShouldStopAfterTotalByteCapIsExceeded() throws Exception {
+        JobDescription jd = jobDescriptionRepository.save(new JobDescription("Zip Total Cap JD", "desc"));
+        assertEquals(1L, maxTotalBytes);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            zos.putNextEntry(new java.util.zip.ZipEntry("keep.txt"));
+            zos.write("a".getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+
+            zos.putNextEntry(new java.util.zip.ZipEntry("limit.txt"));
+            zos.write("b".getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+
+            zos.putNextEntry(new java.util.zip.ZipEntry("skipped.txt"));
+            zos.write("c".getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+        }
+
+        MockMultipartFile zip = new MockMultipartFile(
+                "zipFile",
+                "files.zip",
+                "application/zip",
+                baos.toByteArray());
+
+        MvcResult result = mockMvc.perform(multipart("/api/uploads/zip")
+                        .file(zip)
+                        .param("jdId", jd.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalFiles").value(1))
+                .andExpect(jsonPath("$.truncated").value(true))
+                .andReturn();
+
+        UUID batchId = UUID.fromString(JsonPath.read(result.getResponse().getContentAsString(), "$.batchId"));
+        Map<String, UploadItem> itemsByFileName = itemRepository.findByBatch_Id(batchId, PageRequest.of(0, 10))
+                .getContent()
+                .stream()
+                .collect(Collectors.toMap(UploadItem::getFileName, item -> item));
+
+        assertEquals(1, itemsByFileName.size());
+        assertEquals(UploadItemStatus.QUEUED, itemsByFileName.get("keep.txt").getStatus());
     }
 
     private String sha256Hex(byte[] content) throws Exception {

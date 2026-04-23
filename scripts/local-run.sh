@@ -338,7 +338,9 @@ start_frontend() {
     if [[ ! -d node_modules ]]; then
       npm install
     fi
-    nohup npm run dev -- --host >"${FRONTEND_LOG}" 2>&1 &
+    nohup env \
+      VITE_API_PROXY_TARGET="http://localhost:${BACKEND_PORT}" \
+      npm run dev -- --host >"${FRONTEND_LOG}" 2>&1 &
     echo $! >"${FRONTEND_PID_FILE}"
   )
 }

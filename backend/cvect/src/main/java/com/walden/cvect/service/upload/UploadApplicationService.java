@@ -47,7 +47,6 @@ public class UploadApplicationService {
     private static final Logger log = LoggerFactory.getLogger(UploadApplicationService.class);
 
     private static final long MAX_ENTRY_BYTES = 20 * 1024 * 1024;
-    private static final long MAX_TOTAL_BYTES = 200 * 1024 * 1024;
     private static final List<String> ALLOWED_EXT = Arrays.asList(".pdf", ".doc", ".docx", ".md", ".txt");
     private static final List<UploadItemStatus> INFLIGHT_STATUSES =
             List.of(UploadItemStatus.QUEUED, UploadItemStatus.PROCESSING);
@@ -61,6 +60,7 @@ public class UploadApplicationService {
     private final Path storageDir;
     private final int maxInflightItems;
     private final int maxFilesPerZip;
+    private final long maxTotalBytes;
     private final ReentrantLock queueAdmissionLock = new ReentrantLock(true);
     private final AtomicLong inflightReservations = new AtomicLong(0L);
 
@@ -73,7 +73,8 @@ public class UploadApplicationService {
             DataScopeService dataScopeService,
             @Value("${app.upload.storage-dir:storage}") String storageDir,
             @Value("${app.upload.max-inflight-items:2000}") int maxInflightItems,
-            @Value("${app.upload.max-files-per-zip:2000}") int maxFilesPerZip) {
+            @Value("${app.upload.max-files-per-zip:2000}") int maxFilesPerZip,
+            @Value("${app.upload.max-total-bytes:209715200}") long maxTotalBytes) {
         this.jobDescriptionRepository = jobDescriptionRepository;
         this.batchRepository = batchRepository;
         this.itemRepository = itemRepository;
@@ -83,6 +84,7 @@ public class UploadApplicationService {
         this.storageDir = resolveStorageDir(storageDir);
         this.maxInflightItems = Math.max(1, maxInflightItems);
         this.maxFilesPerZip = Math.max(1, maxFilesPerZip);
+        this.maxTotalBytes = Math.max(1L, maxTotalBytes);
     }
 
     @PostConstruct
@@ -91,7 +93,7 @@ public class UploadApplicationService {
                 maxInflightItems,
                 maxFilesPerZip,
                 MAX_ENTRY_BYTES / (1024 * 1024),
-                MAX_TOTAL_BYTES / (1024 * 1024));
+                maxTotalBytes / (1024 * 1024));
     }
 
     @AppLog(action = "upload_resumes", slowThresholdMs = 1000L)
@@ -141,6 +143,10 @@ public class UploadApplicationService {
                 if (entry.isDirectory()) {
                     continue;
                 }
+                if (totalBytes >= maxTotalBytes) {
+                    truncated = true;
+                    break;
+                }
                 if (totalFiles >= maxFilesPerZip) {
                     truncated = true;
                     break;
@@ -168,9 +174,13 @@ public class UploadApplicationService {
                         continue;
                     }
                     totalBytes += entrySize;
-                    if (entrySize > MAX_ENTRY_BYTES || totalBytes > MAX_TOTAL_BYTES) {
+                    if (entrySize > MAX_ENTRY_BYTES || totalBytes > maxTotalBytes) {
                         Files.deleteIfExists(storedPath);
                         failRejected(batch, fileName, "File size limit exceeded");
+                        if (totalBytes > maxTotalBytes) {
+                            truncated = true;
+                            break;
+                        }
                         continue;
                     }
 
