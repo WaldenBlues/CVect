@@ -112,7 +112,7 @@ class SemanticSearchServiceTest {
     }
 
     @Test
-    @DisplayName("search should aggregate by candidate and sort by weighted score")
+    @DisplayName("search should use default balanced Experience and Skill weights when custom weights are absent")
     void shouldAggregateAndSortByWeightedScore() {
         UUID candidateA = UUID.randomUUID();
         UUID candidateB = UUID.randomUUID();
@@ -144,6 +144,119 @@ class SemanticSearchServiceTest {
                 .collect(Collectors.toMap(SearchController.CandidateMatch::candidateId, SearchController.CandidateMatch::score));
         assertEquals(0.4f, scoreByCandidate.get(candidateA), 0.0001f);
         assertEquals(0.5f, scoreByCandidate.get(candidateB), 0.0001f);
+    }
+
+    @Test
+    @DisplayName("search should change candidate ranking when Experience and Skill custom weights change")
+    void shouldChangeRankingWhenCustomWeightsChange() {
+        UUID experienceStrongCandidate = UUID.randomUUID();
+        UUID skillStrongCandidate = UUID.randomUUID();
+        float[] embedding = new float[1024];
+        when(queryEmbeddingCache.get("weighted role")).thenReturn(embedding);
+        when(vectorStore.search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class))).thenReturn(List.of(
+                new VectorStoreService.SearchResult(
+                        UUID.randomUUID(),
+                        experienceStrongCandidate,
+                        ChunkType.EXPERIENCE,
+                        "exp-strong",
+                        0.1f),
+                new VectorStoreService.SearchResult(
+                        UUID.randomUUID(),
+                        experienceStrongCandidate,
+                        ChunkType.SKILL,
+                        "skill-weak",
+                        0.7f),
+                new VectorStoreService.SearchResult(
+                        UUID.randomUUID(),
+                        skillStrongCandidate,
+                        ChunkType.EXPERIENCE,
+                        "exp-weak",
+                        0.6f),
+                new VectorStoreService.SearchResult(
+                        UUID.randomUUID(),
+                        skillStrongCandidate,
+                        ChunkType.SKILL,
+                        "skill-strong",
+                        0.05f)
+        ));
+
+        SearchController.SearchRequest experienceHeavyRequest = new SearchController.SearchRequest(
+                "weighted role",
+                10,
+                true,
+                true,
+                0.8f,
+                0.2f,
+                false
+        );
+        SearchController.SearchRequest skillHeavyRequest = new SearchController.SearchRequest(
+                "weighted role",
+                10,
+                true,
+                true,
+                0.2f,
+                0.8f,
+                false
+        );
+
+        SearchController.SearchResponse experienceHeavyResponse = service.search(experienceHeavyRequest);
+        SearchController.SearchResponse skillHeavyResponse = service.search(skillHeavyRequest);
+
+        assertEquals(experienceStrongCandidate, experienceHeavyResponse.candidates().get(0).candidateId());
+        assertEquals(0.78f, experienceHeavyResponse.candidates().get(0).score(), 0.0001f);
+        assertEquals(skillStrongCandidate, skillHeavyResponse.candidates().get(0).candidateId());
+        assertEquals(0.84f, skillHeavyResponse.candidates().get(0).score(), 0.0001f);
+    }
+
+    @Test
+    @DisplayName("search should normalize invalid and out-of-range Experience and Skill weights before ranking")
+    void shouldNormalizeInvalidAndOutOfRangeWeightsBeforeRanking() {
+        UUID balancedFallbackCandidate = UUID.randomUUID();
+        UUID oversizedSkillWeightCandidate = UUID.randomUUID();
+        float[] embedding = new float[1024];
+        when(queryEmbeddingCache.get("invalid weights")).thenReturn(embedding);
+        when(vectorStore.search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class))).thenReturn(List.of(
+                new VectorStoreService.SearchResult(
+                        UUID.randomUUID(),
+                        balancedFallbackCandidate,
+                        ChunkType.EXPERIENCE,
+                        "exp-good",
+                        0.2f),
+                new VectorStoreService.SearchResult(
+                        UUID.randomUUID(),
+                        balancedFallbackCandidate,
+                        ChunkType.SKILL,
+                        "skill-poor",
+                        0.9f),
+                new VectorStoreService.SearchResult(
+                        UUID.randomUUID(),
+                        oversizedSkillWeightCandidate,
+                        ChunkType.EXPERIENCE,
+                        "exp-poor",
+                        0.8f),
+                new VectorStoreService.SearchResult(
+                        UUID.randomUUID(),
+                        oversizedSkillWeightCandidate,
+                        ChunkType.SKILL,
+                        "skill-good",
+                        0.05f)
+        ));
+
+        SearchController.SearchRequest request = new SearchController.SearchRequest(
+                "invalid weights",
+                10,
+                true,
+                true,
+                -1.0f,
+                3.0f,
+                false
+        );
+
+        SearchController.SearchResponse response = service.search(request);
+
+        assertEquals(oversizedSkillWeightCandidate, response.candidates().get(0).candidateId());
+        assertEquals(0.8428572f, response.candidates().get(0).score(), 0.0001f);
+        assertEquals(0.2f, response.candidates().get(1).score(), 0.0001f);
     }
 
     @Test

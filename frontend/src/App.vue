@@ -148,7 +148,7 @@
             </button>
             <button class="secondary small icon-button" @click="setRecruitmentFilter('TO_CONTACT')">
               <span class="button-icon" aria-hidden="true">F</span>
-              <span>待沟通</span>
+              <span>{{ recruitmentStatusLabel('TO_CONTACT') }}</span>
             </button>
           </div>
         </div>
@@ -299,14 +299,21 @@
         <div class="dropzone">
           <div class="dropzone-inner">
             <strong>拖动简历到此处</strong>
-            <span v-if="selectedJdId">支持 PDF / DOC / DOCX / TXT / MD</span>
+            <span v-if="selectedJdId">{{ RESUME_UPLOAD_HELP_TEXT }}</span>
             <span v-else>请先选择 JD</span>
           </div>
           <div class="dropzone-files" v-if="uploadFiles.length">
             {{ uploadFiles.map((f) => f.name).join(', ') }}
           </div>
         </div>
-        <input ref="fileInputRef" type="file" multiple class="file-input" @change="onFileChange" />
+        <input
+          ref="fileInputRef"
+          type="file"
+          multiple
+          class="file-input"
+          :accept="RESUME_UPLOAD_ACCEPT"
+          @change="onFileChange"
+        />
         <p class="muted" v-if="uploadMessage">{{ uploadMessage }}</p>
       </div>
     </section>
@@ -455,14 +462,29 @@
             <h2>候选人详情</h2>
             <span class="detail-id">{{ selectedCandidate.id }}</span>
           </div>
+          <div v-if="candidateDetailLoading" class="detail-section detail-empty-state">
+            <p class="muted">候选人详情加载中...</p>
+          </div>
+          <div v-else-if="candidateDetailError" class="detail-section detail-empty-state">
+            <p class="muted">{{ candidateDetailError }}</p>
+            <button class="secondary small" @click="retryCandidateDetail">
+              重试
+            </button>
+          </div>
           <div class="detail-section">
             <h4>姓名</h4>
             <p>{{ selectedCandidate.name || '未识别' }}</p>
           </div>
           <div class="detail-section">
-            <h4>来源</h4>
-            <p>{{ selectedCandidate.sourceFileName || '未知文件' }}</p>
-            <p class="muted">{{ selectedCandidate.contentType || '未知类型' }}</p>
+            <h4>上传文件元数据</h4>
+            <ul>
+              <li v-if="selectedCandidate.sourceFileName">文件名：{{ selectedCandidate.sourceFileName }}</li>
+              <li v-if="selectedCandidate.contentType">类型：{{ selectedCandidate.contentType }}</li>
+              <li v-if="selectedCandidate.fileSizeBytes != null">大小：{{ formatFileSize(selectedCandidate.fileSizeBytes) }}</li>
+              <li v-if="selectedCandidate.parsedCharCount != null">解析字符数：{{ selectedCandidate.parsedCharCount }}</li>
+              <li v-if="selectedCandidate.truncated != null">是否截断：{{ selectedCandidate.truncated ? '是' : '否' }}</li>
+              <li v-if="!hasUploadFileMetadata(selectedCandidate)" class="muted">暂无上传文件元数据</li>
+            </ul>
           </div>
           <div class="detail-section">
             <h4>招聘进度</h4>
@@ -480,6 +502,24 @@
             </div>
             <p class="muted" v-if="!canUpdateCandidateStatus">当前角色仅可查看招聘进度。</p>
             <p class="muted" v-if="recruitmentMessage">{{ recruitmentMessage }}</p>
+          </div>
+          <div class="detail-section">
+            <h4>匹配信息</h4>
+            <ul>
+              <li v-if="candidateMatchScore(selectedCandidate) != null">
+                匹配总分：{{ formatScorePercent(candidateMatchScore(selectedCandidate)) }}
+              </li>
+              <li v-if="selectedCandidate.persistedMatchScoredAt">
+                评分时间：{{ formatDateTime(selectedCandidate.persistedMatchScoredAt) }}
+              </li>
+              <li v-if="selectedCandidate.baselineExperienceScore != null">
+                Experience 匹配：{{ formatScorePercent(selectedCandidate.baselineExperienceScore) }}
+              </li>
+              <li v-if="selectedCandidate.baselineSkillScore != null">
+                Skill 匹配：{{ formatScorePercent(selectedCandidate.baselineSkillScore) }}
+              </li>
+              <li v-if="!hasCandidateMatchInfo(selectedCandidate)" class="muted">暂无匹配信息</li>
+            </ul>
           </div>
           <div class="detail-section">
             <h4>联系方式</h4>
@@ -538,6 +578,18 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import SemanticPanel from './components/SemanticPanel.vue'
 import { useSemanticMatching } from './composables/useSemanticMatching'
 import {
+  DEFAULT_RECRUITMENT_STATUS,
+  RECRUITMENT_STATUS_OPTIONS,
+  normalizeRecruitmentStatus,
+  recruitmentStatusLabel
+} from './utils/recruitmentStatus'
+import {
+  isZipResumeUpload,
+  RESUME_UPLOAD_ACCEPT,
+  RESUME_UPLOAD_HELP_TEXT,
+  validateResumeUploadFiles
+} from './utils/resumeUploadFormats'
+import {
   apiFetch,
   authLogin,
   authLogout,
@@ -560,6 +612,8 @@ const loginMessage = ref('')
 const events = reactive([])
 const log = reactive([])
 const selectedCandidate = ref(null)
+const candidateDetailLoading = ref(false)
+const candidateDetailError = ref('')
 const isManualDisconnect = ref(false)
 let reconnectTimer = null
 let authExpiryTimer = null
@@ -724,24 +778,37 @@ const {
   stopSemanticRefreshTimer
 } = useSemanticMatching({ events, selectedJdId, selectedJd })
 
-const recruitmentStatusOptions = [
-  { value: 'TO_CONTACT', label: '待沟通' },
-  { value: 'TO_INTERVIEW', label: '待面试' },
-  { value: 'REJECTED', label: '淘汰' }
-]
-
-const recruitmentStatusLabelMap = {
-  TO_CONTACT: '待沟通',
-  TO_INTERVIEW: '待面试',
-  REJECTED: '淘汰'
-}
+const recruitmentStatusOptions = RECRUITMENT_STATUS_OPTIONS
 
 const effectiveRecruitmentStatus = (status) => {
-  return Object.prototype.hasOwnProperty.call(recruitmentStatusLabelMap, status) ? status : 'TO_CONTACT'
+  return normalizeRecruitmentStatus(status)
 }
 
-const recruitmentStatusLabel = (status) => {
-  return recruitmentStatusLabelMap[effectiveRecruitmentStatus(status)]
+const parseScore = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    const parsed = Number(trimmed)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+const parseNullableInteger = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value)
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    const parsed = Number(trimmed)
+    return Number.isFinite(parsed) ? Math.trunc(parsed) : null
+  }
+  return null
+}
+
+const parseNullableBoolean = (value) => {
+  if (value === true || value === false) return value
+  return null
 }
 
 const ensureStringArray = (value) => {
@@ -755,6 +822,53 @@ const ensureStringArray = (value) => {
     return trimmed ? [trimmed] : []
   }
   return []
+}
+
+const candidateMatchScore = (candidate) => {
+  if (!candidate) return null
+  if (typeof candidate.persistedMatchScore === 'number' && Number.isFinite(candidate.persistedMatchScore)) {
+    return candidate.persistedMatchScore
+  }
+  return parseScore(candidate.baselineMatchScore)
+}
+
+const hasCandidateMatchInfo = (candidate) => {
+  if (!candidate) return false
+  return candidateMatchScore(candidate) != null
+    || Boolean(candidate.persistedMatchScoredAt)
+    || parseScore(candidate.baselineExperienceScore) != null
+    || parseScore(candidate.baselineSkillScore) != null
+}
+
+const hasUploadFileMetadata = (candidate) => {
+  if (!candidate) return false
+  return Boolean(candidate.sourceFileName)
+    || Boolean(candidate.contentType)
+    || candidate.fileSizeBytes != null
+    || candidate.parsedCharCount != null
+    || candidate.truncated != null
+}
+
+const formatScorePercent = (value) => {
+  const score = parseScore(value)
+  return score == null ? '暂无数据' : `${Math.round(score * 100)}%`
+}
+
+const formatFileSize = (value) => {
+  const bytes = parseNullableInteger(value)
+  if (bytes == null || bytes < 0) return '暂无数据'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const formatDateTime = (value) => {
+  if (!value) return ''
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value)
+  }
+  return parsed.toLocaleString()
 }
 
 const candidateSearchText = (item) => {
@@ -879,7 +993,7 @@ const roleMetrics = computed(() => {
     return [
       { label: '招聘 JD', value: jds.value.length, caption: '全租户招聘视图' },
       { label: '当前候选人', value: totalCandidatesCount.value, caption: selectedJdCaption.value },
-      { label: '待面试', value: statusCounts.value.TO_INTERVIEW || 0, caption: '当前筛选范围' },
+      { label: recruitmentStatusLabel('TO_INTERVIEW'), value: statusCounts.value.TO_INTERVIEW || 0, caption: '当前筛选范围' },
       { label: '语义就绪', value: readyVectorCount.value, caption: '可参与匹配' }
     ]
   }
@@ -887,14 +1001,14 @@ const roleMetrics = computed(() => {
     return [
       { label: '我的 JD', value: jds.value.length, caption: '按创建人过滤' },
       { label: '当前候选人', value: totalCandidatesCount.value, caption: selectedJdCaption.value },
-      { label: '待沟通', value: statusCounts.value.TO_CONTACT || 0, caption: '当前 JD' },
+      { label: recruitmentStatusLabel('TO_CONTACT'), value: statusCounts.value.TO_CONTACT || 0, caption: '当前 JD' },
       { label: '上传入口', value: canUploadResume.value ? '可用' : '隐藏', caption: '按权限展示' }
     ]
   }
   return [
     { label: '可见 JD', value: jds.value.length, caption: '权限过滤后' },
     { label: '候选人', value: totalCandidatesCount.value, caption: selectedJdCaption.value },
-    { label: '待沟通', value: statusCounts.value.TO_CONTACT || 0, caption: '当前范围' },
+    { label: recruitmentStatusLabel('TO_CONTACT'), value: statusCounts.value.TO_CONTACT || 0, caption: '当前范围' },
     { label: '功能入口', value: roleCapabilities.value.filter((item) => item.available).length, caption: '已授权' }
   ]
 })
@@ -968,14 +1082,14 @@ const roleWorkflow = computed(() => {
     return {
       kicker: '招聘管道',
       title: '按状态管理全租户候选人',
-      description: '招聘负责人优先看状态分布，用快捷入口切换待沟通、待面试和淘汰视图。'
+      description: '招聘负责人优先看状态分布，用快捷入口切换待联系、待面试和已拒绝视图。'
     }
   }
   if (currentRoleKey.value === 'recruiter') {
     return {
       kicker: '个人执行',
       title: '围绕当前 JD 处理简历和跟进',
-      description: '招聘专员优先处理自己的岗位，上传简历、查看待沟通候选人并推进状态。'
+      description: '招聘专员优先处理自己的岗位，上传简历、查看待联系候选人并推进状态。'
     }
   }
   return {
@@ -986,9 +1100,9 @@ const roleWorkflow = computed(() => {
 })
 
 const pipelineCaption = (status) => {
-  if (status === 'TO_CONTACT') return '需要初筛或联系'
+  if (status === 'TO_CONTACT') return '待联系候选人'
   if (status === 'TO_INTERVIEW') return '进入面试推进'
-  if (status === 'REJECTED') return '已归档候选人'
+  if (status === 'REJECTED') return '已拒绝候选人'
   return '当前状态'
 }
 
@@ -1049,6 +1163,96 @@ const goToNextPage = () => {
   }
 }
 
+let candidateDetailLoadSeq = 0
+
+const resetCandidateDetailState = () => {
+  candidateDetailLoadSeq += 1
+  candidateDetailLoading.value = false
+  candidateDetailError.value = ''
+}
+
+const normalizeCandidateDetail = (payload) => {
+  const safePayload = payload && typeof payload === 'object' ? payload : {}
+  const contact = safePayload.contact && typeof safePayload.contact === 'object' ? safePayload.contact : {}
+  const uploadFile = safePayload.uploadFile && typeof safePayload.uploadFile === 'object' ? safePayload.uploadFile : {}
+  const persistedMatchScore = safePayload.persistedMatchScore && typeof safePayload.persistedMatchScore === 'object'
+    ? safePayload.persistedMatchScore
+    : {}
+
+  return {
+    id: safePayload.candidateId || safePayload.id || 'unknown',
+    name: safePayload.name || '',
+    recruitmentStatus: safePayload.recruitmentStatus || DEFAULT_RECRUITMENT_STATUS,
+    sourceFileName: uploadFile.sourceFileName || '',
+    contentType: uploadFile.contentType || '',
+    fileSizeBytes: parseNullableInteger(uploadFile.fileSizeBytes),
+    parsedCharCount: parseNullableInteger(uploadFile.parsedCharCount),
+    truncated: parseNullableBoolean(uploadFile.truncated),
+    emails: ensureStringArray(contact.emails),
+    phones: ensureStringArray(contact.phones),
+    educations: ensureStringArray(safePayload.education),
+    honors: ensureStringArray(safePayload.honor),
+    links: ensureStringArray(safePayload.externalLinks),
+    persistedMatchScore: parseScore(persistedMatchScore.overallScore),
+    persistedMatchScoredAt: persistedMatchScore.scoredAt || ''
+  }
+}
+
+const loadCandidateDetail = async (candidateId, options = {}) => {
+  if (!candidateId) {
+    resetCandidateDetailState()
+    return
+  }
+
+  const requestSeq = ++candidateDetailLoadSeq
+  candidateDetailLoading.value = true
+  candidateDetailError.value = ''
+  const keepCurrentData = Boolean(options.keepCurrentData)
+
+  try {
+    const resp = await apiFetch(`/api/candidates/${candidateId}`)
+    if (!resp.ok) {
+      if (resp.status === 404) {
+        throw new Error('候选人详情不存在或当前账号无权限查看。')
+      }
+      if (resp.status === 403) {
+        throw new Error('当前账号无权限查看候选人详情。')
+      }
+      throw new Error('候选人详情加载失败，请稍后重试。')
+    }
+    const detail = normalizeCandidateDetail(await resp.json())
+    if (requestSeq !== candidateDetailLoadSeq) return
+    applyCandidateUpdate(detail)
+  } catch (err) {
+    if (requestSeq !== candidateDetailLoadSeq) return
+    candidateDetailError.value = err?.message || '候选人详情加载失败，请稍后重试。'
+    if (!keepCurrentData && selectedCandidate.value?.id === candidateId) {
+      selectedCandidate.value = {
+        ...selectedCandidate.value,
+        emails: [],
+        phones: [],
+        educations: [],
+        honors: [],
+        links: [],
+        fileSizeBytes: null,
+        parsedCharCount: null,
+        truncated: null,
+        persistedMatchScore: null,
+        persistedMatchScoredAt: ''
+      }
+    }
+  } finally {
+    if (requestSeq === candidateDetailLoadSeq) {
+      candidateDetailLoading.value = false
+    }
+  }
+}
+
+const retryCandidateDetail = () => {
+  if (!selectedCandidate.value?.id) return
+  loadCandidateDetail(selectedCandidate.value.id, { keepCurrentData: true })
+}
+
 watch(filteredCandidates, (items) => {
   if (currentPage.value > totalPages.value) {
     currentPage.value = totalPages.value
@@ -1071,6 +1275,17 @@ watch(
   }
 )
 
+watch(
+  () => selectedCandidate.value?.id || '',
+  (candidateId) => {
+    if (!candidateId) {
+      resetCandidateDetailState()
+      return
+    }
+    loadCandidateDetail(candidateId)
+  }
+)
+
 const pushLog = (message) => {
   const ts = new Date().toLocaleTimeString()
   log.unshift({ ts, message })
@@ -1079,26 +1294,19 @@ const pushLog = (message) => {
 
 const normalizeCandidate = (payload) => {
   const safePayload = payload && typeof payload === 'object' ? payload : {}
-  const parseScore = (value) => {
-    if (typeof value === 'number' && Number.isFinite(value)) return value
-    if (typeof value === 'string') {
-      const trimmed = value.trim()
-      if (!trimmed) return null
-      const parsed = Number(trimmed)
-      return Number.isFinite(parsed) ? parsed : null
-    }
-    return null
-  }
   const normalized = {
     id: safePayload.candidateId || safePayload.id || 'unknown',
     jdId: safePayload.jdId || safePayload.jd_id || '',
     status: safePayload.status || '',
-    recruitmentStatus: safePayload.recruitmentStatus || 'TO_CONTACT',
+    recruitmentStatus: safePayload.recruitmentStatus || DEFAULT_RECRUITMENT_STATUS,
     name: safePayload.name || '',
     title: safePayload.name || safePayload.title || '新入库候选人',
     summary: safePayload.summary || safePayload.note || '候选人已解析入库。',
     sourceFileName: safePayload.sourceFileName || '',
     contentType: safePayload.contentType || '',
+    fileSizeBytes: parseNullableInteger(safePayload.fileSizeBytes),
+    parsedCharCount: parseNullableInteger(safePayload.parsedCharCount),
+    truncated: parseNullableBoolean(safePayload.truncated),
     createdAt: safePayload.createdAt || safePayload.ingestedAt || '',
     emails: ensureStringArray(safePayload.emails),
     phones: ensureStringArray(safePayload.phones),
@@ -1108,7 +1316,9 @@ const normalizeCandidate = (payload) => {
     baselineMatchScore: parseScore(safePayload.baselineMatchScore),
     baselineExperienceScore: parseScore(safePayload.baselineExperienceScore),
     baselineSkillScore: parseScore(safePayload.baselineSkillScore),
-    baselineScoredAt: safePayload.baselineScoredAt || ''
+    baselineScoredAt: safePayload.baselineScoredAt || '',
+    persistedMatchScore: parseScore(safePayload?.persistedMatchScore?.overallScore),
+    persistedMatchScoredAt: safePayload?.persistedMatchScore?.scoredAt || ''
   }
   if (Object.prototype.hasOwnProperty.call(safePayload, 'noVectorChunk')) {
     normalized.noVectorChunk = Boolean(safePayload.noVectorChunk)
@@ -1511,6 +1721,7 @@ const resetUploadState = () => {
 const clearSelectedJd = () => {
   stopVectorFlagPolling()
   resetUploadState()
+  resetCandidateDetailState()
   jdMessage.value = ''
   selectedJdId.value = ''
   jdTitle.value = ''
@@ -1639,9 +1850,10 @@ const deleteJd = async (jd) => {
 const onFileChange = (e) => {
   if (!canUploadResume.value || uploading.value) return
   const files = Array.from(e.target.files || [])
-  uploadFiles.value = files
-  if (files.length) {
+  if (queueUploadFiles(files)) {
     uploadResume()
+  } else if (e.target) {
+    e.target.value = ''
   }
 }
 
@@ -1663,8 +1875,7 @@ const onDrop = (e) => {
   }
   if (uploading.value) return
   const files = Array.from(e.dataTransfer?.files || [])
-  if (files.length) {
-    uploadFiles.value = files
+  if (queueUploadFiles(files)) {
     uploadResume()
   }
 }
@@ -1680,12 +1891,25 @@ const openFilePicker = () => {
   fileInputRef.value.click()
 }
 
+const queueUploadFiles = (files) => {
+  if (!files.length) return false
+  const validationMessage = validateResumeUploadFiles(files)
+  if (validationMessage) {
+    uploadFiles.value = []
+    uploadMessage.value = validationMessage
+    return false
+  }
+  uploadFiles.value = files
+  uploadMessage.value = ''
+  return true
+}
+
 const uploadResume = async () => {
   if (!canUploadResume.value || uploading.value || !uploadFiles.value.length || !selectedJdId.value) return
   uploading.value = true
   uploadMessage.value = ''
   try {
-    const isZip = uploadFiles.value.length === 1 && uploadFiles.value[0].name.toLowerCase().endsWith('.zip')
+    const isZip = isZipResumeUpload(uploadFiles.value)
     const formData = new FormData()
     formData.append('jdId', selectedJdId.value)
     let url = '/api/uploads/resumes'
@@ -1731,6 +1955,7 @@ const resetWorkspace = () => {
   disconnect()
   stopVectorFlagPolling()
   stopSemanticRefreshTimer()
+  resetCandidateDetailState()
   events.splice(0, events.length)
   jds.value = []
   auditLogs.value = []

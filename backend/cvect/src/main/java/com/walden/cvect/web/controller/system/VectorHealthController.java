@@ -2,6 +2,7 @@ package com.walden.cvect.web.controller.system;
 
 import com.walden.cvect.infra.embedding.EmbeddingConfig;
 import com.walden.cvect.infra.vector.VectorStoreService;
+import com.walden.cvect.logging.aop.AuditAction;
 import com.walden.cvect.model.entity.vector.VectorIngestTaskStatus;
 import com.walden.cvect.repository.VectorIngestTaskJpaRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,6 +45,7 @@ public class VectorHealthController {
     }
 
     @GetMapping("/health")
+    @AuditAction(action = "check_vector_health", target = "vector", logResult = true)
     public ResponseEntity<VectorHealthResponse> health() {
         long pending = countByStatus(VectorIngestTaskStatus.PENDING);
         long processing = countByStatus(VectorIngestTaskStatus.PROCESSING);

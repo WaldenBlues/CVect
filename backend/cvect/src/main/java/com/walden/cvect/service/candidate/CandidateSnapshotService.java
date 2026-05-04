@@ -1,6 +1,7 @@
 package com.walden.cvect.service.candidate;
 
 import com.walden.cvect.model.entity.Candidate;
+import com.walden.cvect.model.entity.CandidateMatchScore;
 import com.walden.cvect.model.entity.CandidateRecruitmentStatus;
 import com.walden.cvect.model.entity.CandidateSnapshot;
 import com.walden.cvect.model.entity.Contact;
@@ -8,6 +9,7 @@ import com.walden.cvect.model.entity.Education;
 import com.walden.cvect.model.entity.Honor;
 import com.walden.cvect.model.entity.Link;
 import com.walden.cvect.repository.CandidateJpaRepository;
+import com.walden.cvect.repository.CandidateMatchScoreJpaRepository;
 import com.walden.cvect.repository.CandidateSnapshotJpaRepository;
 import com.walden.cvect.repository.ContactJpaRepository;
 import com.walden.cvect.repository.EducationJpaRepository;
@@ -35,6 +37,7 @@ public class CandidateSnapshotService {
 
 
     private final CandidateJpaRepository candidateRepository;
+    private final CandidateMatchScoreJpaRepository candidateMatchScoreRepository;
     private final CandidateSnapshotJpaRepository snapshotRepository;
     private final ContactJpaRepository contactRepository;
     private final EducationJpaRepository educationRepository;
@@ -47,6 +50,7 @@ public class CandidateSnapshotService {
 
     public CandidateSnapshotService(
             CandidateJpaRepository candidateRepository,
+            CandidateMatchScoreJpaRepository candidateMatchScoreRepository,
             CandidateSnapshotJpaRepository snapshotRepository,
             ContactJpaRepository contactRepository,
             EducationJpaRepository educationRepository,
@@ -54,6 +58,7 @@ public class CandidateSnapshotService {
             LinkJpaRepository linkRepository,
             ObjectMapper objectMapper) {
         this.candidateRepository = candidateRepository;
+        this.candidateMatchScoreRepository = candidateMatchScoreRepository;
         this.snapshotRepository = snapshotRepository;
         this.contactRepository = contactRepository;
         this.educationRepository = educationRepository;
@@ -97,29 +102,7 @@ public class CandidateSnapshotService {
             return null;
         }
 
-        List<Contact> contacts = contactRepository.findByCandidateId(candidateId);
-        List<Education> educations = educationRepository.findByCandidateId(candidateId);
-        List<Honor> honors = honorRepository.findByCandidateId(candidateId);
-        List<Link> links = linkRepository.findByCandidateId(candidateId);
-
-        List<String> emails = contacts.stream()
-                .filter(c -> "EMAIL".equalsIgnoreCase(c.getType()))
-                .map(Contact::getValue)
-                .toList();
-        List<String> phones = contacts.stream()
-                .filter(c -> "PHONE".equalsIgnoreCase(c.getType()))
-                .map(Contact::getValue)
-                .toList();
-
-        List<String> educationTexts = educations.stream()
-                .map(Education::getSchool)
-                .toList();
-        List<String> honorTexts = honors.stream()
-                .map(Honor::getContent)
-                .toList();
-        List<String> linkUrls = links.stream()
-                .map(Link::getUrl)
-                .toList();
+        CandidateDetailCollections detailCollections = loadDetailCollections(candidateId);
 
         CandidateStreamEvent event = new CandidateStreamEvent(
                 candidate.getId(),
@@ -136,14 +119,42 @@ public class CandidateSnapshotService {
                 candidate.getParsedCharCount(),
                 candidate.getTruncated(),
                 candidate.getCreatedAt(),
-                emails,
-                phones,
-                educationTexts,
-                honorTexts,
-                linkUrls
+                detailCollections.emails(),
+                detailCollections.phones(),
+                detailCollections.education(),
+                detailCollections.honor(),
+                detailCollections.externalLinks()
         );
         upsertSnapshot(event);
         return event;
+    }
+
+    @Transactional(readOnly = true)
+    public CandidateDetailView buildDetail(Candidate candidate) {
+        if (candidate == null) {
+            return null;
+        }
+
+        CandidateDetailCollections detailCollections = loadDetailCollections(candidate.getId());
+        PersistedMatchScoreView persistedMatchScore = resolvePersistedMatchScore(candidate);
+
+        return new CandidateDetailView(
+                candidate.getId(),
+                candidate.getName(),
+                new ContactInfoView(detailCollections.emails(), detailCollections.phones()),
+                detailCollections.education(),
+                detailCollections.honor(),
+                detailCollections.externalLinks(),
+                new UploadFileMetadataView(
+                        candidate.getSourceFileName(),
+                        candidate.getContentType(),
+                        candidate.getFileSizeBytes(),
+                        candidate.getParsedCharCount(),
+                        candidate.getTruncated()),
+                candidate.getRecruitmentStatus() == null
+                        ? CandidateRecruitmentStatus.TO_CONTACT.name()
+                        : candidate.getRecruitmentStatus().name(),
+                persistedMatchScore);
     }
 
     private void upsertSnapshot(CandidateStreamEvent event) {
@@ -191,6 +202,49 @@ public class CandidateSnapshotService {
                 deserializeList(snapshot.getLinksJson()));
     }
 
+    private CandidateDetailCollections loadDetailCollections(UUID candidateId) {
+        List<Contact> contacts = contactRepository.findByCandidateId(candidateId);
+        List<Education> educations = educationRepository.findByCandidateId(candidateId);
+        List<Honor> honors = honorRepository.findByCandidateId(candidateId);
+        List<Link> links = linkRepository.findByCandidateId(candidateId);
+
+        List<String> emails = contacts.stream()
+                .filter(contact -> "EMAIL".equalsIgnoreCase(contact.getType()))
+                .map(Contact::getValue)
+                .toList();
+        List<String> phones = contacts.stream()
+                .filter(contact -> "PHONE".equalsIgnoreCase(contact.getType()))
+                .map(Contact::getValue)
+                .toList();
+        List<String> educationTexts = educations.stream()
+                .map(Education::getSchool)
+                .toList();
+        List<String> honorTexts = honors.stream()
+                .map(Honor::getContent)
+                .toList();
+        List<String> externalLinks = links.stream()
+                .map(Link::getUrl)
+                .toList();
+        return new CandidateDetailCollections(emails, phones, educationTexts, honorTexts, externalLinks);
+    }
+
+    private PersistedMatchScoreView resolvePersistedMatchScore(Candidate candidate) {
+        UUID candidateId = candidate.getId();
+        UUID tenantId = candidate.getTenantId();
+        UUID jobDescriptionId = candidate.getJobDescription() == null ? null : candidate.getJobDescription().getId();
+        if (candidateId == null || tenantId == null || jobDescriptionId == null) {
+            return null;
+        }
+        CandidateMatchScore matchScore = candidateMatchScoreRepository.findByTenantIdAndCandidateIdAndJobDescriptionId(
+                tenantId,
+                candidateId,
+                jobDescriptionId).orElse(null);
+        if (matchScore == null) {
+            return null;
+        }
+        return new PersistedMatchScoreView(matchScore.getOverallScore(), matchScore.getScoredAt());
+    }
+
     private String serializeList(List<String> values) {
         try {
             return objectMapper.writeValueAsString(values == null ? List.of() : values);
@@ -210,5 +264,43 @@ public class CandidateSnapshotService {
             log.warn("Failed to deserialize candidate snapshot list payload", e);
             return List.of();
         }
+    }
+
+    private record CandidateDetailCollections(
+            List<String> emails,
+            List<String> phones,
+            List<String> education,
+            List<String> honor,
+            List<String> externalLinks) {
+    }
+
+    public record CandidateDetailView(
+            UUID candidateId,
+            String name,
+            ContactInfoView contact,
+            List<String> education,
+            List<String> honor,
+            List<String> externalLinks,
+            UploadFileMetadataView uploadFile,
+            String recruitmentStatus,
+            PersistedMatchScoreView persistedMatchScore) {
+    }
+
+    public record ContactInfoView(
+            List<String> emails,
+            List<String> phones) {
+    }
+
+    public record UploadFileMetadataView(
+            String sourceFileName,
+            String contentType,
+            Long fileSizeBytes,
+            Integer parsedCharCount,
+            Boolean truncated) {
+    }
+
+    public record PersistedMatchScoreView(
+            Float overallScore,
+            java.time.LocalDateTime scoredAt) {
     }
 }

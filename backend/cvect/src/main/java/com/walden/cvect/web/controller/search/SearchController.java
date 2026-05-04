@@ -1,6 +1,7 @@
 package com.walden.cvect.web.controller.search;
 
 import com.walden.cvect.infra.vector.VectorStoreService;
+import com.walden.cvect.logging.aop.AuditAction;
 import com.walden.cvect.logging.aop.TimedAction;
 import com.walden.cvect.service.matching.SemanticSearchService;
 import jakarta.validation.Valid;
@@ -40,6 +41,7 @@ public class SearchController {
      */
     @PostMapping
     @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).SEARCH_RUN)")
+    @AuditAction(action = "semantic_search", target = "candidate_match", logResult = true)
     @TimedAction(
             metric = "cvect.search.request",
             description = "End-to-end semantic search request latency",
@@ -53,6 +55,7 @@ public class SearchController {
      */
     @PostMapping("/admin/create-index")
     @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).SYSTEM_ADMIN)")
+    @AuditAction(action = "create_vector_index", target = "vector_index", logResult = true)
     public ResponseEntity<String> createIndex() {
         vectorStore.createVectorIndex();
         String indexType = vectorStore.getResolvedIndexType();

@@ -149,6 +149,17 @@ public class CandidateController {
         return ResponseEntity.ok(events);
     }
 
+    @GetMapping("/{id}")
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).CANDIDATE_READ)")
+    public ResponseEntity<CandidateSnapshotService.CandidateDetailView> getById(@PathVariable("id") UUID id) {
+        UUID tenantId = currentUserService.currentTenantId();
+        Candidate candidate = findVisibleCandidate(id, tenantId).orElse(null);
+        if (candidate == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(snapshotService.buildDetail(candidate));
+    }
+
     private List<Candidate> visibleCandidates(UUID tenantId, UUID jdId) {
         if (dataScopeService.hasTenantWideScope()) {
             return candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(tenantId, jdId);

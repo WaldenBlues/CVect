@@ -64,19 +64,25 @@ public class VectorIngestQueueWorkerRunner {
     private void runLoop(int workerIndex) {
         Thread current = Thread.currentThread();
         runnerThreads.add(current);
-        sleepQuietly(initialDelayMs + (workerIndex * 50L));
-        while (running.get() && !Thread.currentThread().isInterrupted()) {
-            try {
-                int processed = workerService.consumePendingTasks();
-                if (processed > 0) {
-                    continue;
-                }
-            } catch (Exception ex) {
-                log.warn("Vector ingest worker loop failed and will retry", ex);
+        try {
+            if (!running.get() || current.isInterrupted()) {
+                return;
             }
-            sleepQuietly(idleSleepMs);
+            sleepQuietly(initialDelayMs + (workerIndex * 50L));
+            while (running.get() && !current.isInterrupted()) {
+                try {
+                    int processed = workerService.consumePendingTasks();
+                    if (processed > 0) {
+                        continue;
+                    }
+                } catch (Exception ex) {
+                    log.warn("Vector ingest worker loop failed and will retry", ex);
+                }
+                sleepQuietly(idleSleepMs);
+            }
+        } finally {
+            runnerThreads.remove(current);
         }
-        runnerThreads.remove(current);
     }
 
     private void sleepQuietly(long ms) {

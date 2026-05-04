@@ -59,6 +59,7 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
+    @AuditAction(action = "logout", target = "auth", logResult = true)
     public ResponseEntity<Void> logout(HttpServletResponse response) {
         JwtAuthenticationFilter.clearAccessCookie(response);
         return ResponseEntity.noContent().build();

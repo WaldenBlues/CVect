@@ -23,12 +23,15 @@ public class StreamPerformanceEndpoint {
         this.batchStreamService = batchStreamService;
     }
 
-    @ReadOperation
-    public Map<String, Object> performance() {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("candidateEmitterCount", candidateStreamService.activeEmitterCount());
-        result.put("batchEmitterCount", batchStreamService.activeEmitterCount());
-        result.put("totalEmitterCount", candidateStreamService.activeEmitterCount() + batchStreamService.activeEmitterCount());
-        return result;
-    }
+   @ReadOperation
+public Map<String, Object> performance() {
+    int candidateCount = candidateStreamService.activeEmitterCount();
+    int batchCount = batchStreamService.activeEmitterCount();
+
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("candidateEmitterCount", candidateCount);
+    result.put("batchEmitterCount", batchCount);
+    result.put("totalEmitterCount", candidateCount + batchCount);
+    return result;
+}
 }
