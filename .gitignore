@@ -69,3 +69,5 @@ scripts/*.local.sh
 
 # ---------- Docs build output ----------
 docs/_build/
+*.docx
+PLANS.md
