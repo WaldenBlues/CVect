@@ -21,7 +21,7 @@ import java.util.UUID;
 @RequestMapping("/api/search")
 public class SearchController {
     private static final int DEFAULT_TOP_K = 10;
-    private static final int MAX_TOP_K = 1000;
+    private static final int MAX_TOP_K = 200;
 
     private final VectorStoreService vectorStore;
     private final SemanticSearchService semanticSearchService;

@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -33,10 +35,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CandidateController unit tests")
@@ -67,9 +69,8 @@ class CandidateControllerTest {
         when(dataScopeService.hasTenantWideScope()).thenReturn(true);
         when(candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
                 TenantConstants.DEFAULT_TENANT_ID,
-                jdId)).thenReturn(List.<Candidate>of());
-        when(snapshotService.listByTenantAndJd(TenantConstants.DEFAULT_TENANT_ID, jdId))
-                .thenReturn(List.<CandidateStreamEvent>of());
+                jdId,
+                PageRequest.of(0, 50))).thenReturn(pageOf());
 
         CandidateController controller = controller();
 
@@ -77,6 +78,8 @@ class CandidateControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(0, response.getBody().size());
+        assertEquals("0", response.getHeaders().getFirst("X-Total-Count"));
+        assertEquals("50", response.getHeaders().getFirst("X-Page-Size"));
         verify(resumeChunkVectorRepository, never()).findDistinctCandidateIdsIn(anyCollection());
     }
 
@@ -93,26 +96,8 @@ class CandidateControllerTest {
         when(dataScopeService.hasTenantWideScope()).thenReturn(true);
         when(candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
                 TenantConstants.DEFAULT_TENANT_ID,
-                jdId)).thenReturn(List.of(candidate));
-        when(snapshotService.listByTenantAndJd(TenantConstants.DEFAULT_TENANT_ID, jdId))
-                .thenReturn(List.of(new CandidateStreamEvent(
-                        candidateId,
-                        TenantConstants.DEFAULT_TENANT_ID,
-                        jdId,
-                        "DONE",
-                        CandidateRecruitmentStatus.TO_CONTACT.name(),
-                        "Alice",
-                        "alice.pdf",
-                        "application/pdf",
-                        123L,
-                        42,
-                        false,
-                        LocalDateTime.of(2024, 1, 1, 12, 0),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        List.of())));
+                jdId,
+                PageRequest.of(0, 50))).thenReturn(pageOf(candidate));
         when(candidateMatchScoreRepository.findByTenantIdAndJobDescriptionIdAndCandidateIdIn(
                 any(),
                 any(),
@@ -130,6 +115,7 @@ class CandidateControllerTest {
         assertEquals(1, response.getBody().size());
         assertEquals(candidateId, response.getBody().get(0).candidateId());
         assertEquals("READY", response.getBody().get(0).vectorStatus());
+        assertEquals("1", response.getHeaders().getFirst("X-Total-Count"));
         verify(persistedMatchScoreService).scheduleRefreshForJobDescription(jdId);
     }
 
@@ -149,45 +135,8 @@ class CandidateControllerTest {
         when(dataScopeService.hasTenantWideScope()).thenReturn(true);
         when(candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
                 TenantConstants.DEFAULT_TENANT_ID,
-                jdId)).thenReturn(List.of(vectorizedCandidate, staleScoredCandidate));
-        when(snapshotService.listByTenantAndJd(TenantConstants.DEFAULT_TENANT_ID, jdId))
-                .thenReturn(List.of(
-                        new CandidateStreamEvent(
-                                vectorizedCandidateId,
-                                TenantConstants.DEFAULT_TENANT_ID,
-                                jdId,
-                                "DONE",
-                                CandidateRecruitmentStatus.TO_CONTACT.name(),
-                                "Alice",
-                                "alice.pdf",
-                                "application/pdf",
-                                123L,
-                                42,
-                                false,
-                                LocalDateTime.of(2024, 1, 1, 12, 0),
-                                List.of(),
-                                List.of(),
-                                List.of(),
-                                List.of(),
-                                List.of()),
-                        new CandidateStreamEvent(
-                                staleScoredCandidateId,
-                                TenantConstants.DEFAULT_TENANT_ID,
-                                jdId,
-                                "DONE",
-                                CandidateRecruitmentStatus.TO_CONTACT.name(),
-                                "Bob",
-                                "bob.pdf",
-                                "application/pdf",
-                                456L,
-                                84,
-                                false,
-                                LocalDateTime.of(2024, 1, 2, 12, 0),
-                                List.of(),
-                                List.of(),
-                                List.of(),
-                                List.of(),
-                                List.of())));
+                jdId,
+                PageRequest.of(0, 50))).thenReturn(pageOf(vectorizedCandidate, staleScoredCandidate));
         when(candidateMatchScoreRepository.findByTenantIdAndJobDescriptionIdAndCandidateIdIn(
                 any(),
                 any(),
@@ -212,7 +161,50 @@ class CandidateControllerTest {
         assertEquals(2, response.getBody().size());
         assertEquals(vectorizedCandidateId, response.getBody().get(0).candidateId());
         assertEquals(staleScoredCandidateId, response.getBody().get(1).candidateId());
+        assertEquals("2", response.getHeaders().getFirst("X-Total-Count"));
         verify(persistedMatchScoreService).scheduleRefreshForJobDescription(jdId);
+    }
+
+    @Test
+    @DisplayName("listByJd should normalize page and size and expose pagination headers")
+    void listByJdShouldNormalizePageAndSizeAndExposePaginationHeaders() {
+        UUID jdId = UUID.randomUUID();
+        UUID candidateId = UUID.randomUUID();
+        Candidate candidate = mock(Candidate.class);
+        when(candidate.getId()).thenReturn(candidateId);
+
+        when(currentUserService.currentTenantId()).thenReturn(TenantConstants.DEFAULT_TENANT_ID);
+        when(dataScopeService.hasTenantWideScope()).thenReturn(true);
+        when(candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
+                TenantConstants.DEFAULT_TENANT_ID,
+                jdId,
+                PageRequest.of(0, 100))).thenReturn(new PageImpl<>(
+                        List.of(candidate),
+                        PageRequest.of(0, 100),
+                        101));
+        when(candidateMatchScoreRepository.findByTenantIdAndJobDescriptionIdAndCandidateIdIn(
+                any(),
+                any(),
+                anyCollection())).thenReturn(List.of());
+        when(resumeChunkVectorRepository.findDistinctCandidateIdsIn(anyCollection()))
+                .thenReturn(List.of());
+        when(vectorIngestTaskRepository.findCandidateIdsByStatusIn(anyCollection(), anyList()))
+                .thenReturn(List.of());
+
+        CandidateController controller = controller();
+
+        ResponseEntity<List<CandidateController.CandidateListItem>> response =
+                controller.listByJd(jdId, -3, 500, null, null);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().size());
+        assertEquals("101", response.getHeaders().getFirst("X-Total-Count"));
+        assertEquals("0", response.getHeaders().getFirst("X-Page"));
+        assertEquals("100", response.getHeaders().getFirst("X-Page-Size"));
+        assertEquals("2", response.getHeaders().getFirst("X-Total-Pages"));
+        assertEquals("true", response.getHeaders().getFirst("X-Has-Next"));
+        assertEquals("false", response.getHeaders().getFirst("X-Has-Previous"));
     }
 
     @Test
@@ -301,5 +293,9 @@ class CandidateControllerTest {
                 persistedMatchScoreService,
                 currentUserService,
                 dataScopeService);
+    }
+
+    private PageImpl<Candidate> pageOf(Candidate... candidates) {
+        return new PageImpl<>(List.of(candidates), PageRequest.of(0, 50), candidates.length);
     }
 }

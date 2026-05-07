@@ -1,0 +1,428 @@
+{
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "setup": {
+                "path": "::setup",
+                "id": "5c0f8025f7e0b6654089e5b00e950f1a",
+                "groups": {},
+                "checks": {
+                        "login status is 200": {
+                            "fails": 0,
+                            "name": "login status is 200",
+                            "path": "::setup::login status is 200",
+                            "id": "bb27b460b057923f4a083e3603c038b9",
+                            "passes": 1
+                        },
+                        "setup_jds status is 200": {
+                            "name": "setup_jds status is 200",
+                            "path": "::setup::setup_jds status is 200",
+                            "id": "f9a2058b3ed57e138d653bf198cb6d2c",
+                            "passes": 1,
+                            "fails": 0
+                        },
+                        "setup_jd_detail status is 200": {
+                            "name": "setup_jd_detail status is 200",
+                            "path": "::setup::setup_jd_detail status is 200",
+                            "id": "68d143db8012887c084d405dbe31c788",
+                            "passes": 1,
+                            "fails": 0
+                        },
+                        "setup_candidates status is 200": {
+                            "fails": 0,
+                            "name": "setup_candidates status is 200",
+                            "path": "::setup::setup_candidates status is 200",
+                            "id": "39a45a95c71e14d9a150054ce01a683a",
+                            "passes": 1
+                        },
+                        "setup_search_warm status is 200": {
+                            "name": "setup_search_warm status is 200",
+                            "path": "::setup::setup_search_warm status is 200",
+                            "id": "d17654deeb1bff26f322d1c496963df2",
+                            "passes": 1,
+                            "fails": 0
+                        }
+                    },
+                "name": "setup"
+            }
+        },
+        "checks": {
+            "jds_read status is 200": {
+                "name": "jds_read status is 200",
+                "path": "::jds_read status is 200",
+                "id": "4eb34fe8ed45fa70018e014b0ec88379",
+                "passes": 9074,
+                "fails": 0
+            },
+            "jd_detail_read status is 200": {
+                "name": "jd_detail_read status is 200",
+                "path": "::jd_detail_read status is 200",
+                "id": "1fbadcfd6fed00a9fe91751348e0a84a",
+                "passes": 5985,
+                "fails": 0
+            },
+            "candidates_read status is 200": {
+                "passes": 480,
+                "fails": 0,
+                "name": "candidates_read status is 200",
+                "path": "::candidates_read status is 200",
+                "id": "dfd83ce9c0cff01c6f0fac3f164b892c"
+            },
+            "candidate_vector_status_read status is 200": {
+                "passes": 0,
+                "fails": 7212,
+                "name": "candidate_vector_status_read status is 200",
+                "path": "::candidate_vector_status_read status is 200",
+                "id": "33bbcb98e25b5884b6c652e090fc789b"
+            },
+            "audit_logs_read status is 200": {
+                "name": "audit_logs_read status is 200",
+                "path": "::audit_logs_read status is 200",
+                "id": "f83724b83affbf32df6e6328e798fd6a",
+                "passes": 6978,
+                "fails": 0
+            },
+            "resume_health_read status is 200": {
+                "name": "resume_health_read status is 200",
+                "path": "::resume_health_read status is 200",
+                "id": "ce068d3579c344b2af7460ed352995de",
+                "passes": 11559,
+                "fails": 0
+            },
+            "search_miss status is 200": {
+                "name": "search_miss status is 200",
+                "path": "::search_miss status is 200",
+                "id": "ee0bd1863275196f344a3c7ab8668083",
+                "passes": 4,
+                "fails": 0
+            },
+            "search_hit status is 200": {
+                "name": "search_hit status is 200",
+                "path": "::search_hit status is 200",
+                "id": "056b341b407b394027046cb6ecc8ef71",
+                "passes": 3,
+                "fails": 0
+            }
+        }
+    },
+    "metrics": {
+        "vus_max": {
+            "min": 28,
+            "max": 28,
+            "value": 28
+        },
+        "search_miss_requests": {
+            "count": 4,
+            "rate": 0.06056783014487075
+        },
+        "http_req_waiting": {
+            "min": 0,
+            "med": 9.975636,
+            "p(95)": 26.242841749999993,
+            "p(99)": 256.80098253000006,
+            "max": 46302.680719,
+            "avg": 24.320224506997885
+        },
+        "http_reqs": {
+            "count": 41300,
+            "rate": 625.3628462457905
+        },
+        "http_req_blocked": {
+            "min": 0.000818,
+            "med": 0.00345,
+            "p(95)": 0.0056860499999999954,
+            "p(99)": 0.025088570000000116,
+            "max": 5.718368,
+            "avg": 0.005817139031477016
+        },
+        "jd_detail_requests": {
+            "count": 5985,
+            "rate": 90.62461585426286
+        },
+        "http_req_failed": {
+            "fails": 34088,
+            "passes": 7212,
+            "value": 0.17462469733656175
+        },
+        "candidates_duration": {
+            "avg": 369.9887239375006,
+            "min": 6.401397,
+            "med": 311.1896805,
+            "p(95)": 406.6214633999999,
+            "p(99)": 1591.4096970998917,
+            "max": 6090.121921,
+            "thresholds": {
+                "p(95)<500": false,
+                "p(99)<1000": true
+            }
+        },
+        "candidate_vector_status_failures": {
+            "passes": 7212,
+            "fails": 0,
+            "value": 1
+        },
+        "audit_log_duration": {
+            "med": 11.025779499999999,
+            "p(95)": 26.226494599999995,
+            "p(99)": 35.05349541999999,
+            "max": 5789.097849,
+            "avg": 15.052682278589813,
+            "min": 0.072118,
+            "thresholds": {
+                "p(95)<200": false,
+                "p(99)<500": false
+            }
+        },
+        "http_req_receiving": {
+            "p(95)": 2.412514099999997,
+            "p(99)": 11.070722440000038,
+            "max": 5780.835773,
+            "avg": 0.8986514277724044,
+            "min": -2428.228231,
+            "med": 0.1466335
+        },
+        "http_req_tls_handshaking": {
+            "min": 0,
+            "med": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 0,
+            "avg": 0
+        },
+        "data_received": {
+            "count": 427611716,
+            "rate": 6474878.445661178
+        },
+        "http_req_sending": {
+            "p(95)": 0.06944339999999997,
+            "p(99)": 0.17868408000000124,
+            "max": 11.186585,
+            "avg": 0.033324855012106344,
+            "min": 0.005073,
+            "med": 0.019608
+        },
+        "http_req_duration": {
+            "p(95)": 27.318668849999984,
+            "p(99)": 272.1539644000023,
+            "max": 46302.882198,
+            "avg": 25.25220078978213,
+            "min": -2420.59262,
+            "med": 10.483599
+        },
+        "jds_requests": {
+            "rate": 137.3981226836393,
+            "count": 9074
+        },
+        "jd_detail_failures": {
+            "passes": 0,
+            "fails": 5985,
+            "value": 0
+        },
+        "candidates_requests": {
+            "count": 480,
+            "rate": 7.26813961738449
+        },
+        "search_hit_requests": {
+            "count": 3,
+            "rate": 0.045425872608653065
+        },
+        "vus": {
+            "value": 1,
+            "min": 0,
+            "max": 28
+        },
+        "iteration_duration": {
+            "avg": 21.703390805283767,
+            "min": 1.976949,
+            "med": 10.822686000000001,
+            "p(95)": 27.633782,
+            "p(99)": 267.72991455000164,
+            "max": 39633.446456
+        },
+        "search_hit_failures": {
+            "passes": 0,
+            "fails": 3,
+            "value": 0
+        },
+        "candidate_vector_status_duration": {
+            "avg": 14.226163851913494,
+            "min": 0.126024,
+            "med": 10.428450999999999,
+            "p(95)": 22.51940105,
+            "p(99)": 31.867963220000043,
+            "max": 5788.194472,
+            "thresholds": {
+                "p(99)<800": false,
+                "p(95)<400": false
+            }
+        },
+        "resume_health_failures": {
+            "passes": 0,
+            "fails": 11559,
+            "value": 0
+        },
+        "jd_detail_duration": {
+            "p(99)": 37.32023591999999,
+            "max": 5799.685266,
+            "avg": 17.6037876185463,
+            "min": 0.162544,
+            "med": 13.243098,
+            "p(95)": 28.019258400000012,
+            "thresholds": {
+                "p(95)<200": false,
+                "p(99)<500": false
+            }
+        },
+        "search_miss_duration": {
+            "avg": 33453.365359749994,
+            "min": 18704.137955,
+            "med": 35177.4281205,
+            "p(95)": 43621.816272649994,
+            "p(99)": 44527.93704893,
+            "max": 44754.467243,
+            "thresholds": {
+                "p(95)<3000": true,
+                "p(99)<10000": true
+            }
+        },
+        "http_req_connecting": {
+            "min": 0,
+            "med": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 3.208827,
+            "avg": 0.0006677857869249394
+        },
+        "audit_log_failures": {
+            "passes": 0,
+            "fails": 6978,
+            "value": 0
+        },
+        "search_hit_duration": {
+            "avg": 46302.62052866666,
+            "min": 46302.391223,
+            "med": 46302.588165,
+            "p(95)": 46302.8527947,
+            "p(99)": 46302.87631734,
+            "max": 46302.882198,
+            "thresholds": {
+                "p(95)<100": true,
+                "p(99)<300": true
+            }
+        },
+        "http_req_duration{expected_response:true}": {
+            "avg": 27.584980019889723,
+            "min": -2420.59262,
+            "med": 10.506781,
+            "p(95)": 28.25744634999999,
+            "p(99)": 290.24455268,
+            "max": 46302.882198
+        },
+        "audit_log_requests": {
+            "count": 6978,
+            "rate": 105.66057968772702
+        },
+        "candidates_failures": {
+            "passes": 0,
+            "fails": 480,
+            "value": 0
+        },
+        "candidate_vector_status_requests": {
+            "count": 7212,
+            "rate": 109.20379775120196
+        },
+        "search_miss_failures": {
+            "fails": 4,
+            "passes": 0,
+            "value": 0
+        },
+        "resume_health_requests": {
+            "count": 11559,
+            "rate": 175.02588716114025
+        },
+        "jds_duration": {
+            "avg": 19.401909276394036,
+            "min": 0.088446,
+            "med": 14.5543455,
+            "p(95)": 30.853125000000002,
+            "p(99)": 42.90130831000001,
+            "max": 5804.827039,
+            "thresholds": {
+                "p(95)<100": false,
+                "p(99)<200": false
+            }
+        },
+        "checks": {
+            "passes": 34088,
+            "fails": 7212,
+            "thresholds": {
+                "rate>0.99": true
+            },
+            "value": 0.8253753026634383
+        },
+        "data_sent": {
+            "rate": 594399.678100238,
+            "count": 39255141
+        },
+        "resume_health_duration": {
+            "p(99)": 22.438662720000004,
+            "max": 5783.35607,
+            "avg": 8.770628876027317,
+            "min": -2420.59262,
+            "med": 6.390177,
+            "p(95)": 15.878087100000005,
+            "thresholds": {
+                "p(95)<100": false,
+                "p(99)<200": false
+            }
+        },
+        "iterations": {
+            "count": 41295,
+            "rate": 625.2871364581094
+        },
+        "jds_failures": {
+            "fails": 9074,
+            "passes": 0,
+            "value": 0
+        }
+    },
+    "setup_data": {
+        "jobDescription": "1. 本科以上学历，计算机相关专业，技术优秀； 2. 5年以上相关工作经验，或者自认能力优秀者，熟练使用html,css,js编写页面，精通HTML5特性，了解HTML5最新规范，能够熟练运用HTML5特性构建移动端的WebApp； 3. 熟悉当前流行的 JavaScript 类库,熟悉JavaScript面向对象编程方法； 4. 熟悉Web标准，对表现与数据分离，HTML语义化等有一定理解，精通 Vue3、Element-Plus、Vant等前端框架； 5. 具备移动端兼容问题处理经验，可以独立负责项目的开发及调试 ; 6. 具有前端架构分析与设计能力，一贯坚持编写易读、易维护、高质量、高效率的代码，习惯于OOP开发方式； 7. 对用户可用性，用户体验，用户研究等相关知识有深入的了解和实践经验； 8. 前端视野广阔，了解前端工程化、模块化、前后端分离、多端技术、安全、测试、函数式编程等； 9. 了解Css预编译语言如sass、less等； 10. 熟练应用及配置gulp,webpack构建工具，能够自己搭建前端构建环境； 11. 具有一定产品思维，能利用技术辅助产品做业务转化提升。",
+        "warmPayload": {
+            "topK": 20,
+            "experienceWeight": 0.5,
+            "filterByExperience": true,
+            "filterBySkill": true,
+            "jobDescription": "1. 本科以上学历，计算机相关专业，技术优秀； 2. 5年以上相关工作经验，或者自认能力优秀者，熟练使用html,css,js编写页面，精通HTML5特性，了解HTML5最新规范，能够熟练运用HTML5特性构建移动端的WebApp； 3. 熟悉当前流行的 JavaScript 类库,熟悉JavaScript面向对象编程方法； 4. 熟悉Web标准，对表现与数据分离，HTML语义化等有一定理解，精通 Vue3、Element-Plus、Vant等前端框架； 5. 具备移动端兼容问题处理经验，可以独立负责项目的开发及调试 ; 6. 具有前端架构分析与设计能力，一贯坚持编写易读、易维护、高质量、高效率的代码，习惯于OOP开发方式； 7. 对用户可用性，用户体验，用户研究等相关知识有深入的了解和实践经验； 8. 前端视野广阔，了解前端工程化、模块化、前后端分离、多端技术、安全、测试、函数式编程等； 9. 了解Css预编译语言如sass、less等； 10. 熟练应用及配置gulp,webpack构建工具，能够自己搭建前端构建环境； 11. 具有一定产品思维，能利用技术辅助产品做业务转化提升。",
+            "onlyVectorReadyCandidates": false,
+            "skillWeight": 0.5
+        },
+        "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlOTMyNjEyYy1jNWQzLTQ2NGYtODRjYi1kN2IwMjUwZGNjMTAiLCJ0ZW5hbnRfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJ1c2VybmFtZSI6ImRlbW8iLCJkaXNwbGF5X25hbWUiOiJEZW1vIE93bmVyIiwicm9sZXMiOlsiT1dORVIiXSwicGVybWlzc2lvbnMiOlsiU0VBUkNIX1JVTiIsIkpEX1dSSVRFIiwiUk9MRV9NQU5BR0UiLCJDQU5ESURBVEVfVVBEQVRFX1NUQVRVUyIsIkpEX0RFTEVURSIsIlNZU1RFTV9BRE1JTiIsIkNBTkRJREFURV9SRUFEIiwiVVNFUl9NQU5BR0UiLCJSRVNVTUVfVVBMT0FEIiwiQVVESVRfUkVBRCIsIkpEX1JFQUQiXSwiaWF0IjoxNzc4MTExMTY0LCJleHAiOjE3NzgxOTc1NjR9.ufI6uJCJ2HyF4h_69XqElpyJNKj_zJf2zD1MHB2RJAw",
+        "candidateId": "5799f2d4-3bec-4257-902f-f80469738a23",
+        "candidateIds": [
+            "5799f2d4-3bec-4257-902f-f80469738a23",
+            "6b30f74f-0aa6-4777-b9c3-56ed6d9a8785",
+            "46b88df4-4aae-482f-ac48-d061f91f0300",
+            "3aca28af-44fa-4d10-97a6-d75607b26392",
+            "e1410f96-a248-4004-9bea-0d79ce57cb49",
+            "93005ec7-90f8-42ed-8f89-f46d0fa235f4",
+            "cc7e41b8-cb01-4cc1-96ec-b73ffaa9a789",
+            "e8d47ff0-2db1-4b9e-ad4d-f5bc8ff0b158",
+            "6387f8ea-135b-4f44-ad17-a8d5460b719d",
+            "582efdbc-0acb-4113-afe0-b79404fa7e0f",
+            "fdfa1297-95bb-4cc8-a869-81a0ef4b3600",
+            "7ad82e65-9bdb-4047-8e7f-9271f7a2302b",
+            "37ef957b-d805-4def-94b9-7bec1b6b385f",
+            "f0211e5b-c400-4e61-a20c-de26d205b1ea",
+            "e3194326-e791-4a9e-939e-d8bb702ad1d0",
+            "28778c7a-7b94-4eab-b253-c07f964a3dac",
+            "c2e33a41-bb95-495b-b4ca-0504823ef795",
+            "2a5d86d6-1dba-4099-bbf2-160793500ac6",
+            "e3366e9c-e89f-416c-a1a5-fff1b2c564ea",
+            "62272993-96db-4be8-bffe-56669f13c73f"
+        ],
+        "jdId": "0fec25e7-731d-44df-8db8-2e5169de4c6c"
+    }
+}

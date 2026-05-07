@@ -1,5 +1,6 @@
 package com.walden.cvect.service.upload.queue;
 
+import com.walden.cvect.infra.storage.FileStorageService;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.model.entity.UploadBatch;
 import com.walden.cvect.model.entity.UploadItem;
@@ -12,7 +13,6 @@ import com.walden.cvect.web.sse.BatchStreamService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -20,13 +20,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.ByteArrayInputStream;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,14 +42,13 @@ class UploadQueueWorkerServiceTest {
     @Mock
     private ResumeProcessService resumeProcessService;
     @Mock
+    private FileStorageService fileStorageService;
+    @Mock
     private BatchStreamService batchStreamService;
     @Mock
     private JdbcTemplate jdbcTemplate;
     @Mock
     private PlatformTransactionManager transactionManager;
-
-    @TempDir
-    Path tempDir;
 
     @Test
     @DisplayName("processClaimedItem should mark upload task failed and record the failure reason when resume processing throws")
@@ -65,20 +64,19 @@ class UploadQueueWorkerServiceTest {
         batch.setTotalFiles(1);
         batch.setProcessedFiles(1);
 
-        Path source = tempDir.resolve("resume.txt");
-        Files.writeString(source, "resume-content");
-
         UploadItem item = new UploadItem(batch, "resume.txt");
         item.setStatus(UploadItemStatus.PROCESSING);
-        item.setStoragePath(source.toString());
+        item.setStoragePath("resume.txt");
         item.setQueueJobKey("lease-1");
 
         when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+        when(fileStorageService.exists("resume.txt")).thenReturn(true);
+        when(fileStorageService.load("resume.txt")).thenReturn(new ByteArrayInputStream("resume-content".getBytes()));
         when(resumeProcessService.process(
-                eq(source.toAbsolutePath().normalize()),
+                any(java.io.InputStream.class),
                 eq("application/octet-stream"),
                 eq("resume.txt"),
-                eq(Files.size(source)),
+                eq(null),
                 eq(jdId)))
                 .thenThrow(new IllegalStateException("parse failed"));
         when(itemRepository.completeProcessingFailure(
@@ -93,12 +91,12 @@ class UploadQueueWorkerServiceTest {
         UploadQueueWorkerService service = new UploadQueueWorkerService(
                 itemRepository,
                 batchRepository,
+                fileStorageService,
                 resumeProcessService,
                 batchStreamService,
                 jdbcTemplate,
                 transactionManager,
                 300_000L,
-                tempDir.toString(),
                 100,
                 5_000L);
 

@@ -189,7 +189,7 @@ class UploadBatchControllerIntegrationTest extends PostgresIntegrationTestBase {
         item.setStatus(uploadItemStatus);
         item.setErrorMessage(errorMessage);
         if ("FAILED".equals(status)) {
-            item.setStoragePath("storage/mock-" + fileName);
+            item.setStoragePath("mock-" + fileName);
         }
         return item;
     }

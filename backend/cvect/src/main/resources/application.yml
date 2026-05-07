@@ -85,8 +85,18 @@ app:
           queue-capacity: ${CVECT_VECTOR_INGEST_WORKER_QUEUE_CAPACITY:100}
           thread-name-prefix: ${CVECT_VECTOR_INGEST_WORKER_THREAD_PREFIX:vector-ingest-worker-}
 
+  storage:
+    type: ${CVECT_STORAGE_TYPE:local}
+    local-root: ${CVECT_STORAGE_LOCAL_ROOT:/storage}
+    endpoint: ${CVECT_STORAGE_ENDPOINT:}
+    region: ${CVECT_STORAGE_REGION:us-east-1}
+    bucket: ${CVECT_STORAGE_BUCKET:}
+    access-key: ${CVECT_STORAGE_ACCESS_KEY:}
+    secret-key: ${CVECT_STORAGE_SECRET_KEY:}
+    path-style-access: ${CVECT_STORAGE_PATH_STYLE_ACCESS:true}
+    auto-create-bucket: ${CVECT_STORAGE_AUTO_CREATE_BUCKET:true}
+
   upload:
-    storage-dir: ${CVECT_UPLOAD_STORAGE_DIR:storage}
     max-inflight-items: ${CVECT_UPLOAD_MAX_INFLIGHT_ITEMS:2000}
     max-files-per-zip: ${CVECT_UPLOAD_MAX_FILES_PER_ZIP:2000}
     worker:

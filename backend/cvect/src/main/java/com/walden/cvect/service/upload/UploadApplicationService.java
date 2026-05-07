@@ -2,6 +2,7 @@ package com.walden.cvect.service.upload;
 
 import com.walden.cvect.exception.InvalidUploadRequestException;
 import com.walden.cvect.exception.UploadQueueBusyException;
+import com.walden.cvect.infra.storage.FileStorageService;
 import com.walden.cvect.logging.aop.AppLog;
 import com.walden.cvect.logging.aop.AuditAction;
 import com.walden.cvect.model.entity.JobDescription;
@@ -25,17 +26,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
@@ -54,10 +51,10 @@ public class UploadApplicationService {
     private final JobDescriptionJpaRepository jobDescriptionRepository;
     private final UploadBatchJpaRepository batchRepository;
     private final UploadItemJpaRepository itemRepository;
+    private final FileStorageService fileStorageService;
     private final BatchStreamService batchStreamService;
     private final CurrentUserService currentUserService;
     private final DataScopeService dataScopeService;
-    private final Path storageDir;
     private final int maxInflightItems;
     private final int maxFilesPerZip;
     private final long maxTotalBytes;
@@ -68,20 +65,20 @@ public class UploadApplicationService {
             JobDescriptionJpaRepository jobDescriptionRepository,
             UploadBatchJpaRepository batchRepository,
             UploadItemJpaRepository itemRepository,
+            FileStorageService fileStorageService,
             BatchStreamService batchStreamService,
             CurrentUserService currentUserService,
             DataScopeService dataScopeService,
-            @Value("${app.upload.storage-dir:storage}") String storageDir,
             @Value("${app.upload.max-inflight-items:2000}") int maxInflightItems,
             @Value("${app.upload.max-files-per-zip:2000}") int maxFilesPerZip,
             @Value("${app.upload.max-total-bytes:209715200}") long maxTotalBytes) {
         this.jobDescriptionRepository = jobDescriptionRepository;
         this.batchRepository = batchRepository;
         this.itemRepository = itemRepository;
+        this.fileStorageService = fileStorageService;
         this.batchStreamService = batchStreamService;
         this.currentUserService = currentUserService;
         this.dataScopeService = dataScopeService;
-        this.storageDir = resolveStorageDir(storageDir);
         this.maxInflightItems = Math.max(1, maxInflightItems);
         this.maxFilesPerZip = Math.max(1, maxFilesPerZip);
         this.maxTotalBytes = Math.max(1L, maxTotalBytes);
@@ -131,7 +128,6 @@ public class UploadApplicationService {
             throw new UploadQueueBusyException("Upload queue is busy");
         }
 
-        ensureStorage();
         UploadBatch batch = batchRepository.save(new UploadBatch(jd, 0));
         int totalFiles = 0;
         long totalBytes = 0;
@@ -164,18 +160,18 @@ public class UploadApplicationService {
                 }
 
                 try {
-                    Path storedPath = newStoragePath(fileName);
+                    String storageKey = newStorageKey(fileName);
                     long entrySize;
                     try {
-                        entrySize = writeEntryToFile(zis, storedPath);
+                        entrySize = saveToStorageWithLimit(zis, storageKey, MAX_ENTRY_BYTES);
                     } catch (IOException ex) {
-                        Files.deleteIfExists(storedPath);
+                        deleteQuietly(storageKey);
                         failRejected(batch, fileName, ex.getMessage());
                         continue;
                     }
                     totalBytes += entrySize;
                     if (entrySize > MAX_ENTRY_BYTES || totalBytes > maxTotalBytes) {
-                        Files.deleteIfExists(storedPath);
+                        deleteQuietly(storageKey);
                         failRejected(batch, fileName, "File size limit exceeded");
                         if (totalBytes > maxTotalBytes) {
                             truncated = true;
@@ -184,7 +180,7 @@ public class UploadApplicationService {
                         continue;
                     }
 
-                    processStoredFile(batch, fileName, storedPath);
+                    processStoredFile(batch, fileName, storageKey);
                 } finally {
                     releaseInflightReservations(1);
                 }
@@ -234,21 +230,20 @@ public class UploadApplicationService {
             return failRejected(batch, fileName, "Unsupported file type");
         }
 
-        ensureStorage();
-        Path storedPath = newStoragePath(fileName);
+        String storageKey = newStorageKey(fileName);
         try (InputStream in = file.getInputStream()) {
-            copyToFileWithLimit(in, storedPath, MAX_ENTRY_BYTES);
-            return processStoredFile(batch, fileName, storedPath);
+            saveToStorageWithLimit(in, storageKey, MAX_ENTRY_BYTES);
+            return processStoredFile(batch, fileName, storageKey);
         } catch (IOException e) {
-            Files.deleteIfExists(storedPath);
+            deleteQuietly(storageKey);
             return failRejected(batch, fileName, e.getMessage());
         }
     }
 
-    private FileUploadResult processStoredFile(UploadBatch batch, String fileName, Path storedPath) {
+    private FileUploadResult processStoredFile(UploadBatch batch, String fileName, String storageKey) {
         UploadItem item = new UploadItem(batch, fileName);
         item.setStatus(UploadItemStatus.QUEUED);
-        item.setStoragePath(storedPath.toString());
+        item.setStoragePath(storageKey);
         item.setQueueJobKey(UploadQueueJobKeyGenerator.nextKey(item.getId()));
         item = itemRepository.save(item);
         publishBatchEvent(batch, item, null);
@@ -296,11 +291,7 @@ public class UploadApplicationService {
                 LocalDateTime.now()));
     }
 
-    private void ensureStorage() throws IOException {
-        Files.createDirectories(storageDir);
-    }
-
-    private Path newStoragePath(String fileName) {
+    private String newStorageKey(String fileName) {
         String ext = "";
         if (fileName != null) {
             int dot = fileName.lastIndexOf('.');
@@ -308,7 +299,7 @@ public class UploadApplicationService {
                 ext = fileName.substring(dot).toLowerCase(Locale.ROOT);
             }
         }
-        return storageDir.resolve(UUID.randomUUID() + ext);
+        return UUID.randomUUID() + ext;
     }
 
     private boolean isAllowedExtension(String fileName) {
@@ -351,32 +342,33 @@ public class UploadApplicationService {
         inflightReservations.updateAndGet(current -> Math.max(0L, current - normalized));
     }
 
-    private long writeEntryToFile(ZipInputStream zis, Path target) throws IOException {
-        return copyToFileWithLimit(zis, target, MAX_ENTRY_BYTES);
+    private long saveToStorageWithLimit(InputStream inputStream, String storageKey, long maxBytes) throws IOException {
+        byte[] bytes = readAllBytesWithLimit(inputStream, maxBytes);
+        fileStorageService.save(storageKey, new ByteArrayInputStream(bytes));
+        return bytes.length;
     }
 
-    private long copyToFileWithLimit(InputStream in, Path target, long maxBytes) throws IOException {
+    private byte[] readAllBytesWithLimit(InputStream in, long maxBytes) throws IOException {
         long total = 0;
-        try (OutputStream out = Files.newOutputStream(target)) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                total += read;
-                if (total > maxBytes) {
-                    throw new IOException("File size limit exceeded");
-                }
-                out.write(buffer, 0, read);
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = in.read(buffer)) != -1) {
+            total += read;
+            if (total > maxBytes) {
+                throw new IOException("File size limit exceeded");
             }
+            out.write(buffer, 0, read);
         }
-        return total;
+        return out.toByteArray();
     }
 
-    private static Path resolveStorageDir(String rawDir) {
-        String normalized = Objects.requireNonNullElse(rawDir, "").trim();
-        if (normalized.isEmpty()) {
-            throw new IllegalArgumentException("app.upload.storage-dir must not be blank");
+    private void deleteQuietly(String storageKey) {
+        try {
+            fileStorageService.delete(storageKey);
+        } catch (Exception e) {
+            log.warn("Failed to cleanup stored upload payload: key={}", storageKey, e);
         }
-        return Paths.get(normalized).toAbsolutePath().normalize();
     }
 
     public record BatchUploadResponse(UUID batchId, List<FileUploadResult> files) {

@@ -69,6 +69,19 @@ services:
       timeout: 10s
       retries: 40
 
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${CVECT_MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${CVECT_MINIO_ROOT_PASSWORD:-minioadmin}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    ports:
+      - "${CVECT_MINIO_API_PORT:-9000}:9000"
+      - "${CVECT_MINIO_CONSOLE_PORT:-9001}:9001"
+
   backend:
     build:
       context: ./backend/cvect
@@ -94,13 +107,21 @@ services:
       CVECT_VECTOR_ENABLED: ${CVECT_VECTOR_ENABLED:-true}
       CVECT_VECTOR_INGEST_WORKER_ENABLED: ${CVECT_VECTOR_INGEST_WORKER_ENABLED:-true}
       CVECT_UPLOAD_WORKER_ENABLED: ${CVECT_UPLOAD_WORKER_ENABLED:-true}
-      CVECT_UPLOAD_STORAGE_DIR: /data/storage
+      CVECT_STORAGE_TYPE: ${CVECT_STORAGE_TYPE:-local}
+      CVECT_STORAGE_LOCAL_ROOT: ${CVECT_STORAGE_LOCAL_ROOT:-/storage}
+      CVECT_STORAGE_ENDPOINT: ${CVECT_STORAGE_ENDPOINT:-http://minio:9000}
+      CVECT_STORAGE_REGION: ${CVECT_STORAGE_REGION:-us-east-1}
+      CVECT_STORAGE_BUCKET: ${CVECT_STORAGE_BUCKET:-cvect-resumes}
+      CVECT_STORAGE_ACCESS_KEY: ${CVECT_STORAGE_ACCESS_KEY:-minioadmin}
+      CVECT_STORAGE_SECRET_KEY: ${CVECT_STORAGE_SECRET_KEY:-minioadmin}
+      CVECT_STORAGE_PATH_STYLE_ACCESS: ${CVECT_STORAGE_PATH_STYLE_ACCESS:-true}
+      CVECT_STORAGE_AUTO_CREATE_BUCKET: ${CVECT_STORAGE_AUTO_CREATE_BUCKET:-true}
       CVECT_SHOW_SQL: ${CVECT_SHOW_SQL:?set in .env}
       CVECT_CACHE_ENABLED: ${CVECT_CACHE_ENABLED:?set in .env}
     expose:
       - "8080"
     volumes:
-      - backend_storage:/data/storage
+      - backend_storage:/storage
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/resumes/health"]
       interval: 15s
@@ -129,3 +150,4 @@ services:
 volumes:
   postgres_data:
   backend_storage:
+  minio_data:

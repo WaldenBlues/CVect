@@ -61,11 +61,18 @@ public class ResumeFactService {
     }
 
     private void handleContact(UUID candidateId, String data) {
-        if (Regex.EMAIL_STRICT.matcher(data).find()) {
-            repository.saveContact(candidateId, "EMAIL", data);
-        } else if (Regex.PHONE_STRICT.matcher(data).find()) {
-            repository.saveContact(candidateId, "PHONE", data);
-        } else {
+        boolean recognized = false;
+        var emailMatcher = Regex.EMAIL_STRICT.matcher(data);
+        while (emailMatcher.find()) {
+            repository.saveContact(candidateId, "EMAIL", emailMatcher.group());
+            recognized = true;
+        }
+        var phoneMatcher = Regex.PHONE_STRICT.matcher(data);
+        while (phoneMatcher.find()) {
+            repository.saveContact(candidateId, "PHONE", phoneMatcher.group());
+            recognized = true;
+        }
+        if (!recognized) {
             log.debug("Unrecognized contact format: {}", data);
         }
     }

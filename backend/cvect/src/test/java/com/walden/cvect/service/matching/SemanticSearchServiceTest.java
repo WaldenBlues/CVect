@@ -86,11 +86,13 @@ class SemanticSearchServiceTest {
         UUID visibleCandidateId = UUID.randomUUID();
         when(dataScopeService.hasTenantWideScope()).thenReturn(false);
         when(dataScopeService.currentUserIdOrNull()).thenReturn(userId);
-        when(candidateRepository.findIdsByTenantIdAndJobDescriptionCreatedByUserId(
-                TenantConstants.DEFAULT_TENANT_ID,
-                userId)).thenReturn(List.of(visibleCandidateId));
         when(queryEmbeddingCache.get("Java backend role")).thenReturn(new float[1024]);
-        when(vectorStore.search(any(float[].class), eq(40), eq(List.of(visibleCandidateId)), any()))
+        when(vectorStore.searchVisible(
+                any(float[].class),
+                eq(40),
+                eq(new VectorStoreService.SearchScope(TenantConstants.DEFAULT_TENANT_ID, userId)),
+                eq(0.35f),
+                any()))
                 .thenReturn(List.of());
 
         SearchController.SearchRequest request = new SearchController.SearchRequest(
@@ -105,9 +107,12 @@ class SemanticSearchServiceTest {
         SearchController.SearchResponse response = service.search(request);
 
         assertEquals(0, response.totalResults());
-        verify(candidateRepository).findIdsByTenantIdAndJobDescriptionCreatedByUserId(
-                TenantConstants.DEFAULT_TENANT_ID,
-                userId);
+        verify(vectorStore).searchVisible(
+                any(float[].class),
+                eq(40),
+                eq(new VectorStoreService.SearchScope(TenantConstants.DEFAULT_TENANT_ID, userId)),
+                eq(0.35f),
+                any());
         verify(candidateRepository, never()).findIdsByTenantId(TenantConstants.DEFAULT_TENANT_ID);
     }
 
@@ -118,7 +123,7 @@ class SemanticSearchServiceTest {
         UUID candidateB = UUID.randomUUID();
         float[] embedding = new float[1024];
         when(queryEmbeddingCache.get("Java backend role")).thenReturn(embedding);
-        when(vectorStore.search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class))).thenReturn(List.of(
+        when(vectorStore.searchVisible(any(float[].class), eq(40), any(), eq(0.35f), any(ChunkType[].class))).thenReturn(List.of(
                 new VectorStoreService.SearchResult(UUID.randomUUID(), candidateA, ChunkType.EXPERIENCE, "A-exp", 0.9f),
                 new VectorStoreService.SearchResult(UUID.randomUUID(), candidateA, ChunkType.SKILL, "A-skill", 0.3f),
                 new VectorStoreService.SearchResult(UUID.randomUUID(), candidateB, ChunkType.EXPERIENCE, "B-exp", 0.5f),
@@ -153,7 +158,7 @@ class SemanticSearchServiceTest {
         UUID skillStrongCandidate = UUID.randomUUID();
         float[] embedding = new float[1024];
         when(queryEmbeddingCache.get("weighted role")).thenReturn(embedding);
-        when(vectorStore.search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class))).thenReturn(List.of(
+        when(vectorStore.searchVisible(any(float[].class), eq(40), any(), eq(0.35f), any(ChunkType[].class))).thenReturn(List.of(
                 new VectorStoreService.SearchResult(
                         UUID.randomUUID(),
                         experienceStrongCandidate,
@@ -215,7 +220,7 @@ class SemanticSearchServiceTest {
         UUID oversizedSkillWeightCandidate = UUID.randomUUID();
         float[] embedding = new float[1024];
         when(queryEmbeddingCache.get("invalid weights")).thenReturn(embedding);
-        when(vectorStore.search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class))).thenReturn(List.of(
+        when(vectorStore.searchVisible(any(float[].class), eq(40), any(), eq(0.35f), any(ChunkType[].class))).thenReturn(List.of(
                 new VectorStoreService.SearchResult(
                         UUID.randomUUID(),
                         balancedFallbackCandidate,
@@ -227,13 +232,13 @@ class SemanticSearchServiceTest {
                         balancedFallbackCandidate,
                         ChunkType.SKILL,
                         "skill-poor",
-                        0.9f),
+                        0.6f),
                 new VectorStoreService.SearchResult(
                         UUID.randomUUID(),
                         oversizedSkillWeightCandidate,
                         ChunkType.EXPERIENCE,
                         "exp-poor",
-                        0.8f),
+                        0.55f),
                 new VectorStoreService.SearchResult(
                         UUID.randomUUID(),
                         oversizedSkillWeightCandidate,
@@ -255,8 +260,8 @@ class SemanticSearchServiceTest {
         SearchController.SearchResponse response = service.search(request);
 
         assertEquals(oversizedSkillWeightCandidate, response.candidates().get(0).candidateId());
-        assertEquals(0.8428572f, response.candidates().get(0).score(), 0.0001f);
-        assertEquals(0.2f, response.candidates().get(1).score(), 0.0001f);
+        assertEquals(0.8785714f, response.candidates().get(0).score(), 0.0001f);
+        assertEquals(0.45714286f, response.candidates().get(1).score(), 0.0001f);
     }
 
     @Test
@@ -266,9 +271,9 @@ class SemanticSearchServiceTest {
         UUID candidateB = UUID.randomUUID();
         float[] embedding = new float[1024];
         when(queryEmbeddingCache.get("experience only")).thenReturn(embedding);
-        when(vectorStore.search(any(float[].class), eq(20), anyCollection(), any(ChunkType[].class))).thenReturn(List.of(
+        when(vectorStore.searchVisible(any(float[].class), eq(20), any(), eq(0.35f), any(ChunkType[].class))).thenReturn(List.of(
                 new VectorStoreService.SearchResult(UUID.randomUUID(), candidateA, ChunkType.EXPERIENCE, "A-exp", 0.2f),
-                new VectorStoreService.SearchResult(UUID.randomUUID(), candidateB, ChunkType.EXPERIENCE, "B-exp", 0.9f)
+                new VectorStoreService.SearchResult(UUID.randomUUID(), candidateB, ChunkType.EXPERIENCE, "B-exp", 0.6f)
         ));
 
         SearchController.SearchRequest request = new SearchController.SearchRequest(
@@ -287,7 +292,7 @@ class SemanticSearchServiceTest {
         Map<UUID, Float> scoreByCandidate = response.candidates().stream()
                 .collect(Collectors.toMap(SearchController.CandidateMatch::candidateId, SearchController.CandidateMatch::score));
         assertEquals(0.8f, scoreByCandidate.get(candidateA), 0.0001f);
-        assertEquals(0.1f, scoreByCandidate.get(candidateB), 0.0001f);
+        assertEquals(0.4f, scoreByCandidate.get(candidateB), 0.0001f);
     }
 
     @Test
@@ -297,13 +302,14 @@ class SemanticSearchServiceTest {
         UUID candidateB = UUID.randomUUID();
         float[] embedding = new float[1024];
         when(queryEmbeddingCache.get("all types")).thenReturn(embedding);
-        when(vectorStore.search(
+        when(vectorStore.searchVisible(
                 any(float[].class),
                 eq(40),
-                anyCollection(),
+                any(),
+                eq(0.35f),
                 org.mockito.ArgumentMatchers.<ChunkType[]>isNull())).thenReturn(List.of(
                 new VectorStoreService.SearchResult(UUID.randomUUID(), candidateA, ChunkType.OTHER, "A-other", 0.2f),
-                new VectorStoreService.SearchResult(UUID.randomUUID(), candidateB, ChunkType.OTHER, "B-other", 0.8f)
+                new VectorStoreService.SearchResult(UUID.randomUUID(), candidateB, ChunkType.OTHER, "B-other", 0.6f)
         ));
 
         SearchController.SearchRequest request = new SearchController.SearchRequest(
@@ -322,11 +328,12 @@ class SemanticSearchServiceTest {
         Map<UUID, Float> scoreByCandidate = response.candidates().stream()
                 .collect(Collectors.toMap(SearchController.CandidateMatch::candidateId, SearchController.CandidateMatch::score));
         assertEquals(0.8f, scoreByCandidate.get(candidateA), 0.0001f);
-        assertEquals(0.2f, scoreByCandidate.get(candidateB), 0.0001f);
-        verify(vectorStore).search(
+        assertEquals(0.4f, scoreByCandidate.get(candidateB), 0.0001f);
+        verify(vectorStore).searchVisible(
                 any(float[].class),
                 eq(40),
-                anyCollection(),
+                any(),
+                eq(0.35f),
                 org.mockito.ArgumentMatchers.<ChunkType[]>isNull());
     }
 
@@ -338,10 +345,10 @@ class SemanticSearchServiceTest {
         UUID notReadyCandidate = UUID.randomUUID();
         float[] embedding = new float[1024];
         when(queryEmbeddingCache.get("ready only")).thenReturn(embedding);
-        when(vectorStore.search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class))).thenReturn(List.of(
-                new VectorStoreService.SearchResult(UUID.randomUUID(), pendingCandidate, ChunkType.EXPERIENCE, "pending", 0.9f),
-                new VectorStoreService.SearchResult(UUID.randomUUID(), readyCandidate, ChunkType.EXPERIENCE, "ready", 0.8f),
-                new VectorStoreService.SearchResult(UUID.randomUUID(), notReadyCandidate, ChunkType.EXPERIENCE, "not-ready", 0.7f)
+        when(vectorStore.searchVisible(any(float[].class), eq(40), any(), eq(0.35f), any(ChunkType[].class))).thenReturn(List.of(
+                new VectorStoreService.SearchResult(UUID.randomUUID(), pendingCandidate, ChunkType.EXPERIENCE, "pending", 0.3f),
+                new VectorStoreService.SearchResult(UUID.randomUUID(), readyCandidate, ChunkType.EXPERIENCE, "ready", 0.2f),
+                new VectorStoreService.SearchResult(UUID.randomUUID(), notReadyCandidate, ChunkType.EXPERIENCE, "not-ready", 0.4f)
         ));
 
         when(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
@@ -376,8 +383,8 @@ class SemanticSearchServiceTest {
         UUID candidate = UUID.randomUUID();
         float[] embedding = new float[1024];
         when(queryEmbeddingCache.get("normal search")).thenReturn(embedding);
-        when(vectorStore.search(any(float[].class), eq(40), anyCollection(), any(ChunkType[].class))).thenReturn(List.of(
-                new VectorStoreService.SearchResult(UUID.randomUUID(), candidate, ChunkType.EXPERIENCE, "normal", 0.7f)
+        when(vectorStore.searchVisible(any(float[].class), eq(40), any(), eq(0.35f), any(ChunkType[].class))).thenReturn(List.of(
+                new VectorStoreService.SearchResult(UUID.randomUUID(), candidate, ChunkType.EXPERIENCE, "normal", 0.3f)
         ));
 
         SearchController.SearchRequest request = new SearchController.SearchRequest(

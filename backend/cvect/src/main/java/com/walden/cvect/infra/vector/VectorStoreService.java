@@ -170,28 +170,79 @@ public class VectorStoreService {
         String sqlString = sql.toString();
         args.add(topK);
 
-        List<Map<String, Object>> results = jdbcTemplate.queryForList(
-                sqlString,
-                args.toArray());
+        return executeSearch(sqlString, args);
+    }
 
-        List<SearchResult> searchResults = new ArrayList<>();
-        for (Map<String, Object> row : results) {
-            float distance = ((Number) row.get("distance")).floatValue();
-            ChunkType chunkType = parseChunkType(row.get("chunk_type"));
-            if (chunkType == null) {
-                log.warn("Skip invalid vector search row with unknown chunk_type: {}", row.get("chunk_type"));
-                continue;
+    public List<SearchResult> searchVisible(
+            float[] queryEmbedding,
+            int topK,
+            SearchScope scope,
+            float minScore,
+            ChunkType... chunkTypes) {
+        if (!config.isEnabled()) {
+            throw new IllegalStateException("Vector store is disabled");
+        }
+        if (!vectorAvailable) {
+            throw new IllegalStateException("pgvector extension is unavailable");
+        }
+        if (topK <= 0) {
+            throw new IllegalArgumentException("topK must be > 0");
+        }
+        if (scope == null || scope.tenantId() == null) {
+            throw new IllegalArgumentException("scope.tenantId must not be null");
+        }
+        ensureIndexCompatibility();
+        validateVectorInput(queryEmbedding, "queryEmbedding");
+
+        String queryVectorType = "vector(" + positiveDimension() + ")";
+        String distanceExpression = normalizedEmbeddingExpression() + " <=> ?::" + queryVectorType;
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT id, candidate_id, chunk_type, content, distance ");
+        sql.append("FROM (");
+        sql.append("SELECT r.id, r.candidate_id, r.chunk_type, r.content, ");
+        sql.append(distanceExpression).append(" AS distance ");
+        sql.append("FROM ").append(tableName).append(" r ");
+        sql.append("JOIN candidates c ON c.id = r.candidate_id ");
+        if (scope.createdByUserId() != null) {
+            sql.append("JOIN job_descriptions jd ON jd.id = c.jd_id ");
+        }
+        sql.append("WHERE r.embedding IS NOT NULL ");
+        sql.append("AND c.tenant_id = ? ");
+
+        List<Object> args = new ArrayList<>();
+        args.add(vectorToString(queryEmbedding));
+        args.add(scope.tenantId());
+
+        if (scope.jobDescriptionId() != null) {
+            sql.append("AND c.jd_id = ? ");
+            args.add(scope.jobDescriptionId());
+        }
+        if (scope.createdByUserId() != null) {
+            sql.append("AND jd.created_by_user_id = ? ");
+            args.add(scope.createdByUserId());
+        }
+        if (chunkTypes != null && chunkTypes.length > 0) {
+            sql.append("AND r.chunk_type IN (");
+            for (int i = 0; i < chunkTypes.length; i++) {
+                if (i > 0) {
+                    sql.append(", ");
+                }
+                String typeName = chunkTypes[i].name();
+                validateChunkType(typeName);
+                sql.append("'").append(typeName).append("'");
             }
-            searchResults.add(new SearchResult(
-                    (UUID) row.get("id"),
-                    (UUID) row.get("candidate_id"),
-                    chunkType,
-                    (String) row.get("content"),
-                    distance));
+            sql.append(") ");
         }
 
-        log.debug("Vector search returned {} results", searchResults.size());
-        return searchResults;
+        sql.append(") ranked ");
+        sql.append("WHERE distance <= ? ");
+        sql.append("ORDER BY distance ASC ");
+        sql.append("LIMIT ?");
+
+        args.add(maxDistanceForMinScore(minScore));
+        args.add(topK);
+
+        return executeSearch(sql.toString(), args);
     }
 
     public Map<UUID, CandidateScoreBreakdown> scoreCandidates(float[] queryEmbedding, Collection<UUID> candidateIds) {
@@ -425,6 +476,8 @@ public class VectorStoreService {
                     tableName,
                     indexName);
             if (indexDef == null) {
+                log.info("Vector index '{}' is missing. Creating {} index for {}.", indexName, expectedIndexType.toUpperCase(Locale.ROOT), tableName);
+                createVectorIndex();
                 return;
             }
             String normalizedIndexDef = indexDef.toLowerCase(Locale.ROOT);
@@ -520,6 +573,37 @@ public class VectorStoreService {
         }
     }
 
+    private List<SearchResult> executeSearch(String sql, List<Object> args) {
+        List<Map<String, Object>> results = jdbcTemplate.queryForList(sql, args.toArray());
+
+        List<SearchResult> searchResults = new ArrayList<>();
+        for (Map<String, Object> row : results) {
+            float distance = ((Number) row.get("distance")).floatValue();
+            ChunkType chunkType = parseChunkType(row.get("chunk_type"));
+            if (chunkType == null) {
+                log.warn("Skip invalid vector search row with unknown chunk_type: {}", row.get("chunk_type"));
+                continue;
+            }
+            searchResults.add(new SearchResult(
+                    (UUID) row.get("id"),
+                    (UUID) row.get("candidate_id"),
+                    chunkType,
+                    (String) row.get("content"),
+                    distance));
+        }
+
+        log.debug("Vector search returned {} results", searchResults.size());
+        return searchResults;
+    }
+
+    private static float maxDistanceForMinScore(float minScore) {
+        if (!Float.isFinite(minScore)) {
+            return Float.MAX_VALUE;
+        }
+        float normalizedMinScore = Math.max(0.0f, Math.min(1.0f, minScore));
+        return 1.0f - normalizedMinScore;
+    }
+
     /**
      * 搜索结果封装
      */
@@ -535,6 +619,15 @@ public class VectorStoreService {
                 return 0.0f;
             }
             return Math.max(0.0f, Math.min(1.0f, 1.0f - distance));
+        }
+    }
+
+    public record SearchScope(
+            UUID tenantId,
+            UUID createdByUserId,
+            UUID jobDescriptionId) {
+        public SearchScope(UUID tenantId, UUID createdByUserId) {
+            this(tenantId, createdByUserId, null);
         }
     }
 

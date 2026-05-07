@@ -18,14 +18,18 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -37,6 +41,15 @@ import java.util.UUID;
 @RequestMapping("/api/candidates")
 public class CandidateController {
     private static final Logger log = LoggerFactory.getLogger(CandidateController.class);
+    private static final int DEFAULT_PAGE = 0;
+    private static final int DEFAULT_SIZE = 50;
+    private static final int MAX_SIZE = 100;
+    private static final String HEADER_TOTAL_COUNT = "X-Total-Count";
+    private static final String HEADER_PAGE = "X-Page";
+    private static final String HEADER_PAGE_SIZE = "X-Page-Size";
+    private static final String HEADER_TOTAL_PAGES = "X-Total-Pages";
+    private static final String HEADER_HAS_NEXT = "X-Has-Next";
+    private static final String HEADER_HAS_PREVIOUS = "X-Has-Previous";
 
     private final CandidateJpaRepository candidateRepository;
     private final CandidateMatchScoreJpaRepository candidateMatchScoreRepository;
@@ -65,16 +78,22 @@ public class CandidateController {
         this.dataScopeService = dataScopeService;
     }
 
+    public ResponseEntity<List<CandidateListItem>> listByJd(UUID jdId) {
+        return listByJd(jdId, DEFAULT_PAGE, DEFAULT_SIZE, null, null);
+    }
+
     @GetMapping
     @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).CANDIDATE_READ)")
-    public ResponseEntity<List<CandidateListItem>> listByJd(@RequestParam("jdId") UUID jdId) {
+    public ResponseEntity<List<CandidateListItem>> listByJd(
+            @RequestParam("jdId") UUID jdId,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "50") int size,
+            @RequestParam(value = "q", required = false) String keyword,
+            @RequestParam(value = "recruitmentStatus", required = false) CandidateRecruitmentStatus recruitmentStatus) {
         UUID tenantId = currentUserService.currentTenantId();
-        List<Candidate> candidates = visibleCandidates(tenantId, jdId);
-        List<CandidateStreamEvent> snapshotEvents = snapshotService.listByTenantAndJd(tenantId, jdId);
-        Map<UUID, CandidateStreamEvent> byCandidateId = new HashMap<>();
-        for (CandidateStreamEvent event : snapshotEvents) {
-            byCandidateId.put(event.candidateId(), event);
-        }
+        PageRequest pageRequest = PageRequest.of(normalizePage(page), normalizeSize(size));
+        Page<Candidate> candidatePage = visibleCandidates(tenantId, jdId, keyword, recruitmentStatus, pageRequest);
+        List<Candidate> candidates = candidatePage.getContent();
 
         Set<UUID> candidateIds = candidates.stream()
                 .map(Candidate::getId)
@@ -89,64 +108,47 @@ public class CandidateController {
                                 CandidateMatchScore::getCandidateId,
                                 score -> score,
                                 (left, right) -> right));
-        Set<UUID> vectorizedCandidateIds = candidateIds.isEmpty()
-                ? Set.of()
-                : new HashSet<>(resumeChunkVectorRepository.findDistinctCandidateIdsIn(candidateIds));
-        if (!vectorizedCandidateIds.isEmpty()
-                && !scoreByCandidateId.keySet().containsAll(vectorizedCandidateIds)) {
+        CandidateVectorState vectorState = loadVectorState(candidateIds);
+        if (!vectorState.vectorizedCandidateIds().isEmpty()
+                && !scoreByCandidateId.keySet().containsAll(vectorState.vectorizedCandidateIds())) {
             persistedMatchScoreService.scheduleRefreshForJobDescription(jdId);
         }
-        Set<UUID> inflightCandidateIds = candidateIds.isEmpty()
-                ? Set.of()
-                : new HashSet<>(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
-                        candidateIds,
-                        List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING)));
-        Set<UUID> failedCandidateIds = candidateIds.isEmpty()
-                ? Set.of()
-                : new HashSet<>(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
-                        candidateIds,
-                        List.of(VectorIngestTaskStatus.FAILED)));
 
-        List<CandidateListItem> events = new ArrayList<>();
-        for (Candidate candidate : candidates) {
-            CandidateStreamEvent event = byCandidateId.get(candidate.getId());
-            if (event == null) {
-                event = snapshotService.build(candidate.getId(), "DONE");
-            }
-            if (event == null) {
-                continue;
-            }
-            boolean hasVectorChunk = vectorizedCandidateIds.contains(candidate.getId());
-            boolean hasInflight = inflightCandidateIds.contains(candidate.getId());
-            boolean hasFailed = failedCandidateIds.contains(candidate.getId());
-            CandidateMatchScore matchScore = scoreByCandidateId.get(candidate.getId());
-            String vectorStatus = resolveVectorStatus(hasVectorChunk, hasInflight, hasFailed);
-            boolean noVectorChunk = !hasVectorChunk;
-            events.add(new CandidateListItem(
-                    event.candidateId(),
-                    event.jdId(),
-                    event.status(),
-                    event.recruitmentStatus(),
-                    event.name(),
-                    event.sourceFileName(),
-                    event.contentType(),
-                    event.fileSizeBytes(),
-                    event.parsedCharCount(),
-                    event.truncated(),
-                    event.createdAt(),
-                    event.emails(),
-                    event.phones(),
-                    event.educations(),
-                    event.honors(),
-                    event.links(),
-                    matchScore == null ? null : matchScore.getOverallScore(),
-                    matchScore == null ? null : matchScore.getExperienceScore(),
-                    matchScore == null ? null : matchScore.getSkillScore(),
-                    matchScore == null ? null : matchScore.getScoredAt(),
-                    vectorStatus,
-                    noVectorChunk));
+        List<CandidateListItem> items = candidates.stream()
+                .map(candidate -> toListItem(candidate, jdId, scoreByCandidateId, vectorState))
+                .toList();
+
+        return ResponseEntity.ok()
+                .header(HEADER_TOTAL_COUNT, String.valueOf(candidatePage.getTotalElements()))
+                .header(HEADER_PAGE, String.valueOf(candidatePage.getNumber()))
+                .header(HEADER_PAGE_SIZE, String.valueOf(candidatePage.getSize()))
+                .header(HEADER_TOTAL_PAGES, String.valueOf(candidatePage.getTotalPages()))
+                .header(HEADER_HAS_NEXT, String.valueOf(candidatePage.hasNext()))
+                .header(HEADER_HAS_PREVIOUS, String.valueOf(candidatePage.hasPrevious()))
+                .body(items);
+    }
+
+    @GetMapping("/vector-status")
+    @PreAuthorize("@permissionGuard.has(T(com.walden.cvect.security.PermissionCodes).CANDIDATE_READ)")
+    public ResponseEntity<List<CandidateVectorStatusItem>> listVectorStatuses(
+            @RequestParam("candidateId") List<UUID> candidateIds) {
+        if (candidateIds == null || candidateIds.isEmpty()) {
+            return ResponseEntity.ok(List.of());
         }
-        return ResponseEntity.ok(events);
+        UUID tenantId = currentUserService.currentTenantId();
+        List<UUID> visibleCandidateIds = visibleCandidateIds(tenantId, candidateIds);
+        if (visibleCandidateIds.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        Set<UUID> visibleCandidateIdSet = new LinkedHashSet<>(visibleCandidateIds);
+        CandidateVectorState vectorState = loadVectorState(visibleCandidateIdSet);
+        List<CandidateVectorStatusItem> items = candidateIds.stream()
+                .filter(visibleCandidateIdSet::contains)
+                .distinct()
+                .map(candidateId -> toVectorStatusItem(candidateId, vectorState))
+                .toList();
+        return ResponseEntity.ok(items);
     }
 
     @GetMapping("/{id}")
@@ -160,18 +162,43 @@ public class CandidateController {
         return ResponseEntity.ok(snapshotService.buildDetail(candidate));
     }
 
-    private List<Candidate> visibleCandidates(UUID tenantId, UUID jdId) {
+    private Page<Candidate> visibleCandidates(
+            UUID tenantId,
+            UUID jdId,
+            String keyword,
+            CandidateRecruitmentStatus recruitmentStatus,
+            PageRequest pageRequest) {
+        String normalizedKeyword = normalizeKeyword(keyword);
+        boolean hasFilters = normalizedKeyword != null || recruitmentStatus != null;
         if (dataScopeService.hasTenantWideScope()) {
-            return candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(tenantId, jdId);
+            if (!hasFilters) {
+                return candidateRepository.findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(tenantId, jdId, pageRequest);
+            }
+            return candidateRepository.searchByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
+                    tenantId,
+                    jdId,
+                    recruitmentStatus,
+                    normalizedKeyword,
+                    pageRequest);
         }
         UUID userId = dataScopeService.currentUserIdOrNull();
         if (userId == null) {
-            return List.of();
+            return Page.empty(pageRequest);
         }
-        return candidateRepository.findByTenantIdAndJobDescriptionIdAndJobDescriptionCreatedByUserIdOrderByCreatedAtDesc(
+        if (!hasFilters) {
+            return candidateRepository.findByTenantIdAndJobDescriptionIdAndJobDescriptionCreatedByUserIdOrderByCreatedAtDesc(
+                    tenantId,
+                    jdId,
+                    userId,
+                    pageRequest);
+        }
+        return candidateRepository.searchByTenantIdAndJobDescriptionIdAndJobDescriptionCreatedByUserIdOrderByCreatedAtDesc(
                 tenantId,
                 jdId,
-                userId);
+                userId,
+                recruitmentStatus,
+                normalizedKeyword,
+                pageRequest);
     }
 
     private java.util.Optional<Candidate> findVisibleCandidate(UUID candidateId, UUID tenantId) {
@@ -183,6 +210,90 @@ public class CandidateController {
             return java.util.Optional.empty();
         }
         return candidateRepository.findByIdAndTenantIdAndJobDescriptionCreatedByUserId(candidateId, tenantId, userId);
+    }
+
+    private List<UUID> visibleCandidateIds(UUID tenantId, List<UUID> candidateIds) {
+        if (candidateIds == null || candidateIds.isEmpty()) {
+            return List.of();
+        }
+        if (dataScopeService.hasTenantWideScope()) {
+            return candidateRepository.findVisibleIdsByTenantIdAndIdIn(tenantId, candidateIds);
+        }
+        UUID userId = dataScopeService.currentUserIdOrNull();
+        if (userId == null) {
+            return List.of();
+        }
+        return candidateRepository.findVisibleIdsByTenantIdAndIdInAndJobDescriptionCreatedByUserId(
+                tenantId,
+                candidateIds,
+                userId);
+    }
+
+    private CandidateVectorState loadVectorState(Set<UUID> candidateIds) {
+        if (candidateIds == null || candidateIds.isEmpty()) {
+            return CandidateVectorState.empty();
+        }
+        Set<UUID> vectorizedCandidateIds = new HashSet<>(resumeChunkVectorRepository.findDistinctCandidateIdsIn(candidateIds));
+        Set<UUID> inflightCandidateIds = new HashSet<>(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
+                candidateIds,
+                List.of(VectorIngestTaskStatus.PENDING, VectorIngestTaskStatus.PROCESSING)));
+        Set<UUID> failedCandidateIds = new HashSet<>(vectorIngestTaskRepository.findCandidateIdsByStatusIn(
+                candidateIds,
+                List.of(VectorIngestTaskStatus.FAILED)));
+        return new CandidateVectorState(vectorizedCandidateIds, inflightCandidateIds, failedCandidateIds);
+    }
+
+    private CandidateListItem toListItem(
+            Candidate candidate,
+            UUID jdId,
+            Map<UUID, CandidateMatchScore> scoreByCandidateId,
+            CandidateVectorState vectorState) {
+        UUID candidateId = candidate.getId();
+        boolean hasVectorChunk = vectorState.vectorizedCandidateIds().contains(candidateId);
+        boolean hasInflight = vectorState.inflightCandidateIds().contains(candidateId);
+        boolean hasFailed = vectorState.failedCandidateIds().contains(candidateId);
+        CandidateMatchScore matchScore = scoreByCandidateId.get(candidateId);
+        String recruitmentStatus = candidate.getRecruitmentStatus() == null
+                ? CandidateRecruitmentStatus.TO_CONTACT.name()
+                : candidate.getRecruitmentStatus().name();
+        return new CandidateListItem(
+                candidateId,
+                jdId,
+                recruitmentStatus,
+                candidate.getName(),
+                candidate.getSourceFileName(),
+                candidate.getCreatedAt(),
+                matchScore == null ? null : matchScore.getOverallScore(),
+                resolveVectorStatus(hasVectorChunk, hasInflight, hasFailed),
+                !hasVectorChunk);
+    }
+
+    private CandidateVectorStatusItem toVectorStatusItem(UUID candidateId, CandidateVectorState vectorState) {
+        boolean hasVectorChunk = vectorState.vectorizedCandidateIds().contains(candidateId);
+        boolean hasInflight = vectorState.inflightCandidateIds().contains(candidateId);
+        boolean hasFailed = vectorState.failedCandidateIds().contains(candidateId);
+        return new CandidateVectorStatusItem(
+                candidateId,
+                resolveVectorStatus(hasVectorChunk, hasInflight, hasFailed),
+                !hasVectorChunk);
+    }
+
+    private static String normalizeKeyword(String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return null;
+        }
+        return "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
+    }
+
+    private static int normalizePage(int page) {
+        return Math.max(DEFAULT_PAGE, page);
+    }
+
+    private static int normalizeSize(int size) {
+        if (size <= 0) {
+            return DEFAULT_SIZE;
+        }
+        return Math.min(size, MAX_SIZE);
     }
 
     private static String resolveVectorStatus(boolean hasVectorChunk, boolean hasInflight, boolean hasFailed) {
@@ -266,26 +377,30 @@ public class CandidateController {
     public record CandidateListItem(
             UUID candidateId,
             UUID jdId,
-            String status,
             String recruitmentStatus,
             String name,
             String sourceFileName,
-            String contentType,
-            Long fileSizeBytes,
-            Integer parsedCharCount,
-            Boolean truncated,
             java.time.LocalDateTime createdAt,
-            List<String> emails,
-            List<String> phones,
-            List<String> educations,
-            List<String> honors,
-            List<String> links,
             Float baselineMatchScore,
-            Float baselineExperienceScore,
-            Float baselineSkillScore,
-            java.time.LocalDateTime baselineScoredAt,
             String vectorStatus,
             boolean noVectorChunk
     ) {
+    }
+
+    public record CandidateVectorStatusItem(
+            UUID candidateId,
+            String vectorStatus,
+            boolean noVectorChunk
+    ) {
+    }
+
+    private record CandidateVectorState(
+            Set<UUID> vectorizedCandidateIds,
+            Set<UUID> inflightCandidateIds,
+            Set<UUID> failedCandidateIds
+    ) {
+        private static CandidateVectorState empty() {
+            return new CandidateVectorState(Set.of(), Set.of(), Set.of());
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.walden.cvect.service.upload.queue;
 
+import com.walden.cvect.infra.storage.FileStorageService;
 import com.walden.cvect.model.entity.UploadBatch;
 import com.walden.cvect.model.entity.UploadItem;
 import com.walden.cvect.model.entity.UploadItemStatus;
@@ -17,18 +18,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.io.InputStream;
 import java.sql.Connection;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
@@ -47,11 +44,11 @@ public class UploadQueueWorkerService {
 
     private final UploadItemJpaRepository itemRepository;
     private final UploadBatchJpaRepository batchRepository;
+    private final FileStorageService fileStorageService;
     private final ResumeProcessService resumeProcessService;
     private final BatchStreamService batchStreamService;
     private final TransactionTemplate requiresNewTx;
     private final Duration staleProcessingTimeout;
-    private final Path storageDir;
     private final int claimBatchSize;
     private final long maintenanceIntervalMs;
     private final AtomicBoolean useNativeClaimQuery;
@@ -60,21 +57,21 @@ public class UploadQueueWorkerService {
     public UploadQueueWorkerService(
             UploadItemJpaRepository itemRepository,
             UploadBatchJpaRepository batchRepository,
+            FileStorageService fileStorageService,
             ResumeProcessService resumeProcessService,
             BatchStreamService batchStreamService,
             JdbcTemplate jdbcTemplate,
             PlatformTransactionManager transactionManager,
             @Value("${app.upload.worker.stale-processing-ms:300000}") long staleProcessingMs,
-            @Value("${app.upload.storage-dir:storage}") String storageDir,
             @Value("${app.upload.worker.claim-batch-size:100}") int claimBatchSize,
             @Value("${app.upload.worker.maintenance-interval-ms:5000}") long maintenanceIntervalMs) {
         this.itemRepository = itemRepository;
         this.batchRepository = batchRepository;
+        this.fileStorageService = fileStorageService;
         this.resumeProcessService = resumeProcessService;
         this.batchStreamService = batchStreamService;
         this.requiresNewTx = new TransactionTemplate(transactionManager);
         this.staleProcessingTimeout = Duration.ofMillis(Math.max(0L, staleProcessingMs));
-        this.storageDir = resolveStorageDir(storageDir);
         this.claimBatchSize = Math.max(1, Math.min(claimBatchSize, 500));
         this.maintenanceIntervalMs = Math.max(1000L, maintenanceIntervalMs);
         this.useNativeClaimQuery = new AtomicBoolean(isPostgreSql(jdbcTemplate));
@@ -235,23 +232,25 @@ public class UploadQueueWorkerService {
         UploadItemStatus finalStatus;
         String finalStoragePath = item.getStoragePath();
         try {
-            Path source = resolveStoragePath(item.getStoragePath());
-            if (source == null || !Files.exists(source)) {
+            String sourceKey = normalizeStorageKey(item.getStoragePath());
+            if (sourceKey == null || !fileStorageService.exists(sourceKey)) {
                 throw new IllegalStateException("Retry source file missing");
             }
 
-            long fileSize = Files.size(source);
             String contentType = guessContentType(item.getFileName());
-            ResumeProcessService.ProcessResult result = resumeProcessService.process(
-                    source,
-                    contentType,
-                    item.getFileName(),
-                    fileSize,
-                    jdId);
+            ResumeProcessService.ProcessResult result;
+            try (InputStream inputStream = fileStorageService.load(sourceKey)) {
+                result = resumeProcessService.process(
+                        inputStream,
+                        contentType,
+                        item.getFileName(),
+                        null,
+                        jdId);
+            }
 
-            Path canonical = reconcileStorage(source, result.fileHash());
+            String canonical = reconcileStorage(sourceKey, result.fileHash());
             if (canonical != null) {
-                finalStoragePath = canonical.toString();
+                finalStoragePath = canonical;
             }
             candidateId = result.candidateId();
             finalStatus = result.duplicated() ? UploadItemStatus.DUPLICATE : UploadItemStatus.DONE;
@@ -351,37 +350,30 @@ public class UploadQueueWorkerService {
         return "application/octet-stream";
     }
 
-    private Path resolveStoragePath(String storagePath) {
-        if (storagePath == null || storagePath.isBlank()) {
+    private String normalizeStorageKey(String storageKey) {
+        if (storageKey == null) {
             return null;
         }
-        Path resolved = Paths.get(storagePath).toAbsolutePath().normalize();
-        if (!resolved.startsWith(storageDir)) {
-            log.warn("Reject storage path outside storage-dir: {}", resolved);
-            return null;
-        }
-        return resolved;
+        String normalized = storageKey.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
-    private Path reconcileStorage(Path source, String fileHash) {
-        if (source == null || fileHash == null || fileHash.isBlank()) {
-            return source;
+    private String reconcileStorage(String sourceKey, String fileHash) throws Exception {
+        if (sourceKey == null || fileHash == null || fileHash.isBlank()) {
+            return sourceKey;
         }
-        Path canonical = storageDir.resolve(fileHash);
-        if (source.equals(canonical)) {
-            return canonical;
+        if (sourceKey.equals(fileHash)) {
+            return fileHash;
         }
-        try {
-            if (Files.exists(canonical)) {
-                Files.deleteIfExists(source);
-                return canonical;
-            }
-            Files.move(source, canonical, StandardCopyOption.REPLACE_EXISTING);
-            return canonical;
-        } catch (Exception e) {
-            log.warn("Failed to reconcile queued storage file from {} to {}", source, canonical, e);
-            return source;
+        if (fileStorageService.exists(fileHash)) {
+            fileStorageService.delete(sourceKey);
+            return fileHash;
         }
+        try (InputStream inputStream = fileStorageService.load(sourceKey)) {
+            fileStorageService.save(fileHash, inputStream);
+        }
+        fileStorageService.delete(sourceKey);
+        return fileHash;
     }
 
     private static String normalizeJobKey(String jobKey) {
@@ -390,14 +382,6 @@ public class UploadQueueWorkerService {
         }
         String normalized = jobKey.trim();
         return normalized.isEmpty() ? null : normalized;
-    }
-
-    private static Path resolveStorageDir(String rawDir) {
-        String normalized = Objects.requireNonNullElse(rawDir, "").trim();
-        if (normalized.isEmpty()) {
-            throw new IllegalArgumentException("app.upload.storage-dir must not be blank");
-        }
-        return Paths.get(normalized).toAbsolutePath().normalize();
     }
 
     private static boolean isPostgreSql(JdbcTemplate jdbcTemplate) {

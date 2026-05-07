@@ -1,6 +1,7 @@
 package com.walden.cvect.service.upload.queue;
 
 import com.walden.cvect.config.PostgresIntegrationTestBase;
+import com.walden.cvect.infra.storage.FileStorageService;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.model.entity.UploadBatch;
 import com.walden.cvect.model.entity.UploadBatchStatus;
@@ -18,6 +19,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,7 +38,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.upload.worker.enabled=true",
         "app.upload.worker.initial-delay-ms=600000",
         "app.upload.worker.fixed-delay-ms=600000",
-        "app.upload.worker.stale-processing-ms=0"
+        "app.upload.worker.stale-processing-ms=0",
+        "app.storage.local-root=storage"
 })
 @AutoConfigureMockMvc
 @Tag("integration")
@@ -59,6 +62,8 @@ class UploadQueueWorkerServiceIntegrationTest extends PostgresIntegrationTestBas
 
     @Autowired
     private UploadItemJpaRepository itemRepository;
+    @Autowired
+    private FileStorageService fileStorageService;
 
     @Test
     @DisplayName("retry-failed queued item should be consumed by db worker")
@@ -67,14 +72,14 @@ class UploadQueueWorkerServiceIntegrationTest extends PostgresIntegrationTestBas
         UploadBatch batch = batchRepository.save(new UploadBatch(jd, 1));
 
         Files.createDirectories(STORAGE_DIR);
-        Path source = STORAGE_DIR.resolve("retry-worker-" + UUID.randomUUID() + ".txt");
+        String sourceKey = "retry-worker-" + UUID.randomUUID() + ".txt";
         byte[] bytes = ("worker-retry-content-" + UUID.randomUUID()).getBytes(StandardCharsets.UTF_8);
-        Files.write(source, bytes);
+        fileStorageService.save(sourceKey, new ByteArrayInputStream(bytes));
 
         UploadItem failed = new UploadItem(batch, "retry-worker.txt");
         failed.setStatus(UploadItemStatus.FAILED);
         failed.setErrorMessage("first parse failed");
-        failed.setStoragePath(source.toString());
+        failed.setStoragePath(sourceKey);
         failed.setAttempt(0);
         failed = itemRepository.save(failed);
 
@@ -93,7 +98,7 @@ class UploadQueueWorkerServiceIntegrationTest extends PostgresIntegrationTestBas
         assertEquals(UploadItemStatus.DONE, finished.getStatus());
         assertNotNull(finished.getCandidateId());
         assertNotNull(finished.getStoragePath());
-        assertTrue(Files.exists(Paths.get(finished.getStoragePath())));
+        assertTrue(fileStorageService.exists(finished.getStoragePath()));
         assertNull(finished.getQueueJobKey());
 
         UploadBatch refreshedBatch = batchRepository.findById(batch.getId()).orElseThrow();
@@ -108,13 +113,13 @@ class UploadQueueWorkerServiceIntegrationTest extends PostgresIntegrationTestBas
         UploadBatch batch = batchRepository.save(new UploadBatch(jd, 1));
 
         Files.createDirectories(STORAGE_DIR);
-        Path source = STORAGE_DIR.resolve("stale-worker-" + UUID.randomUUID() + ".txt");
+        String sourceKey = "stale-worker-" + UUID.randomUUID() + ".txt";
         byte[] bytes = ("stale-worker-content-" + UUID.randomUUID()).getBytes(StandardCharsets.UTF_8);
-        Files.write(source, bytes);
+        fileStorageService.save(sourceKey, new ByteArrayInputStream(bytes));
 
         UploadItem stuck = new UploadItem(batch, "stale-worker.txt");
         stuck.setStatus(UploadItemStatus.PROCESSING);
-        stuck.setStoragePath(source.toString());
+        stuck.setStoragePath(sourceKey);
         stuck.setAttempt(0);
         stuck.setQueueJobKey("stale-lease-" + UUID.randomUUID());
         stuck = itemRepository.save(stuck);
@@ -138,13 +143,13 @@ class UploadQueueWorkerServiceIntegrationTest extends PostgresIntegrationTestBas
         UploadBatch batch = batchRepository.save(new UploadBatch(jd, 1));
 
         Files.createDirectories(STORAGE_DIR);
-        Path source = STORAGE_DIR.resolve("queued-no-key-" + UUID.randomUUID() + ".txt");
+        String sourceKey = "queued-no-key-" + UUID.randomUUID() + ".txt";
         byte[] bytes = ("queued-no-key-content-" + UUID.randomUUID()).getBytes(StandardCharsets.UTF_8);
-        Files.write(source, bytes);
+        fileStorageService.save(sourceKey, new ByteArrayInputStream(bytes));
 
         UploadItem queued = new UploadItem(batch, "queued-no-key.txt");
         queued.setStatus(UploadItemStatus.QUEUED);
-        queued.setStoragePath(source.toString());
+        queued.setStoragePath(sourceKey);
         queued.setAttempt(0);
         queued.setQueueJobKey(null);
         queued = itemRepository.save(queued);

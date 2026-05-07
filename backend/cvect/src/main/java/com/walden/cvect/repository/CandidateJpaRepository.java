@@ -1,8 +1,11 @@
 package com.walden.cvect.repository;
 
 import com.walden.cvect.model.entity.Candidate;
+import com.walden.cvect.model.entity.CandidateRecruitmentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -33,6 +36,11 @@ public interface CandidateJpaRepository extends JpaRepository<Candidate, UUID> {
 
     List<Candidate> findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(UUID tenantId, UUID jobDescriptionId);
 
+    Page<Candidate> findByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
+            UUID tenantId,
+            UUID jobDescriptionId,
+            Pageable pageable);
+
     @Query("""
             select c from Candidate c
             where c.tenantId = :tenantId
@@ -44,6 +52,26 @@ public interface CandidateJpaRepository extends JpaRepository<Candidate, UUID> {
             @Param("tenantId") UUID tenantId,
             @Param("jobDescriptionId") UUID jobDescriptionId,
             @Param("createdByUserId") UUID createdByUserId);
+
+    @Query(
+            value = """
+                    select c from Candidate c
+                    where c.tenantId = :tenantId
+                      and c.jobDescription.id = :jobDescriptionId
+                      and c.jobDescription.createdByUserId = :createdByUserId
+                    order by c.createdAt desc
+                    """,
+            countQuery = """
+                    select count(c) from Candidate c
+                    where c.tenantId = :tenantId
+                      and c.jobDescription.id = :jobDescriptionId
+                      and c.jobDescription.createdByUserId = :createdByUserId
+                    """)
+    Page<Candidate> findByTenantIdAndJobDescriptionIdAndJobDescriptionCreatedByUserIdOrderByCreatedAtDesc(
+            @Param("tenantId") UUID tenantId,
+            @Param("jobDescriptionId") UUID jobDescriptionId,
+            @Param("createdByUserId") UUID createdByUserId,
+            Pageable pageable);
 
     Optional<Candidate> findByIdAndTenantId(UUID id, UUID tenantId);
 
@@ -77,6 +105,87 @@ public interface CandidateJpaRepository extends JpaRepository<Candidate, UUID> {
     List<UUID> findIdsByTenantIdAndJobDescriptionId(
             @Param("tenantId") UUID tenantId,
             @Param("jobDescriptionId") UUID jobDescriptionId);
+
+    @Query("""
+            select c.id from Candidate c
+            where c.tenantId = :tenantId
+              and c.id in :candidateIds
+            """)
+    List<UUID> findVisibleIdsByTenantIdAndIdIn(
+            @Param("tenantId") UUID tenantId,
+            @Param("candidateIds") Collection<UUID> candidateIds);
+
+    @Query("""
+            select c.id from Candidate c
+            where c.tenantId = :tenantId
+              and c.id in :candidateIds
+              and c.jobDescription.createdByUserId = :createdByUserId
+            """)
+    List<UUID> findVisibleIdsByTenantIdAndIdInAndJobDescriptionCreatedByUserId(
+            @Param("tenantId") UUID tenantId,
+            @Param("candidateIds") Collection<UUID> candidateIds,
+            @Param("createdByUserId") UUID createdByUserId);
+
+    @Query(
+            value = """
+                    select c from Candidate c
+                    where c.tenantId = :tenantId
+                      and c.jobDescription.id = :jobDescriptionId
+                      and (:recruitmentStatus is null or c.recruitmentStatus = :recruitmentStatus)
+                      and (:keyword is null
+                           or lower(coalesce(c.name, '')) like :keyword
+                           or lower(coalesce(c.sourceFileName, '')) like :keyword
+                           or lower(coalesce(c.contentType, '')) like :keyword)
+                    order by c.createdAt desc
+                    """,
+            countQuery = """
+                    select count(c) from Candidate c
+                    where c.tenantId = :tenantId
+                      and c.jobDescription.id = :jobDescriptionId
+                      and (:recruitmentStatus is null or c.recruitmentStatus = :recruitmentStatus)
+                      and (:keyword is null
+                           or lower(coalesce(c.name, '')) like :keyword
+                           or lower(coalesce(c.sourceFileName, '')) like :keyword
+                           or lower(coalesce(c.contentType, '')) like :keyword)
+                    """)
+    Page<Candidate> searchByTenantIdAndJobDescriptionIdOrderByCreatedAtDesc(
+            @Param("tenantId") UUID tenantId,
+            @Param("jobDescriptionId") UUID jobDescriptionId,
+            @Param("recruitmentStatus") CandidateRecruitmentStatus recruitmentStatus,
+            @Param("keyword") String keyword,
+            Pageable pageable);
+
+    @Query(
+            value = """
+                    select c from Candidate c
+                    where c.tenantId = :tenantId
+                      and c.jobDescription.id = :jobDescriptionId
+                      and c.jobDescription.createdByUserId = :createdByUserId
+                      and (:recruitmentStatus is null or c.recruitmentStatus = :recruitmentStatus)
+                      and (:keyword is null
+                           or lower(coalesce(c.name, '')) like :keyword
+                           or lower(coalesce(c.sourceFileName, '')) like :keyword
+                           or lower(coalesce(c.contentType, '')) like :keyword)
+                    order by c.createdAt desc
+                    """,
+            countQuery = """
+                    select count(c) from Candidate c
+                    where c.tenantId = :tenantId
+                      and c.jobDescription.id = :jobDescriptionId
+                      and c.jobDescription.createdByUserId = :createdByUserId
+                      and (:recruitmentStatus is null or c.recruitmentStatus = :recruitmentStatus)
+                      and (:keyword is null
+                           or lower(coalesce(c.name, '')) like :keyword
+                           or lower(coalesce(c.sourceFileName, '')) like :keyword
+                           or lower(coalesce(c.contentType, '')) like :keyword)
+                    """)
+    Page<Candidate> searchByTenantIdAndJobDescriptionIdAndJobDescriptionCreatedByUserIdOrderByCreatedAtDesc(
+            @Param("tenantId") UUID tenantId,
+            @Param("jobDescriptionId") UUID jobDescriptionId,
+            @Param("createdByUserId") UUID createdByUserId,
+            @Param("recruitmentStatus") CandidateRecruitmentStatus recruitmentStatus,
+            @Param("keyword") String keyword,
+            Pageable pageable);
 
     @Query("""
             select c.jobDescription.id as jdId, count(c) as count

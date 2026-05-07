@@ -242,7 +242,11 @@ public class CandidateSnapshotService {
         if (matchScore == null) {
             return null;
         }
-        return new PersistedMatchScoreView(matchScore.getOverallScore(), matchScore.getScoredAt());
+        return new PersistedMatchScoreView(
+                matchScore.getOverallScore(),
+                matchScore.getExperienceScore(),
+                matchScore.getSkillScore(),
+                matchScore.getScoredAt());
     }
 
     private String serializeList(List<String> values) {
@@ -301,6 +305,8 @@ public class CandidateSnapshotService {
 
     public record PersistedMatchScoreView(
             Float overallScore,
+            Float experienceScore,
+            Float skillScore,
             java.time.LocalDateTime scoredAt) {
     }
 }

@@ -1,127 +1,267 @@
 package com.walden.cvect.web.controller.search;
 
 import com.walden.cvect.infra.vector.VectorStoreService;
+import com.walden.cvect.logging.config.LogProperties;
+import com.walden.cvect.logging.support.WebLogFormatter;
+import com.walden.cvect.logging.web.GlobalExceptionHandler;
+import com.walden.cvect.security.AuthService;
+import com.walden.cvect.security.JwtAuthenticationFilter;
+import com.walden.cvect.security.JwtService;
+import com.walden.cvect.security.PermissionCodes;
+import com.walden.cvect.security.PermissionGuard;
+import com.walden.cvect.security.SecurityConfig;
 import com.walden.cvect.service.matching.SemanticSearchService;
-import com.walden.cvect.web.controller.search.SearchController;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@ExtendWith(MockitoExtension.class)
-@DisplayName("SearchController unit tests")
+@SpringBootTest(classes = SearchControllerTest.TestConfig.class, properties = "app.security.enabled=true")
+@AutoConfigureMockMvc
+@DisplayName("SearchController MockMvc tests")
 class SearchControllerTest {
 
-    @Mock
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
     private VectorStoreService vectorStore;
 
-    @Mock
+    @MockBean
     private SemanticSearchService semanticSearchService;
 
-    private SearchController controller;
-    private MockMvc mockMvc;
+    @MockBean(name = "permissionGuard")
+    private PermissionGuard permissionGuard;
+
+    @MockBean
+    private JwtService jwtService;
+
+    @MockBean
+    private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        controller = new SearchController(
-                vectorStore,
-                semanticSearchService);
-        mockMvc = MockMvcBuilders.standaloneSetup(controller)
-                .setMessageConverters(new MappingJackson2HttpMessageConverter())
-                .build();
+        when(permissionGuard.has(anyString())).thenReturn(true);
     }
 
     @Test
-    @DisplayName("search should delegate to semantic search service")
-    void shouldDelegateSearchToService() {
-        SearchController.SearchRequest request = new SearchController.SearchRequest(
-                "Java backend role",
-                10,
-                true,
-                true,
-                0.6f,
-                0.4f,
-                false);
-        SearchController.SearchResponse expected = new SearchController.SearchResponse(
+    @DisplayName("shouldReturnSearchResultsWhenRequestIsValid")
+    void shouldReturnSearchResultsWhenRequestIsValid() throws Exception {
+        UUID candidateId = UUID.randomUUID();
+        when(semanticSearchService.search(any())).thenReturn(new SearchController.SearchResponse(
                 1,
-                10,
+                5,
                 List.of(new SearchController.CandidateMatch(
-                        UUID.randomUUID(),
-                        List.of(),
-                        0.81f)));
-        when(semanticSearchService.search(request)).thenReturn(expected);
+                        candidateId,
+                        List.of(new SearchController.MatchedChunk("SKILL", "Spring Boot", 0.91f)),
+                        0.91f))));
 
-        ResponseEntity<SearchController.SearchResponse> response = controller.search(request);
+        mockMvc.perform(post("/api/search")
+                        .with(user("hr"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "jobDescription": "Java backend role",
+                                  "topK": 5,
+                                  "filterByExperience": true,
+                                  "filterBySkill": true,
+                                  "experienceWeight": 0.7,
+                                  "skillWeight": 0.3,
+                                  "onlyVectorReadyCandidates": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalResults").value(1))
+                .andExpect(jsonPath("$.requested").value(5))
+                .andExpect(jsonPath("$.candidates[0].candidateId").value(candidateId.toString()))
+                .andExpect(jsonPath("$.candidates[0].matchedChunks[0].chunkType").value("SKILL"))
+                .andExpect(jsonPath("$.candidates[0].matchedChunks[0].content").value("Spring Boot"))
+                .andExpect(jsonPath("$.candidates[0].score").value(0.91));
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(expected, response.getBody());
-        verify(semanticSearchService).search(request);
+        verify(semanticSearchService).search(argThat(request ->
+                "Java backend role".equals(request.jobDescription())
+                        && request.topK() == 5
+                        && request.filterByExperience()
+                        && request.filterBySkill()
+                        && request.onlyVectorReadyCandidates()));
     }
 
     @Test
-    @DisplayName("search should bind custom Experience and Skill weights from request JSON before delegating to service")
-    void shouldBindCustomWeightsFromJsonRequest() throws Exception {
-        when(semanticSearchService.search(any())).thenReturn(new SearchController.SearchResponse(0, 15, List.of()));
+    @DisplayName("shouldRejectBlankQuery")
+    void shouldRejectBlankQuery() throws Exception {
+        mockMvc.perform(post("/api/search")
+                        .with(user("hr"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "jobDescription": "   ",
+                                  "topK": 10,
+                                  "filterByExperience": false,
+                                  "filterBySkill": false
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad request"))
+                .andExpect(jsonPath("$.path").value("/api/search"));
 
+        verifyNoInteractions(semanticSearchService);
+    }
+
+    @Test
+    @DisplayName("shouldClampInvalidTopKToDefault")
+    void shouldClampInvalidTopKToDefault() throws Exception {
+        when(semanticSearchService.search(any())).thenAnswer(invocation -> {
+            SearchController.SearchRequest request = invocation.getArgument(0);
+            return new SearchController.SearchResponse(0, request.topK(), List.of());
+        });
+
+        mockMvc.perform(post("/api/search")
+                        .with(user("hr"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "jobDescription": "Java backend role",
+                                  "topK": 0,
+                                  "filterByExperience": false,
+                                  "filterBySkill": false
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requested").value(10));
+
+        verify(semanticSearchService).search(argThat(request -> request.topK() == 10));
+    }
+
+    @Test
+    @DisplayName("shouldClampTopKWhenItExceedsUpperBound")
+    void shouldClampTopKWhenItExceedsUpperBound() throws Exception {
+        when(semanticSearchService.search(any())).thenAnswer(invocation -> {
+            SearchController.SearchRequest request = invocation.getArgument(0);
+            return new SearchController.SearchResponse(0, request.topK(), List.of());
+        });
+
+        mockMvc.perform(post("/api/search")
+                        .with(user("hr"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "jobDescription": "Java backend role",
+                                  "topK": 5000,
+                                  "filterByExperience": false,
+                                  "filterBySkill": false
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requested").value(200));
+
+        verify(semanticSearchService).search(argThat(request -> request.topK() == 200));
+    }
+
+    @Test
+    @DisplayName("shouldReturnInternalServerErrorWhenServiceFails")
+    void shouldReturnInternalServerErrorWhenServiceFails() throws Exception {
+        when(semanticSearchService.search(any())).thenThrow(new IllegalStateException("embedding unavailable"));
+
+        mockMvc.perform(post("/api/search")
+                        .with(user("hr"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "jobDescription": "Java backend role",
+                                  "topK": 10,
+                                  "filterByExperience": false,
+                                  "filterBySkill": false
+                                }
+                                """))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.error").value("Internal server error"))
+                .andExpect(jsonPath("$.path").value("/api/search"));
+    }
+
+    @Test
+    @DisplayName("shouldRejectUnauthenticatedRequest")
+    void shouldRejectUnauthenticatedRequest() throws Exception {
         mockMvc.perform(post("/api/search")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "jobDescription": "Java backend role",
-                                  "topK": 15,
-                                  "filterByExperience": true,
-                                  "filterBySkill": true,
-                                  "experienceWeight": 0.8,
-                                  "skillWeight": 0.2,
-                                  "onlyVectorReadyCandidates": true
+                                  "topK": 10,
+                                  "filterByExperience": false,
+                                  "filterBySkill": false
                                 }
                                 """))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
 
-        ArgumentCaptor<SearchController.SearchRequest> requestCaptor =
-                ArgumentCaptor.forClass(SearchController.SearchRequest.class);
-        verify(semanticSearchService).search(requestCaptor.capture());
-
-        SearchController.SearchRequest captured = requestCaptor.getValue();
-        assertEquals("Java backend role", captured.jobDescription());
-        assertEquals(15, captured.topK());
-        assertEquals(true, captured.filterByExperience());
-        assertEquals(true, captured.filterBySkill());
-        assertEquals(0.8f, captured.experienceWeight(), 0.0001f);
-        assertEquals(0.2f, captured.skillWeight(), 0.0001f);
-        assertEquals(true, captured.onlyVectorReadyCandidates());
+        verifyNoInteractions(semanticSearchService);
     }
 
     @Test
-    @DisplayName("admin create-index should report the configured index type")
-    void shouldReportConfiguredIndexTypeWhenCreatingIndex() {
-        when(vectorStore.getResolvedIndexType()).thenReturn("ivfflat");
+    @DisplayName("shouldRejectAuthenticatedUserWithoutSearchPermission")
+    void shouldRejectAuthenticatedUserWithoutSearchPermission() throws Exception {
+        when(permissionGuard.has(PermissionCodes.SEARCH_RUN)).thenReturn(false);
 
-        ResponseEntity<String> response = controller.createIndex();
+        mockMvc.perform(post("/api/search")
+                        .with(SecurityMockMvcRequestPostProcessors.user("recruiter"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "jobDescription": "Java backend role",
+                                  "topK": 10,
+                                  "filterByExperience": false,
+                                  "filterBySkill": false
+                                }
+                                """))
+                .andExpect(status().isForbidden());
 
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals("IVFFLAT index created successfully", response.getBody());
-        verify(vectorStore).createVectorIndex();
+        verifyNoInteractions(semanticSearchService);
+    }
+
+    @Configuration
+    @EnableAutoConfiguration(exclude = {
+            DataSourceAutoConfiguration.class,
+            HibernateJpaAutoConfiguration.class,
+            JpaRepositoriesAutoConfiguration.class
+    })
+    @Import({SearchController.class, SecurityConfig.class, JwtAuthenticationFilter.class, GlobalExceptionHandler.class})
+    static class TestConfig {
+        @Bean
+        LogProperties logProperties() {
+            return new LogProperties();
+        }
+
+        @Bean
+        WebLogFormatter webLogFormatter() {
+            return new WebLogFormatter();
+        }
     }
 }

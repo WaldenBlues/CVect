@@ -89,6 +89,21 @@ class VectorStoreServiceIndexTypeTest {
                 .anyMatch(sql -> sql.contains("vector_l2_ops"));
     }
 
+    @Test
+    @DisplayName("constructor should create the vector index when it is missing")
+    void ensureIndexCompatibilityShouldCreateWhenIndexIsMissing() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        newService(jdbcTemplate, newConfig("hnsw", "cosine"), null);
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeastOnce()).execute(sqlCaptor.capture());
+
+        assertThat(sqlCaptor.getAllValues())
+                .anyMatch(sql -> sql.equals("DROP INDEX IF EXISTS " + INDEX_NAME))
+                .anyMatch(sql -> sql.contains("CREATE INDEX " + INDEX_NAME))
+                .anyMatch(sql -> sql.contains("USING hnsw"));
+    }
+
     private static VectorStoreService newService(
             JdbcTemplate jdbcTemplate,
             VectorStoreConfig config,

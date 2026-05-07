@@ -131,8 +131,8 @@
         </button>
         <button class="pipeline-lane clear-lane" :class="{ active: !recruitmentFilter }" @click="setRecruitmentFilter('')">
           <span>全部候选人</span>
-          <strong>{{ scopedCandidates.length }}</strong>
-          <small>取消状态过滤</small>
+          <strong>{{ totalCandidatesCount }}</strong>
+          <small>当前 JD 总量</small>
         </button>
       </div>
 
@@ -358,7 +358,7 @@
       </div>
       <div class="candidate-count-pill">
         <span>当前筛选</span>
-        <strong>{{ filteredCandidates.length }}</strong>
+        <strong>{{ filteredCandidateTotalCount }}</strong>
         <span>总计 {{ totalCandidatesCount }}</span>
       </div>
     </section>
@@ -368,7 +368,7 @@
         v-model="filterText"
         class="filter-input"
         type="text"
-        placeholder="按姓名 / 文件名 / 邮箱 / 电话 / 关键词搜索"
+        placeholder="按姓名 / 文件名 / 类型搜索"
       />
       <label class="filter-select">
         <span>招聘状态</span>
@@ -390,7 +390,7 @@
         {{ manualRefreshing ? '刷新中...' : '刷新当前 JD' }}
       </button>
       <span v-if="manualRefreshStatus" class="muted">{{ manualRefreshStatus }}</span>
-      <span class="filter-stats">显示 {{ pageRangeText }} / {{ filteredCandidates.length }}（总计 {{ totalCandidatesCount }}）</span>
+      <span class="filter-stats">显示 {{ pageRangeText }} / {{ filteredCandidateTotalCount }}（总计 {{ totalCandidatesCount }}）</span>
     </section>
 
     <SemanticPanel
@@ -426,10 +426,6 @@
             <span v-if="item.createdAt">时间: {{ item.createdAt }}</span>
           </div>
           <div class="tags">
-            <span v-if="item.emails.length" class="tag">邮箱 {{ item.emails.length }}</span>
-            <span v-if="item.links.length" class="tag">链接 {{ item.links.length }}</span>
-            <span v-if="item.educations.length" class="tag">教育 {{ item.educations.length }}</span>
-            <span v-if="item.honors.length" class="tag">荣誉 {{ item.honors.length }}</span>
             <span v-if="item.vectorStatus === 'READY'" class="tag">向量完成</span>
             <span v-else-if="item.vectorStatus === 'PROCESSING'" class="tag">向量处理中</span>
             <span v-else-if="item.vectorStatus === 'PARTIAL'" class="tag warning">向量部分完成</span>
@@ -444,7 +440,7 @@
         </article>
         <div v-if="!pagedCandidates.length" class="empty cards-empty">暂无候选人</div>
       </section>
-      <section class="pager" v-if="filteredCandidates.length">
+      <section class="pager" v-if="filteredCandidateTotalCount">
         <span class="pager-info">第 {{ currentPage }} / {{ totalPages }} 页</span>
         <div class="pager-actions">
           <button class="secondary small" :disabled="currentPage <= 1" @click="goToPrevPage">
@@ -732,6 +728,7 @@ let jdRefreshNeedsCandidateReload = false
 let jdRefreshCandidateReloadTarget = ''
 let vectorFlagPollTimer = null
 let candidateLoadSeq = 0
+let candidateFilterTimer = null
 
 const jds = ref([])
 const selectedJdId = ref('')
@@ -757,6 +754,9 @@ const manualRefreshing = ref(false)
 const manualRefreshStatus = ref('')
 const PAGE_SIZE = 20
 const currentPage = ref(1)
+const filteredCandidateTotalCount = ref(0)
+const candidatePageSize = ref(PAGE_SIZE)
+const candidateTotalPages = ref(1)
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -871,26 +871,6 @@ const formatDateTime = (value) => {
   return parsed.toLocaleString()
 }
 
-const candidateSearchText = (item) => {
-  return [
-    item.id,
-    item.name,
-    item.title,
-    item.sourceFileName,
-    item.summary,
-    item.contentType,
-    item.emails.join(' '),
-    item.phones.join(' '),
-    item.educations.join(' '),
-    item.honors.join(' '),
-    item.links.join(' '),
-    recruitmentStatusLabel(item.recruitmentStatus)
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-}
-
 const hasActiveFilters = computed(() => {
   return Boolean(filterText.value.trim() || recruitmentFilter.value)
 })
@@ -923,31 +903,15 @@ const sortCandidates = (items) => {
 }
 
 const scopedCandidates = computed(() => {
-  const keyword = filterText.value.trim().toLowerCase()
-  const keywordParts = keyword ? keyword.split(/\s+/).filter(Boolean) : []
-  const scoped = events.filter((item) => {
-    if (selectedJdId.value && item.jdId && item.jdId !== selectedJdId.value) {
-      return false
-    }
-
-    if (!keywordParts.length) return true
-    const hay = candidateSearchText(item)
-    return keywordParts.every((part) => hay.includes(part))
-  })
-
-  return sortCandidates(scoped)
+  return sortCandidates(events)
 })
 
 const filteredCandidates = computed(() => {
-  if (!recruitmentFilter.value) {
-    return scopedCandidates.value
-  }
-  return scopedCandidates.value.filter((item) => effectiveRecruitmentStatus(item.recruitmentStatus) === recruitmentFilter.value)
+  return scopedCandidates.value
 })
 
 const totalPages = computed(() => {
-  const total = Math.ceil(filteredCandidates.value.length / PAGE_SIZE)
-  return Math.max(1, total)
+  return Math.max(1, candidateTotalPages.value)
 })
 
 const totalCandidatesCount = computed(() => {
@@ -965,7 +929,7 @@ const jdCandidateTotal = computed(() => {
 })
 
 const statusCounts = computed(() => {
-  return scopedCandidates.value.reduce((counts, item) => {
+  return filteredCandidates.value.reduce((counts, item) => {
     const status = effectiveRecruitmentStatus(item.recruitmentStatus)
     counts[status] = (counts[status] || 0) + 1
     return counts
@@ -973,7 +937,7 @@ const statusCounts = computed(() => {
 })
 
 const readyVectorCount = computed(() => {
-  return events.filter((item) => item.vectorStatus === 'READY').length
+  return filteredCandidates.value.filter((item) => item.vectorStatus === 'READY').length
 })
 
 const selectedJdCaption = computed(() => {
@@ -993,22 +957,22 @@ const roleMetrics = computed(() => {
     return [
       { label: '招聘 JD', value: jds.value.length, caption: '全租户招聘视图' },
       { label: '当前候选人', value: totalCandidatesCount.value, caption: selectedJdCaption.value },
-      { label: recruitmentStatusLabel('TO_INTERVIEW'), value: statusCounts.value.TO_INTERVIEW || 0, caption: '当前筛选范围' },
-      { label: '语义就绪', value: readyVectorCount.value, caption: '可参与匹配' }
+      { label: recruitmentStatusLabel('TO_INTERVIEW'), value: statusCounts.value.TO_INTERVIEW || 0, caption: '当前页' },
+      { label: '语义就绪', value: readyVectorCount.value, caption: '当前页可参与匹配' }
     ]
   }
   if (currentRoleKey.value === 'recruiter') {
     return [
       { label: '我的 JD', value: jds.value.length, caption: '按创建人过滤' },
       { label: '当前候选人', value: totalCandidatesCount.value, caption: selectedJdCaption.value },
-      { label: recruitmentStatusLabel('TO_CONTACT'), value: statusCounts.value.TO_CONTACT || 0, caption: '当前 JD' },
+      { label: recruitmentStatusLabel('TO_CONTACT'), value: statusCounts.value.TO_CONTACT || 0, caption: '当前页' },
       { label: '上传入口', value: canUploadResume.value ? '可用' : '隐藏', caption: '按权限展示' }
     ]
   }
   return [
     { label: '可见 JD', value: jds.value.length, caption: '权限过滤后' },
     { label: '候选人', value: totalCandidatesCount.value, caption: selectedJdCaption.value },
-    { label: recruitmentStatusLabel('TO_CONTACT'), value: statusCounts.value.TO_CONTACT || 0, caption: '当前范围' },
+    { label: recruitmentStatusLabel('TO_CONTACT'), value: statusCounts.value.TO_CONTACT || 0, caption: '当前页' },
     { label: '功能入口', value: roleCapabilities.value.filter((item) => item.available).length, caption: '已授权' }
   ]
 })
@@ -1100,10 +1064,10 @@ const roleWorkflow = computed(() => {
 })
 
 const pipelineCaption = (status) => {
-  if (status === 'TO_CONTACT') return '待联系候选人'
-  if (status === 'TO_INTERVIEW') return '进入面试推进'
-  if (status === 'REJECTED') return '已拒绝候选人'
-  return '当前状态'
+  if (status === 'TO_CONTACT') return '当前页待联系'
+  if (status === 'TO_INTERVIEW') return '当前页待面试'
+  if (status === 'REJECTED') return '当前页已拒绝'
+  return '当前页状态'
 }
 
 const recruiterQueue = computed(() => {
@@ -1132,35 +1096,38 @@ const governanceItems = computed(() => [
 
 const setRecruitmentFilter = (status) => {
   recruitmentFilter.value = status
-  currentPage.value = 1
 }
 
 const pagedCandidates = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE
-  const end = start + PAGE_SIZE
-  return filteredCandidates.value.slice(start, end)
+  return filteredCandidates.value
 })
 
 const pageRangeText = computed(() => {
-  const total = filteredCandidates.value.length
+  const total = filteredCandidateTotalCount.value
   if (!total) {
     return '0-0'
   }
-  const start = (currentPage.value - 1) * PAGE_SIZE + 1
-  const end = Math.min(currentPage.value * PAGE_SIZE, total)
+  const start = (currentPage.value - 1) * candidatePageSize.value + 1
+  const end = Math.min(start + filteredCandidates.value.length - 1, total)
   return `${start}-${end}`
 })
 
-const goToPrevPage = () => {
-  if (currentPage.value > 1) {
-    currentPage.value -= 1
-  }
+const goToPrevPage = async () => {
+  if (currentPage.value <= 1 || !selectedJdId.value) return
+  await loadCandidatesForJd(selectedJdId.value, {
+    page: currentPage.value - 1,
+    preserveSelection: true,
+    keepMessages: true
+  })
 }
 
-const goToNextPage = () => {
-  if (currentPage.value < totalPages.value) {
-    currentPage.value += 1
-  }
+const goToNextPage = async () => {
+  if (currentPage.value >= totalPages.value || !selectedJdId.value) return
+  await loadCandidatesForJd(selectedJdId.value, {
+    page: currentPage.value + 1,
+    preserveSelection: true,
+    keepMessages: true
+  })
 }
 
 let candidateDetailLoadSeq = 0
@@ -1194,7 +1161,9 @@ const normalizeCandidateDetail = (payload) => {
     honors: ensureStringArray(safePayload.honor),
     links: ensureStringArray(safePayload.externalLinks),
     persistedMatchScore: parseScore(persistedMatchScore.overallScore),
-    persistedMatchScoredAt: persistedMatchScore.scoredAt || ''
+    persistedMatchScoredAt: persistedMatchScore.scoredAt || '',
+    baselineExperienceScore: parseScore(persistedMatchScore.experienceScore),
+    baselineSkillScore: parseScore(persistedMatchScore.skillScore)
   }
 }
 
@@ -1238,7 +1207,9 @@ const loadCandidateDetail = async (candidateId, options = {}) => {
         parsedCharCount: null,
         truncated: null,
         persistedMatchScore: null,
-        persistedMatchScoredAt: ''
+        persistedMatchScoredAt: '',
+        baselineExperienceScore: null,
+        baselineSkillScore: null
       }
     }
   } finally {
@@ -1254,12 +1225,6 @@ const retryCandidateDetail = () => {
 }
 
 watch(filteredCandidates, (items) => {
-  if (currentPage.value > totalPages.value) {
-    currentPage.value = totalPages.value
-  }
-  if (currentPage.value < 1) {
-    currentPage.value = 1
-  }
   if (!selectedCandidate.value) return
   const exists = items.some((item) => item.id === selectedCandidate.value?.id)
   if (!exists) {
@@ -1267,13 +1232,6 @@ watch(filteredCandidates, (items) => {
     selectedCandidate.value = items[0] || null
   }
 })
-
-watch(
-  () => [selectedJdId.value, filterText.value, recruitmentFilter.value],
-  () => {
-    currentPage.value = 1
-  }
-)
 
 watch(
   () => selectedCandidate.value?.id || '',
@@ -1290,6 +1248,11 @@ const pushLog = (message) => {
   const ts = new Date().toLocaleTimeString()
   log.unshift({ ts, message })
   if (log.length > 60) log.pop()
+}
+
+const parseHeaderInteger = (value, fallback) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : fallback
 }
 
 const normalizeCandidate = (payload) => {
@@ -1314,9 +1277,6 @@ const normalizeCandidate = (payload) => {
     honors: ensureStringArray(safePayload.honors),
     links: ensureStringArray(safePayload.links),
     baselineMatchScore: parseScore(safePayload.baselineMatchScore),
-    baselineExperienceScore: parseScore(safePayload.baselineExperienceScore),
-    baselineSkillScore: parseScore(safePayload.baselineSkillScore),
-    baselineScoredAt: safePayload.baselineScoredAt || '',
     persistedMatchScore: parseScore(safePayload?.persistedMatchScore?.overallScore),
     persistedMatchScoredAt: safePayload?.persistedMatchScore?.scoredAt || ''
   }
@@ -1342,10 +1302,17 @@ const applyCandidateUpdate = (candidate) => {
   }
 }
 
-const refreshCandidateVectorFlags = async (jdId = selectedJdId.value) => {
-  if (!jdId) return
+const refreshCandidateVectorFlags = async () => {
+  const candidateIds = events
+    .map((item) => item?.id)
+    .filter(Boolean)
+  if (!candidateIds.length) return
   try {
-    const resp = await apiFetch(`/api/candidates?jdId=${jdId}`)
+    const params = new URLSearchParams()
+    candidateIds.forEach((candidateId) => {
+      params.append('candidateId', candidateId)
+    })
+    const resp = await apiFetch(`/api/candidates/vector-status?${params.toString()}`)
     if (!resp.ok) return
     const data = await resp.json()
     if (!Array.isArray(data)) return
@@ -1565,33 +1532,67 @@ const refreshJds = async () => {
 }
 
 const loadCandidatesForJd = async (jdId, options = {}) => {
+  if (candidateFilterTimer) {
+    clearTimeout(candidateFilterTimer)
+    candidateFilterTimer = null
+  }
   const preserveSelection = Boolean(options.preserveSelection)
   const preservePage = Boolean(options.preservePage)
   const keepMessages = Boolean(options.keepMessages)
   const background = Boolean(options.background)
   const skipSemanticRefresh = Boolean(options.skipSemanticRefresh)
+  const requestedPage = preservePage
+    ? currentPage.value
+    : Math.max(1, parseHeaderInteger(options.page, 1))
   const requestSeq = ++candidateLoadSeq
   const previousSelectedCandidateId = preserveSelection ? selectedCandidate.value?.id || '' : ''
-  const previousPage = preservePage ? currentPage.value : 1
   if (!jdId) {
     resetSemanticState(true)
     stopVectorFlagPolling()
     events.splice(0, events.length)
     currentPage.value = 1
+    filteredCandidateTotalCount.value = 0
+    candidatePageSize.value = PAGE_SIZE
+    candidateTotalPages.value = 1
     if (!keepMessages) {
       recruitmentMessage.value = ''
     }
     selectedCandidate.value = null
     return true
   }
+  if (!preservePage) {
+    currentPage.value = requestedPage
+  }
   try {
-    const resp = await apiFetch(`/api/candidates?jdId=${jdId}`)
+    const params = new URLSearchParams({
+      jdId,
+      page: String(requestedPage - 1),
+      size: String(PAGE_SIZE)
+    })
+    const keyword = filterText.value.trim()
+    if (keyword) {
+      params.set('q', keyword)
+    }
+    if (recruitmentFilter.value) {
+      params.set('recruitmentStatus', recruitmentFilter.value)
+    }
+    const resp = await apiFetch(`/api/candidates?${params.toString()}`)
     if (!resp.ok) throw new Error('加载候选人失败')
     const data = await resp.json()
     if (requestSeq !== candidateLoadSeq) return
     const nextCandidates = Array.isArray(data) ? data.map(normalizeCandidate) : []
+    const nextPageNumber = Math.max(0, parseHeaderInteger(resp.headers.get('X-Page'), requestedPage - 1))
+    const nextPageSize = Math.max(1, parseHeaderInteger(resp.headers.get('X-Page-Size'), PAGE_SIZE))
+    const nextTotalPages = Math.max(1, parseHeaderInteger(resp.headers.get('X-Total-Pages'), 1))
+    const nextFilteredTotalCount = Math.max(
+      0,
+      parseHeaderInteger(resp.headers.get('X-Total-Count'), nextCandidates.length)
+    )
     events.splice(0, events.length, ...nextCandidates)
-    currentPage.value = preservePage ? previousPage : 1
+    currentPage.value = nextPageNumber + 1
+    candidatePageSize.value = nextPageSize
+    candidateTotalPages.value = nextTotalPages
+    filteredCandidateTotalCount.value = nextFilteredTotalCount
     jdMessage.value = ''
     if (!keepMessages) {
       recruitmentMessage.value = ''
@@ -1617,6 +1618,9 @@ const loadCandidatesForJd = async (jdId, options = {}) => {
     resetSemanticState(false)
     events.splice(0, events.length)
     currentPage.value = 1
+    filteredCandidateTotalCount.value = 0
+    candidatePageSize.value = PAGE_SIZE
+    candidateTotalPages.value = 1
     if (!keepMessages) {
       recruitmentMessage.value = ''
     }
@@ -1626,6 +1630,39 @@ const loadCandidatesForJd = async (jdId, options = {}) => {
     return false
   }
 }
+
+const triggerCandidateFilterReload = (delayMs = 0) => {
+  if (candidateFilterTimer) {
+    clearTimeout(candidateFilterTimer)
+    candidateFilterTimer = null
+  }
+  if (!selectedJdId.value) {
+    currentPage.value = 1
+    return
+  }
+  const run = () => {
+    candidateFilterTimer = null
+    loadCandidatesForJd(selectedJdId.value, {
+      page: 1,
+      keepMessages: true
+    })
+  }
+  if (delayMs > 0) {
+    candidateFilterTimer = setTimeout(run, delayMs)
+    return
+  }
+  run()
+}
+
+watch(filterText, () => {
+  currentPage.value = 1
+  triggerCandidateFilterReload(250)
+})
+
+watch(recruitmentFilter, () => {
+  currentPage.value = 1
+  triggerCandidateFilterReload()
+})
 
 const refreshSelectedJdCandidates = async () => {
   if (manualRefreshing.value) return
@@ -1956,6 +1993,10 @@ const resetWorkspace = () => {
   stopVectorFlagPolling()
   stopSemanticRefreshTimer()
   resetCandidateDetailState()
+  if (candidateFilterTimer) {
+    clearTimeout(candidateFilterTimer)
+    candidateFilterTimer = null
+  }
   events.splice(0, events.length)
   jds.value = []
   auditLogs.value = []
@@ -1963,6 +2004,10 @@ const resetWorkspace = () => {
   auditLoading.value = false
   selectedCandidate.value = null
   selectedJdId.value = ''
+  currentPage.value = 1
+  filteredCandidateTotalCount.value = 0
+  candidatePageSize.value = PAGE_SIZE
+  candidateTotalPages.value = 1
   jdMessage.value = ''
   uploadMessage.value = ''
 }
@@ -2054,6 +2099,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('cvect-auth-expired', handleAuthExpired)
+  if (candidateFilterTimer) {
+    clearTimeout(candidateFilterTimer)
+    candidateFilterTimer = null
+  }
   if (reconnectTimer) {
     clearTimeout(reconnectTimer)
     reconnectTimer = null

@@ -1,0 +1,17 @@
+姓名: 张三
+邮箱: zhangsan@example.com
+电话: 13800138000
+
+教育
+
+清华大学|计算机科学|本科
+
+技能
+
+Java Spring Boot PostgreSQL Redis
+
+项目经历
+
+负责招聘系统、语义搜索和候选人画像模块的后端开发与性能优化。
+
+GitHub https://github.com/zhangsan

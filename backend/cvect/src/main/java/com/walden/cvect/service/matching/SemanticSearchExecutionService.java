@@ -24,7 +24,8 @@ import java.util.UUID;
 @Service
 public class SemanticSearchExecutionService {
     private static final int CHUNK_OVERSAMPLE_FACTOR = 4;
-    private static final int MAX_CHUNK_TOP_K = 4000;
+    private static final int MAX_CHUNK_TOP_K = 800;
+    private static final float MIN_CANDIDATE_SCORE = 0.35f;
 
     private final VectorStoreService vectorStore;
     private final SearchQueryEmbeddingCacheService queryEmbeddingCache;
@@ -56,15 +57,21 @@ public class SemanticSearchExecutionService {
         float[] queryEmbedding = queryEmbeddingCache.get(request.jobDescription());
         ChunkType[] types = resolveChunkTypes(request);
         SearchWeightNormalizer.Weights weightConfig = SearchWeightNormalizer.resolve(request);
-        List<UUID> tenantCandidateIds = visibleCandidateIds();
-        if (tenantCandidateIds.isEmpty()) {
+        VectorStoreService.SearchScope scope = resolveSearchScope();
+        if (scope == null) {
             return new SearchController.SearchResponse(0, request.topK(), List.of());
         }
 
         int chunkTopK = resolveChunkTopK(request.topK());
-        List<VectorStoreService.SearchResult> results = vectorStore.search(queryEmbedding, chunkTopK, tenantCandidateIds, types);
+        List<VectorStoreService.SearchResult> results = vectorStore.searchVisible(
+                queryEmbedding,
+                chunkTopK,
+                scope,
+                MIN_CANDIDATE_SCORE,
+                types);
 
-        List<SearchController.CandidateMatch> sortedCandidates = aggregateAndSort(results, weightConfig);
+        List<SearchController.CandidateMatch> sortedCandidates = applyScoreThreshold(
+                aggregateAndSort(results, weightConfig));
         if (request.onlyVectorReadyCandidates()) {
             sortedCandidates = filterVectorReadyCandidates(sortedCandidates);
         }
@@ -78,16 +85,16 @@ public class SemanticSearchExecutionService {
                 List.copyOf(sortedCandidates));
     }
 
-    private List<UUID> visibleCandidateIds() {
+    private VectorStoreService.SearchScope resolveSearchScope() {
         UUID tenantId = currentUserService.currentTenantId();
         if (dataScopeService.hasTenantWideScope()) {
-            return candidateRepository.findIdsByTenantId(tenantId);
+            return new VectorStoreService.SearchScope(tenantId, null);
         }
         UUID userId = dataScopeService.currentUserIdOrNull();
         if (userId == null) {
-            return List.of();
+            return null;
         }
-        return candidateRepository.findIdsByTenantIdAndJobDescriptionCreatedByUserId(tenantId, userId);
+        return new VectorStoreService.SearchScope(tenantId, userId);
     }
 
     private static int resolveChunkTopK(int candidateTopK) {
@@ -157,6 +164,18 @@ public class SemanticSearchExecutionService {
                     return new SearchController.CandidateMatch(entry.getKey(), match.matchedChunks(), weightedScore);
                 })
                 .sorted(Comparator.comparing(SearchController.CandidateMatch::score).reversed())
+                .toList();
+    }
+
+    private static List<SearchController.CandidateMatch> applyScoreThreshold(
+            List<SearchController.CandidateMatch> candidates) {
+        if (candidates == null || candidates.isEmpty()) {
+            return List.of();
+        }
+        return candidates.stream()
+                .filter(candidate -> candidate != null
+                        && Float.isFinite(candidate.score())
+                        && candidate.score() >= MIN_CANDIDATE_SCORE)
                 .toList();
     }
 

@@ -2,6 +2,7 @@ package com.walden.cvect.web.controller.upload;
 
 import com.jayway.jsonpath.JsonPath;
 import com.walden.cvect.config.PostgresIntegrationTestBase;
+import com.walden.cvect.infra.storage.FileStorageService;
 import com.walden.cvect.model.entity.JobDescription;
 import com.walden.cvect.model.entity.UploadBatch;
 import com.walden.cvect.model.entity.UploadItem;
@@ -47,7 +48,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.upload.worker.initial-delay-ms=600000",
         "app.upload.worker.fixed-delay-ms=600000",
         "app.upload.max-inflight-items=1",
-        "app.upload.max-total-bytes=1"
+        "app.upload.max-total-bytes=1",
+        "app.storage.local-root=storage"
 })
 @AutoConfigureMockMvc
 @Tag("integration")
@@ -70,6 +72,8 @@ class UploadControllerStorageIdempotencyIntegrationTest extends PostgresIntegrat
 
     @Autowired
     private UploadQueueWorkerService workerService;
+    @Autowired
+    private FileStorageService fileStorageService;
 
     @Value("${app.upload.max-total-bytes}")
     private long maxTotalBytes;
@@ -126,6 +130,7 @@ class UploadControllerStorageIdempotencyIntegrationTest extends PostgresIntegrat
 
         Path hashedFilePath = STORAGE_DIR.resolve(hash);
         assertTrue(Files.exists(hashedFilePath), "expected hashed file to exist in storage");
+        assertTrue(fileStorageService.exists(hash), "expected storage service to resolve hashed key");
 
         try (Stream<Path> paths = Files.list(STORAGE_DIR)) {
             long count = paths.filter(path -> path.getFileName().toString().equals(hash)).count();
