@@ -73,7 +73,6 @@ class VectorStoreServicePostgresTest {
         
         // Mock embedding service configuration
         registry.add("app.embedding.model-name", () -> "Qwen/Qwen3-Embedding-0.6B");
-        registry.add("app.embedding.device", () -> "cpu");
         registry.add("app.embedding.dimension", () -> "1024");
         registry.add("app.vector.dimension", () -> "1024");
     }
@@ -102,7 +101,7 @@ class VectorStoreServicePostgresTest {
     void setUp() {
         testCandidateId = createCandidateId("vector-postgres-main");
 
-        when(embeddingService.embed(anyString()))
+        when(embeddingService.embedDocument(anyString()))
                 .thenAnswer(invocation ->
                         TestEmbeddings.forText(invocation.getArgument(0, String.class)));
     }

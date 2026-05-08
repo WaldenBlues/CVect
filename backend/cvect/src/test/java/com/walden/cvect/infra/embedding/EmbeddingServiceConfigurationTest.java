@@ -31,11 +31,9 @@ import static org.junit.jupiter.api.Assertions.*;
     "app.embedding.model-name=test-embedding-model",
     "app.embedding.api-format=openai",
     "app.embedding.health-url=http://localhost:9001/health",
-    "app.embedding.device=cpu",
     "app.embedding.batch-size=8",
     "app.embedding.dimension=1024",
-    "app.vector.dimension=1024",
-    "app.embedding.max-input-length=4096"
+    "app.vector.dimension=1024"
 })
 @Tag("integration")
 @DisplayName("EmbeddingService 配置测试（流水线测试）")

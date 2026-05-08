@@ -214,7 +214,7 @@ public class PersistedMatchScoreService {
         if (currentEmbedding != null && currentEmbedding.length > 0) {
             return currentEmbedding;
         }
-        float[] embedded = embeddingService.embed(normalizedContent);
+        float[] embedded = embeddingService.embedQuery(normalizedContent);
         transactionTemplate.executeWithoutResult(status -> {
             JobDescription current = jobDescriptionRepository.findById(jd.getId()).orElse(null);
             if (current == null) {

@@ -97,8 +97,8 @@ class PersistedMatchScoreServiceTest {
         when(jobDescriptionRepository.findByTenantId(TenantConstants.DEFAULT_TENANT_ID)).thenReturn(List.of(jd1, jd2));
         when(jobDescriptionRepository.findById(jdId1)).thenReturn(Optional.of(jd1));
         when(jobDescriptionRepository.findById(jdId2)).thenReturn(Optional.of(jd2));
-        when(embeddingService.embed("Spring Boot")).thenReturn(jdEmbedding1);
-        when(embeddingService.embed("Vue TypeScript")).thenReturn(jdEmbedding2);
+        when(embeddingService.embedQuery("Spring Boot")).thenReturn(jdEmbedding1);
+        when(embeddingService.embedQuery("Vue TypeScript")).thenReturn(jdEmbedding2);
         when(vectorStoreService.scoreCandidates(jdEmbedding1, List.of(candidateId))).thenReturn(Map.of(
                 candidateId,
                 new VectorStoreService.CandidateScoreBreakdown(0.8f, 0.4f)));

@@ -30,6 +30,9 @@ public class EmbeddingService {
     private static final String API_FORMAT_NATIVE = "native";
     private static final String API_FORMAT_OPENAI = "openai";
     private static final String API_FORMAT_LLAMA_CPP = "llama_cpp";
+    private static final String QWEN3_EMBEDDING_MODEL_MARKER = "qwen3-embedding";
+    private static final String DEFAULT_QWEN3_QUERY_INSTRUCTION =
+            "Given a job description, retrieve resume passages and candidate evidence that best match the role requirements";
 
     private final WebClient webClient;
     private final Function<String, WebClient> webClientFactory;
@@ -57,6 +60,25 @@ public class EmbeddingService {
     public float[] embed(String text) {
         List<float[]> results = embedBatch(List.of(text));
         return results.isEmpty() ? new float[0] : results.get(0);
+    }
+
+    /**
+     * 为检索 query 生成 embedding。
+     * Qwen3-Embedding 在 query 侧使用 instruction-aware 格式效果更稳定；
+     * 文档侧保持原文，避免污染已索引的 resume chunk 表达。
+     */
+    public float[] embedQuery(String text) {
+        if (text == null || text.isBlank()) {
+            throw new IllegalArgumentException("jobDescription must not be blank");
+        }
+        return embed(prepareQueryText(text));
+    }
+
+    /**
+     * 为检索文档生成 embedding。
+     */
+    public float[] embedDocument(String text) {
+        return embed(text);
     }
 
     /**
@@ -314,6 +336,24 @@ public class EmbeddingService {
 
     public int getDimension() {
         return config.getDimension();
+    }
+
+    String prepareQueryText(String text) {
+        if (!usesQwenInstructionAwareQueryPrompt()) {
+            return text;
+        }
+        if (text.startsWith("Instruct:") && text.contains("\nQuery:")) {
+            return text;
+        }
+        return "Instruct: " + DEFAULT_QWEN3_QUERY_INSTRUCTION + "\nQuery: " + text;
+    }
+
+    private boolean usesQwenInstructionAwareQueryPrompt() {
+        String modelName = config.getModelName();
+        if (modelName == null) {
+            return false;
+        }
+        return modelName.trim().toLowerCase().contains(QWEN3_EMBEDDING_MODEL_MARKER);
     }
 
     // Request/Response DTOs

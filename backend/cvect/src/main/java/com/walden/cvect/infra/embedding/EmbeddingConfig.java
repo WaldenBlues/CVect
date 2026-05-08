@@ -11,10 +11,8 @@ public class EmbeddingConfig {
     private String serviceUrl = "http://localhost:8001/embed";
     private String apiFormat = "auto";
     private String healthUrl;
-    private String device = "cpu";
     private int batchSize = 1;
     private int dimension = 1024;
-    private int maxInputLength = 1024;
     private int timeoutSeconds = 60;
 
     public String getModelName() {
@@ -23,14 +21,6 @@ public class EmbeddingConfig {
 
     public void setModelName(String modelName) {
         this.modelName = modelName;
-    }
-
-    public String getDevice() {
-        return device;
-    }
-
-    public void setDevice(String device) {
-        this.device = device;
     }
 
     public String getServiceUrl() {
@@ -71,14 +61,6 @@ public class EmbeddingConfig {
 
     public void setDimension(int dimension) {
         this.dimension = dimension;
-    }
-
-    public int getMaxInputLength() {
-        return maxInputLength;
-    }
-
-    public void setMaxInputLength(int maxInputLength) {
-        this.maxInputLength = maxInputLength;
     }
 
     public int getTimeoutSeconds() {

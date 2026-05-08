@@ -103,7 +103,10 @@ class SearchControllerIntegrationTest extends PostgresIntegrationTestBase {
 
     @BeforeEach
     void setUp() {
-        when(embeddingService.embed(anyString()))
+        when(embeddingService.embedQuery(anyString()))
+                .thenAnswer(invocation ->
+                        TestEmbeddings.forText(invocation.getArgument(0, String.class)));
+        when(embeddingService.embedDocument(anyString()))
                 .thenAnswer(invocation ->
                         TestEmbeddings.forText(invocation.getArgument(0, String.class)));
     }

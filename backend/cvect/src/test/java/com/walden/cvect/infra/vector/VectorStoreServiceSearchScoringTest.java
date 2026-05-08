@@ -299,7 +299,7 @@ class VectorStoreServiceSearchScoringTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.save(UUID.randomUUID(), ChunkType.EXPERIENCE, null));
         assertEquals("content must not be null", exception.getMessage());
-        verify(embeddingService, never()).embed(anyString());
+        verify(embeddingService, never()).embedDocument(anyString());
         verify(entityManager, never()).persist(any());
     }
 
@@ -316,7 +316,7 @@ class VectorStoreServiceSearchScoringTest {
         config.setTableName("resume_chunks");
 
         when(jdbcTemplate.queryForObject(anyString(), any(Class.class))).thenReturn(true);
-        when(embeddingService.embed(anyString())).thenReturn(new float[] {0.1f, 0.2f});
+        when(embeddingService.embedDocument(anyString())).thenReturn(new float[] {0.1f, 0.2f});
 
         VectorStoreService service = new VectorStoreService(jdbcTemplate, entityManager, embeddingService, config);
 
@@ -339,7 +339,7 @@ class VectorStoreServiceSearchScoringTest {
         config.setTableName("resume_chunks");
 
         when(jdbcTemplate.queryForObject(anyString(), any(Class.class))).thenReturn(true);
-        when(embeddingService.embed(anyString())).thenReturn(new float[] {0.1f, Float.NaN, 0.3f});
+        when(embeddingService.embedDocument(anyString())).thenReturn(new float[] {0.1f, Float.NaN, 0.3f});
 
         VectorStoreService service = new VectorStoreService(jdbcTemplate, entityManager, embeddingService, config);
 

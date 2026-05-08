@@ -89,7 +89,7 @@ public class VectorStoreService {
         try {
             ensureIndexCompatibility();
             // 生成 embedding
-            float[] embedding = embeddingService.embed(content);
+            float[] embedding = embeddingService.embedDocument(content);
             validateVectorInput(embedding, "embedding");
 
             // 保存到数据库

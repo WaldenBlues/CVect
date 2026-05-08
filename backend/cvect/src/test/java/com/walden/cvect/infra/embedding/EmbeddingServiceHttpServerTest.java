@@ -47,6 +47,34 @@ class EmbeddingServiceHttpServerTest {
     }
 
     @Test
+    @DisplayName("should format Qwen3 query with instruction-aware prompt")
+    void shouldFormatQwen3QueryPrompt() {
+        EmbeddingConfig config = newConfig("http://embedding.test/embed", "auto");
+        config.setModelName("Qwen/Qwen3-Embedding-0.6B");
+
+        EmbeddingService service = new EmbeddingService(config, webClientFactory(request -> json(
+                HttpStatus.OK,
+                "{\"embeddings\":[[1.0,2.0,3.0]]}")));
+
+        assertEquals(
+                "Instruct: Given a job description, retrieve resume passages and candidate evidence that best match the role requirements\nQuery: Java backend role",
+                service.prepareQueryText("Java backend role"));
+    }
+
+    @Test
+    @DisplayName("should keep non-Qwen query text unchanged")
+    void shouldKeepNonQwenQueryTextUnchanged() {
+        EmbeddingConfig config = newConfig("http://embedding.test/embed", "auto");
+        config.setModelName("other-model");
+
+        EmbeddingService service = new EmbeddingService(config, webClientFactory(request -> json(
+                HttpStatus.OK,
+                "{\"embeddings\":[[1.0,2.0,3.0]]}")));
+
+        assertEquals("Java backend role", service.prepareQueryText("Java backend role"));
+    }
+
+    @Test
     @DisplayName("should fallback to OpenAI-compatible endpoint when native endpoint returns 404")
     void shouldFallbackToOpenAiCompatibleEndpoint() {
         AtomicInteger nativeRequests = new AtomicInteger();

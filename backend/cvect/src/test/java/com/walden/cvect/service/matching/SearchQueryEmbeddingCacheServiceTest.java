@@ -53,32 +53,32 @@ class SearchQueryEmbeddingCacheServiceTest {
     @DisplayName("shouldReuseCachedEmbeddingForSameQuery")
     void shouldReuseCachedEmbeddingForSameQuery() {
         float[] embedding = new float[] {0.1f, 0.2f};
-        when(embeddingService.embed("Java backend role")).thenReturn(embedding);
+        when(embeddingService.embedQuery("Java backend role")).thenReturn(embedding);
 
         float[] first = service.get("Java backend role");
         float[] second = service.get("Java backend role");
 
         assertThat(first).isSameAs(second);
-        verify(embeddingService, times(1)).embed("Java backend role");
+        verify(embeddingService, times(1)).embedQuery("Java backend role");
     }
 
     @Test
     @DisplayName("shouldCallEmbeddingServiceSeparatelyForDifferentQueries")
     void shouldCallEmbeddingServiceSeparatelyForDifferentQueries() {
-        when(embeddingService.embed("Java backend role")).thenReturn(new float[] {0.1f});
-        when(embeddingService.embed("Python backend role")).thenReturn(new float[] {0.2f});
+        when(embeddingService.embedQuery("Java backend role")).thenReturn(new float[] {0.1f});
+        when(embeddingService.embedQuery("Python backend role")).thenReturn(new float[] {0.2f});
 
         service.get("Java backend role");
         service.get("Python backend role");
 
-        verify(embeddingService, times(1)).embed("Java backend role");
-        verify(embeddingService, times(1)).embed("Python backend role");
+        verify(embeddingService, times(1)).embedQuery("Java backend role");
+        verify(embeddingService, times(1)).embedQuery("Python backend role");
     }
 
     @Test
     @DisplayName("shouldNotCacheInvalidBlankQuery")
     void shouldNotCacheInvalidBlankQuery() {
-        when(embeddingService.embed("")).thenThrow(new IllegalArgumentException("jobDescription must not be blank"));
+        when(embeddingService.embedQuery("")).thenThrow(new IllegalArgumentException("jobDescription must not be blank"));
 
         assertThatThrownBy(() -> service.get("   "))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -87,7 +87,7 @@ class SearchQueryEmbeddingCacheServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("must not be blank");
 
-        verify(embeddingService, times(2)).embed("");
+        verify(embeddingService, times(2)).embedQuery("");
     }
 
     @Configuration

@@ -90,7 +90,7 @@ class VectorStoreServiceIntegrationTest extends PostgresIntegrationTestBase {
     @BeforeEach
     void setUp() {
         testCandidateId = createCandidateId("vector-integration");
-        when(embeddingService.embed(anyString()))
+        when(embeddingService.embedDocument(anyString()))
                 .thenAnswer(invocation ->
                         TestEmbeddings.forText(invocation.getArgument(0, String.class)));
     }
