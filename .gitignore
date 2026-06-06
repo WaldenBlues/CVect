@@ -59,6 +59,25 @@ frontend/.env
 .codex
 tmp/
 
+# ---------- Root local analysis / accidental tooling ----------
+/.codegraph/
+/.codegraph-bin/
+/opencode.jsonc
+/node_modules/
+/package.json
+/package-lock.json
+
+# ---------- Root dataset generation artifacts ----------
+/.datagen_*/
+/.gen_*_work/
+/gen_p*/
+/gen_s*/
+/generated_resumes*/
+/all_resumes/
+/all_resumes.zip
+/Java后端JD高匹配_*
+/logs/
+
 # ---------- Qwen local/generated artifacts ----------
 Qwen/.venv/
 Qwen/.hf_cache/
